@@ -1,0 +1,35 @@
+# Each target: train workloads (learned), test workloads (held out, never learned).
+# Add real programs here (sqlite3, curl, ffmpeg, make, node ...). Server targets
+# (nginx, redis) are on the roadmap: they need a start/stop wrapper + load generator.
+[settings]
+runs = 20          # timed runs per measurement (use 30+ for the final report)
+
+[[target]]
+name  = "ls"
+train = [["ls", "-la", "/usr"], ["ls", "/etc"]]
+test  = [["ls", "-lh", "/var"], ["ls", "-i", "/bin"]]
+
+[[target]]
+name  = "cat"
+train = [["cat", "/etc/hostname"], ["cat", "/etc/os-release"]]
+test  = [["cat", "/etc/passwd"], ["cat", "/proc/cpuinfo"]]
+
+[[target]]
+name  = "grep"
+train = [["grep", "-r", "root", "/etc/passwd"], ["grep", "-c", "bin", "/etc/passwd"]]
+test  = [["grep", "-n", "-i", "daemon", "/etc/passwd"], ["grep", "-v", "zzz", "/etc/os-release"]]
+
+[[target]]
+name  = "gzip"
+train = [["sh", "-c", "echo hello | gzip -c | gzip -dc"], ["sh", "-c", "seq 1 500 | gzip -9 -c | wc -c"]]
+test  = [["sh", "-c", "seq 1 5000 | gzip -c | gzip -dc | tail -1"]]
+
+[[target]]
+name  = "sort"
+train = [["sh", "-c", "seq 1 300 | sort -rn | head -3"], ["sh", "-c", "printf 'b\\na\\n' | sort"]]
+test  = [["sh", "-c", "seq 1 3000 | sort -R | sort -n | tail -1"]]
+
+[[target]]
+name  = "python3"
+train = [["python3", "-c", "print(sum(range(1000)))"], ["python3", "-c", "import os; print(os.getcwd())"]]
+test  = [["python3", "-c", "import json,os; print(json.dumps(os.listdir('/')))"]]

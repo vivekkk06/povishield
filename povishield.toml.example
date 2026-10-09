@@ -1,0 +1,13 @@
+# Per-program config (planned: loaded by `povishield run --config`)
+[program]
+name    = "nginx"
+command = ["nginx", "-g", "daemon off;"]
+
+[limits]
+memory_mb = 256
+pids      = 64
+cpu_pct   = 50
+
+[policy]
+mode         = "enforce"      # "audit" logs violations, "enforce" kills
+profile      = "results/profiles/nginx.json"
