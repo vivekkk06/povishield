@@ -11,3 +11,4 @@ frontend/dist/
 api/.venv/
 *.bak
 *.bak-*
+.backups/

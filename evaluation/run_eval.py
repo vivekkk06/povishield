@@ -11,8 +11,13 @@ DEVNULL = subprocess.DEVNULL
 
 
 def learn(cmd, out):
-    subprocess.run([str(BIN), "learn", "-o", str(out), "--"] + cmd, stdout=DEVNULL, stderr=DEVNULL)
+    subprocess.run([str(BIN), "learn", "-o", str(out), "--"] + cmd, stdout=subprocess.PIPE, stderr=DEVNULL)
     return load_profile(out)
+
+
+def run_out(cmd):
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=DEVNULL)
+    return r.returncode, r.stdout
 
 
 def run_rc(cmd):
@@ -47,7 +52,7 @@ def main():
     if not BIN.exists():
         sys.exit("build first: make")
     cfg = tomllib.loads((ROOT / "evaluation" / "targets.toml").read_text())
-    runs = cfg["settings"]["runs"]
+    runs = int(os.environ.get("PS_RUNS", cfg["settings"]["runs"]))
     total = total_syscalls()
     (RES / "profiles").mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp())
@@ -67,10 +72,10 @@ def main():
 
         compat_ok, false_kills = 0, 0
         for c in t["test"]:
-            native_rc = run_rc(c)
-            rc = run_rc([str(BIN), "enforce", "-p", str(ppath), "--"] + c)
-            compat_ok += rc == native_rc
-            false_kills += rc == -31                       # SIGSYS
+            native_rc, native_out = run_out(c)
+            rc, got = run_out([str(BIN), "enforce", "-p", str(ppath), "--"] + c)
+            compat_ok += (rc == native_rc and got == native_out)
+            false_kills += rc in (-31, 159)                       # SIGSYS
         compat = 100.0 * compat_ok / len(t["test"])
 
         c0 = t["test"][0]

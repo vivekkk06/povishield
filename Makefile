@@ -59,3 +59,21 @@ check: all test                ## safe non-root checks (never runs escape tests)
 
 check-web:                     ## API startup + endpoints + frontend production build
 > bash tests/check_web.sh
+
+.PHONY: asan fuzz lint verify docs
+asan:                          ## build with AddressSanitizer + UBSan
+> @mkdir -p build
+> $(CC) -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -std=gnu11 -Iinclude $(shell find src -name '*.c') -o build/povishield-asan -lseccomp
+
+fuzz: all asan                 ## mutation-fuzz the profile loader (plain + sanitized)
+> python3 tests/fuzz_profile.py 500
+> BIN=build/povishield-asan python3 tests/fuzz_profile.py 300
+
+lint:                          ## static analysis (needs cppcheck)
+> cppcheck --enable=warning,performance,portability --error-exitcode=1 --inline-suppr -Iinclude src
+
+docs: eval                     ## regenerate docs/RESULTS.md from measured data
+> python3 -m evaluation.make_docs
+
+verify: all test fuzz          ## everything that needs no root
+> @echo "verify OK (run: sudo make escape  for the escape matrix)"

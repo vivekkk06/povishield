@@ -2,7 +2,7 @@ test          bare            seccomp         namespaces      full            fu
 esc_chroot    ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 esc_hostfs    ESCAPED             ESCAPED             ESCAPED             ESCAPED             DENIED              DENIED              
 esc_mount     ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
-esc_ptrace    ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      ESCAPED             
+esc_ptrace    ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 esc_rawsock   ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 esc_unshare   ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 limit_mem     ESCAPED             ESCAPED             ESCAPED             KILLED_BY_LIMIT     KILLED_BY_LIMIT     KILLED_BY_LIMIT     
@@ -13,5 +13,5 @@ seccomp: ESCAPED=2, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0
 namespaces: ESCAPED=8, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0
 full: ESCAPED=1, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0
 full+rootfs: ESCAPED=0, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0
-rootfs-only: ESCAPED=1, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0
+rootfs-only: ESCAPED=0, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0
 Note: NO_ESCAPE_MARKER does not prove that a security boundary blocked the test.

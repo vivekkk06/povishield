@@ -2,7 +2,7 @@
 # Add real programs here (sqlite3, curl, ffmpeg, make, node ...). Server targets
 # (nginx, redis) are on the roadmap: they need a start/stop wrapper + load generator.
 [settings]
-runs = 20          # timed runs per measurement (use 30+ for the final report)
+runs = 30
 
 [[target]]
 name  = "ls"
@@ -12,7 +12,7 @@ test  = [["ls", "-lh", "/var"], ["ls", "-i", "/bin"]]
 [[target]]
 name  = "cat"
 train = [["cat", "/etc/hostname"], ["cat", "/etc/os-release"]]
-test  = [["cat", "/etc/passwd"], ["cat", "/proc/cpuinfo"]]
+test  = [["cat", "/etc/passwd"], ["cat", "/proc/version"]]
 
 [[target]]
 name  = "grep"
@@ -33,3 +33,19 @@ test  = [["sh", "-c", "seq 1 3000 | sort -R | sort -n | tail -1"]]
 name  = "python3"
 train = [["python3", "-c", "print(sum(range(1000)))"], ["python3", "-c", "import os; print(os.getcwd())"]]
 test  = [["python3", "-c", "import json,os; print(json.dumps(os.listdir('/')))"]]
+
+# --- longer workloads: overhead here reflects seccomp cost, not process startup ---
+[[target]]
+name  = "gzip_big"
+train = [["bash", "-c", "set -o pipefail; seq 1 50000 | gzip -c | gzip -dc | wc -l"], ["bash", "-c", "set -o pipefail; seq 1 20000 | gzip -9 -c | wc -c"]]
+test  = [["bash", "-c", "set -o pipefail; seq 1 400000 | gzip -c | gzip -dc | tail -1"]]
+
+[[target]]
+name  = "sort_big"
+train = [["bash", "-c", "set -o pipefail; seq 1 20000 | sort -rn | head -1"], ["bash", "-c", "set -o pipefail; seq 1 200000 | sort -R | sort -n | tail -1"]]
+test  = [["bash", "-c", "set -o pipefail; seq 1 500000 | sort -R | sort -n | tail -1"]]
+
+[[target]]
+name  = "python_cpu"
+train = [["python3", "-c", "print(sum(i*i for i in range(100000)))"], ["python3", "-c", "import hashlib;print(hashlib.sha256(b'x'*1000000).hexdigest())"]]
+test  = [["python3", "-c", "import hashlib;print(sum(i*i for i in range(2000000)));print(hashlib.sha256(b'y'*5000000).hexdigest())"]]
