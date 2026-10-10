@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ShieldCheck, LayoutDashboard, Activity, FileText,
-  FlaskConical, Settings, Bell, ShieldAlert, Cpu,
+  FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, Menu, RefreshCw, Play, Square
 } from "lucide-react";
 import {

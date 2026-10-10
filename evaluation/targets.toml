@@ -6,7 +6,7 @@ runs = 30
 
 [[target]]
 name  = "ls"
-train = [["ls", "-la", "/usr"], ["ls", "/etc"]]
+train = [["ls", "-la", "/usr"], ["ls", "/etc"], ["ls", "-l", "/usr/lib64"]]
 test  = [["ls", "-lh", "/var"], ["ls", "-i", "/bin"]]
 
 [[target]]

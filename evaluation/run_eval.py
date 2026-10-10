@@ -10,9 +10,26 @@ RES = ROOT / "results"
 DEVNULL = subprocess.DEVNULL
 
 
-def learn(cmd, out):
-    subprocess.run([str(BIN), "learn", "-o", str(out), "--"] + cmd, stdout=subprocess.PIPE, stderr=DEVNULL)
-    return load_profile(out)
+def learn(cmd, out, both_stdout=False):
+    """Learn syscalls and fail immediately if tracing or profile loading fails."""
+    args = [str(BIN), "learn", "-o", str(out), "--"] + cmd
+    first = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if first.returncode != 0:
+        raise RuntimeError(
+            f"learning failed (exit {first.returncode}) for {cmd!r}: {first.stderr.strip()}"
+        )
+    prof = load_profile(out)
+    if both_stdout:
+        second = subprocess.run(args, stdout=DEVNULL, stderr=subprocess.PIPE, text=True)
+        if second.returncode != 0:
+            raise RuntimeError(
+                f"learning with stdout redirected failed (exit {second.returncode}) "
+                f"for {cmd!r}: {second.stderr.strip()}"
+            )
+        prof = merge_profiles([prof, load_profile(out)])
+    if not prof:
+        raise RuntimeError(f"learner produced an empty syscall profile for {cmd!r}")
+    return prof
 
 
 def run_out(cmd):
@@ -28,8 +45,10 @@ def timeit(cmd, n):
     ts = []
     for _ in range(n):
         t = time.perf_counter()
-        subprocess.run(cmd, stdout=DEVNULL, stderr=DEVNULL)
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=DEVNULL)   # same stdout as learn/compat
         ts.append((time.perf_counter() - t) * 1000)
+        if r.returncode in (-31, 159):                                      # SIGSYS: timing a crash is meaningless
+            sys.exit("timeit: killed by SIGSYS (policy gap), overhead invalid for: " + " ".join(cmd[:8]))
     return ts
 
 
@@ -61,7 +80,7 @@ def main():
     for t in cfg["target"]:
         name = t["name"]
         print(f"[{name}] learning ...", flush=True)
-        train = [learn(c, tmp / f"{name}-train{i}.json") for i, c in enumerate(t["train"])]
+        train = [learn(c, tmp / f"{name}-train{i}.json", both_stdout=True) for i, c in enumerate(t["train"])]
         policy = merge_profiles(train)
         ppath = RES / "profiles" / f"{name}.json"
         save_profile(ppath, policy, command=name)

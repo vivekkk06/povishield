@@ -114,7 +114,7 @@ def main():
 
         result[cname] = {
             "status": "VALID",
-            "blocked": None,
+            "blocked": counts["BLOCKED_SIGSYS"] + counts["KILLED_BY_LIMIT"] + counts["DENIED"],
             "total": len(tests),
             "control_ok": True,
             "counts": counts,

@@ -72,7 +72,7 @@ fuzz: all asan                 ## mutation-fuzz the profile loader (plain + sani
 lint:                          ## static analysis (needs cppcheck)
 > cppcheck --enable=warning,performance,portability --error-exitcode=1 --inline-suppr -Iinclude src
 
-docs: eval                     ## regenerate docs/RESULTS.md from measured data
+docs:                     ## regenerate docs/RESULTS.md from measured data
 > python3 -m evaluation.make_docs
 
 verify: all test fuzz          ## everything that needs no root
