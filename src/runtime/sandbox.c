@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/capability.h>
+#include <sys/prctl.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -20,7 +22,7 @@
 struct cfg {
     const char *rootfs, *profile, *hostname;
     long mem_mb;
-    int pids, cpu_pct, audit;
+    int pids, cpu_pct, audit, keep_caps;
     char **cmd;
     int sync[2];
 };
@@ -92,6 +94,32 @@ static int setup_rootfs(const char *root) {
     return 0;
 }
 
+/* Run with no capabilities even though the uid stays 0: no_new_privs, empty bounding set
+ * (so execve cannot regain them), then clear the other sets. Failure is fatal (fail closed). */
+static int drop_privileges(void) {
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) { perror("PR_SET_NO_NEW_PRIVS"); return -1; }
+
+    int last = 63;
+    FILE *f = fopen("/proc/sys/kernel/cap_last_cap", "r");
+    if (f) {
+        int v;
+        if (fscanf(f, "%d", &v) == 1 && v > 0 && v < 64) last = v;
+        fclose(f);
+    }
+    for (int cap = 0; cap <= last; cap++)
+        if (prctl(PR_CAPBSET_DROP, cap, 0, 0, 0) < 0 && errno != EINVAL) {
+            perror("PR_CAPBSET_DROP");
+            return -1;
+        }
+
+    (void)prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);   /* EINVAL on very old kernels */
+
+    struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+    struct __user_cap_data_struct data[2] = {{0, 0, 0}, {0, 0, 0}};
+    if (syscall(SYS_capset, &hdr, data) < 0) { perror("capset"); return -1; }
+    return 0;
+}
+
 static int child_main(void *arg) {
     struct cfg *c = arg;
     char b;
@@ -116,6 +144,7 @@ static int child_main(void *arg) {
         perror("mount /proc");
         if (c->rootfs) _exit(125);
     }
+    if (!c->keep_caps && drop_privileges() < 0) _exit(125);
     if (profile && ps_apply_seccomp(profile, c->audit) < 0) _exit(126);
 
     execvp(c->cmd[0], c->cmd);
@@ -221,6 +250,7 @@ int cmd_run(int argc, char **argv) {
                    "  --profile PATH    Policy profile\n"
                    "  --hostname NAME   Sandbox hostname\n"
                    "  --audit           Enable audit mode\n"
+                   "  --keep-caps       Keep root capabilities (unsafe; for baselines only)\n"
                    "  --help, -h        Show this help\n");
             return 0;
         }
@@ -269,6 +299,7 @@ int cmd_run(int argc, char **argv) {
             else c.hostname = value_text;
         }
         else if (!strcmp(argv[i], "--audit")) c.audit = 1;
+        else if (!strcmp(argv[i], "--keep-caps")) c.keep_caps = 1;
         else if (!strcmp(argv[i], "--")) { i++; break; }
         else break;
     }

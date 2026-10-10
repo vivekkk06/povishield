@@ -14,3 +14,9 @@ Environment: Linux 7.2.8-200.fc44.x86_64 x86_64, Fedora Linux 44 (Workstation Ed
 ## Known limitations
 - Syscall filtering cannot stop path traversal (esc_hostfs); use run --rootfs.
 - A learn run stopped by --max-event-bytes yields an incomplete profile.
+
+## Escape matrix (Fedora 44 host, native, root; this host is not a disposable VM)
+- rootfs-only: esc_hostfs DENIED, so --rootfs alone confines the host-path read; limit_mem KILLED_BY_LIMIT.
+- full+rootfs: every test is a SIGSYS kill; it demonstrates the profile, not the rootfs.
+- Capability bounding set is dropped by default (see rootfs-only column); --keep-caps restores the old baseline.
+- limit_pids is inconclusive in the matrix (no escape marker); the pids limit was confirmed separately by fork EAGAIN.

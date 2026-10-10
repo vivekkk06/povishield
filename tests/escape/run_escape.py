@@ -29,7 +29,7 @@ def main():
     configs = {
         "bare":       lambda b, d: [b, d],
         "seccomp":    lambda b, d: [str(BIN), "enforce", "-p", str(benign), "--", b, d],
-        "namespaces": lambda b, d: [str(BIN), "run", "--", b, d],
+        "namespaces": lambda b, d: [str(BIN), "run", "--keep-caps", "--", b, d],
         "full":       lambda b, d: [str(BIN), "run", "--mem", "256", "--pids", "64", "--profile", str(benign), "--", b, d],
     }
     if shutil.which("docker") and os.environ.get("PS_DOCKER") == "1":
