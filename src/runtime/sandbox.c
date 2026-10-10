@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -100,12 +101,22 @@ static int child_main(void *arg) {
 
     if (sethostname(c->hostname, strlen(c->hostname)) < 0) perror("sethostname");
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0) { perror("make / private"); _exit(125); }
+    /* The profile path is host-relative: open it BEFORE pivot_root, then refer to it
+     * through /proc/self/fd (proc is mounted below). O_CLOEXEC keeps it out of the target. */
+    char prof_path[64];
+    const char *profile = c->profile;
+    if (c->profile && c->rootfs) {
+        int pfd = open(c->profile, O_RDONLY | O_CLOEXEC);
+        if (pfd < 0) { perror(c->profile); _exit(126); }
+        snprintf(prof_path, sizeof prof_path, "/proc/self/fd/%d", pfd);
+        profile = prof_path;
+    }
     if (c->rootfs && setup_rootfs(c->rootfs) < 0) _exit(125);
     if (mount("proc", "/proc", "proc", 0, NULL) < 0) {
         perror("mount /proc");
         if (c->rootfs) _exit(125);
     }
-    if (c->profile && ps_apply_seccomp(c->profile, c->audit) < 0) _exit(126);
+    if (profile && ps_apply_seccomp(profile, c->audit) < 0) _exit(126);
 
     execvp(c->cmd[0], c->cmd);
     perror(c->cmd[0]);

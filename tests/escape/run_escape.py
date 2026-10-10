@@ -35,6 +35,20 @@ def main():
     if shutil.which("docker") and os.environ.get("PS_DOCKER") == "1":
         configs["docker-default"] = lambda b, d: ["docker", "run", "--rm", "-v", f"{ESC}:/t:ro,z", "debian:stable-slim", "/t/" + Path(b).name, d]
 
+    RF = os.environ.get("PS_ROOTFS")
+    if RF and Path(RF, "t", "control_ok").exists():
+        # profile for static binaries: learned from the harmless control only, never from the attack tests
+        static_prof = RES / "profiles" / "benign-static.json"
+        save_profile(static_prof, learn([str(ROOT / "build" / "escape-static" / "control_ok"), "/tmp"],
+                                        tmp / "static.json"))
+        configs["full+rootfs"] = lambda b, d: [str(BIN), "run", "--rootfs", RF, "--mem", "256", "--pids", "64",
+                                               "--profile", str(static_prof), "--", "/t/" + Path(b).name, "/tmp"]
+
+    if RF and Path(RF, "t", "control_ok").exists():
+        # isolates the rootfs from seccomp: no --profile
+        configs["rootfs-only"] = lambda b, d: [str(BIN), "run", "--rootfs", RF, "--mem", "256", "--pids", "64",
+                                               "--", "/t/" + Path(b).name, "/tmp"]
+
     tests = sorted(p for p in ESC.glob("*") if p.name.startswith(("esc_", "limit_")))
     result = {}
     print(f"{'test':<14}" + "".join(f"{c:<16}" for c in configs))
@@ -43,7 +57,9 @@ def main():
         d = tempfile.mkdtemp()
         ctl = subprocess.run(mk(str(ESC / "control_ok"), d), capture_output=True, text=True, timeout=120)
         control_ok = ctl.returncode == 0 and "OK" in ctl.stdout
-        counts = {"ESCAPED": 0, "NO_ESCAPE_MARKER": 0, "TIMEOUT": 0, "ERROR": 0}
+        if not control_ok:
+            print(f"[{cname}] control FAILED rc={ctl.returncode} stdout={ctl.stdout!r} stderr={ctl.stderr[-300:]!r}")
+        counts = {"ESCAPED": 0, "BLOCKED_SIGSYS": 0, "KILLED_BY_LIMIT": 0, "DENIED": 0, "NO_ESCAPE_MARKER": 0, "TIMEOUT": 0, "ERROR": 0}
         if not control_ok:
             for t in tests:
                 rows[t.name][cname] = "INVALID_CONFIG"
@@ -65,6 +81,12 @@ def main():
                 )
                 if "ESCAPED:" in r.stdout:
                     status = "ESCAPED"
+                elif r.returncode in (-31, 159):
+                    status = "BLOCKED_SIGSYS"      # killed by seccomp
+                elif r.returncode in (-9, 137):
+                    status = "KILLED_BY_LIMIT"     # OOM / limit kill
+                elif r.returncode == 1:
+                    status = "DENIED"              # test ran, escape refused
                 elif r.returncode < 0:
                     status = "ERROR"
                 else:
