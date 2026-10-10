@@ -22,10 +22,9 @@ int main(void) {
 
     printf("Created %d child processes\n", n);
     if (n >= 150) {
-        puts("FAIL: expected the PID limit to stop child creation");
-        return 1;
+        printf("ESCAPED: PID limit did not stop child creation (%d children)\n", n);
+        return 0;
     }
-
-    puts("PASS: PID limit prevented reaching 150 children");
-    return 0;
+    printf("PID limit stopped child creation at %d children\n", n);
+    return 1;
 }
