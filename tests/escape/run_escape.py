@@ -32,8 +32,8 @@ def main():
         "namespaces": lambda b, d: [str(BIN), "run", "--", b, d],
         "full":       lambda b, d: [str(BIN), "run", "--mem", "256", "--pids", "64", "--profile", str(benign), "--", b, d],
     }
-    if shutil.which("docker"):
-        configs["docker-default"] = lambda b, d: ["docker", "run", "--rm", "-v", f"{ESC}:/t:ro", "debian:stable-slim", "/t/" + Path(b).name, d]
+    if shutil.which("docker") and os.environ.get("PS_DOCKER") == "1":
+        configs["docker-default"] = lambda b, d: ["docker", "run", "--rm", "-v", f"{ESC}:/t:ro,z", "debian:stable-slim", "/t/" + Path(b).name, d]
 
     tests = sorted(p for p in ESC.glob("*") if p.name.startswith(("esc_", "limit_")))
     result = {}
@@ -41,26 +41,69 @@ def main():
     rows = {t.name: {} for t in tests}
     for cname, mk in configs.items():
         d = tempfile.mkdtemp()
-        ctl = subprocess.run(mk(str(ESC / "control_ok"), d), capture_output=True, text=True)
+        ctl = subprocess.run(mk(str(ESC / "control_ok"), d), capture_output=True, text=True, timeout=120)
         control_ok = ctl.returncode == 0 and "OK" in ctl.stdout
-        blocked = 0
+        counts = {"ESCAPED": 0, "NO_ESCAPE_MARKER": 0, "TIMEOUT": 0, "ERROR": 0}
+        if not control_ok:
+            for t in tests:
+                rows[t.name][cname] = "INVALID_CONFIG"
+            result[cname] = {
+                "status": "INVALID_CONFIG",
+                "blocked": None,
+                "total": len(tests),
+                "control_ok": False,
+                "tests": {n: rows[n][cname] for n in rows},
+            }
+            shutil.rmtree(d, ignore_errors=True)
+            continue
+
         for t in tests:
+            argv = mk(str(t), d)
             try:
-                r = subprocess.run(mk(str(t), d), capture_output=True, text=True, timeout=30)
-                escaped = r.returncode == 0 and "ESCAPED" in r.stdout
+                r = subprocess.run(
+                    argv, capture_output=True, text=True, timeout=30
+                )
+                if "ESCAPED:" in r.stdout:
+                    status = "ESCAPED"
+                elif r.returncode < 0:
+                    status = "ERROR"
+                else:
+                    # A non-escape result alone does not prove a security block.
+                    status = "NO_ESCAPE_MARKER"
             except subprocess.TimeoutExpired:
-                escaped = False
-            rows[t.name][cname] = "ESCAPED" if escaped else "blocked"
-            blocked += not escaped
-        result[cname] = {"blocked": blocked, "total": len(tests), "control_ok": control_ok,
-                         "tests": {n: rows[n][cname] for n in rows}}
+                status = "TIMEOUT"
+            except (OSError, subprocess.SubprocessError) as exc:
+                print(f"ERROR running {t.name} under {cname}: {exc}", file=sys.stderr)
+                status = "ERROR"
+
+            rows[t.name][cname] = status
+            counts[status] += 1
+
+        result[cname] = {
+            "status": "VALID",
+            "blocked": None,
+            "total": len(tests),
+            "control_ok": True,
+            "counts": counts,
+            "tests": {n: rows[n][cname] for n in rows},
+        }
         shutil.rmtree(d, ignore_errors=True)
     for n, r in rows.items():
-        print(f"{n:<14}" + "".join(f"{r[c]:<16}" for c in configs))
-    print(f"{'BLOCKED':<14}" + "".join(f"{result[c]['blocked']}/{result[c]['total']:<14}" for c in configs))
-    bad = [c for c in configs if not result[c]["control_ok"]]
-    if bad:
-        print(f"WARNING: control program failed under {bad}: those columns are invalid (config broke a harmless program).")
+        print(f"{n:<14}" + "".join(f"{r[c]:<20}" for c in configs))
+
+    print("\\n========== SUMMARY ==========")
+    for cname in configs:
+        item = result[cname]
+        if item["status"] == "INVALID_CONFIG":
+            print(f"{cname}: INVALID_CONFIG (control program failed)")
+            continue
+        counts = item["counts"]
+        print(
+            f"{cname}: ESCAPED={counts['ESCAPED']}, "
+            f"NO_ESCAPE_MARKER={counts['NO_ESCAPE_MARKER']}, "
+            f"TIMEOUT={counts['TIMEOUT']}, ERROR={counts['ERROR']}"
+        )
+    print("Note: NO_ESCAPE_MARKER does not prove that a security boundary blocked the test.")
     (RES / "escape.json").write_text(json.dumps(result, indent=2))
 
 

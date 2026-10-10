@@ -3,3 +3,9 @@ results/*
 !results/.gitkeep
 __pycache__/
 *.pyc
+results/live-*
+*.bak*
+node_modules/
+frontend/dist/
+.venv/
+api/.venv/

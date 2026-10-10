@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <errno.h>
 /* Bounded (200 children): ESCAPED if the pids limit did not stop us. */
 int main(void) {
     pid_t kids[200]; int n = 0;
@@ -11,7 +12,20 @@ int main(void) {
         if (p < 0) break;
         kids[n++] = p;
     }
-    for (int i = 0; i < n; i++) { kill(kids[i], SIGKILL); waitpid(kids[i], 0, 0); }
-    if (n >= 150) { puts("ESCAPED: no process limit"); return 0; }
-    return 1;
+    for (int i = 0; i < n; i++) {
+        kill(kids[i], SIGKILL);
+        while (waitpid(kids[i], 0, 0) < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+    }
+
+    printf("Created %d child processes\n", n);
+    if (n >= 150) {
+        puts("FAIL: expected the PID limit to stop child creation");
+        return 1;
+    }
+
+    puts("PASS: PID limit prevented reaching 150 children");
+    return 0;
 }
