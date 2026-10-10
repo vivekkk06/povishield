@@ -20,3 +20,6 @@ Environment: Linux 7.2.8-200.fc44.x86_64 x86_64, Fedora Linux 44 (Workstation Ed
 - full+rootfs: every test is a SIGSYS kill; it demonstrates the profile, not the rootfs.
 - Capability bounding set is dropped by default (see rootfs-only column); --keep-caps restores the old baseline.
 - limit_pids: test fixed to report ESCAPED when the limit does not hold; see matrix.
+- Bug fixed: with --profile and no --rootfs the profile was opened after capabilities were dropped, so an absolute path under a 0700 home failed (EACCES). The profile is now opened before any privilege drop.
+- esc_ptrace uses PTRACE_TRACEME (unprivileged), so it is a syscall-blocking test, not a containment test; it is excluded from the containment count.
+- Containment (rootfs + limits + dropped caps, no seccomp): chroot, hostfs, mount, rawsock, unshare denied; memory limit kills the hog; pids limit stops the fork test.

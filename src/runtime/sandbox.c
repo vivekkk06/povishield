@@ -133,7 +133,7 @@ static int child_main(void *arg) {
      * through /proc/self/fd (proc is mounted below). O_CLOEXEC keeps it out of the target. */
     char prof_path[64];
     const char *profile = c->profile;
-    if (c->profile && c->rootfs) {
+    if (c->profile) {
         int pfd = open(c->profile, O_RDONLY | O_CLOEXEC);
         if (pfd < 0) { perror(c->profile); _exit(126); }
         snprintf(prof_path, sizeof prof_path, "/proc/self/fd/%d", pfd);
@@ -142,7 +142,7 @@ static int child_main(void *arg) {
     if (c->rootfs && setup_rootfs(c->rootfs) < 0) _exit(125);
     if (mount("proc", "/proc", "proc", 0, NULL) < 0) {
         perror("mount /proc");
-        if (c->rootfs) _exit(125);
+        if (c->rootfs || c->profile) _exit(125);
     }
     if (!c->keep_caps && drop_privileges() < 0) _exit(125);
     if (profile && ps_apply_seccomp(profile, c->audit) < 0) _exit(126);
