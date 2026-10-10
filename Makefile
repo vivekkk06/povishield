@@ -44,7 +44,7 @@ dashboard:                     ## live cgroup dashboard
 
 deps:                          ## Fedora (dnf) or Ubuntu/Debian (apt)
 > @if command -v dnf >/dev/null; then sudo dnf install -y gcc make libseccomp-devel python3 busybox git; \
-> elif command -v apt-get >/dev/null; then sudo dnf install -y gcc make libseccomp-devel python3 busybox git; \
+> elif command -v apt-get >/dev/null; then sudo apt-get install -y build-essential libseccomp-dev python3 busybox-static git; \
 > else echo "install: gcc make libseccomp headers python3>=3.11 busybox"; fi
 
 clean:

@@ -1,11 +1,11 @@
 test          bare            seccomp         namespaces      full            full+rootfs     rootfs-only     
 esc_chroot    ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
-esc_hostfs    ESCAPED             ESCAPED             ESCAPED             ESCAPED             BLOCKED_SIGSYS      DENIED              
+esc_hostfs    ESCAPED             ESCAPED             ESCAPED             ESCAPED             DENIED              DENIED              
 esc_mount     ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 esc_ptrace    ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      ESCAPED             
 esc_rawsock   ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 esc_unshare   ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
-limit_mem     ESCAPED             ESCAPED             ESCAPED             KILLED_BY_LIMIT     BLOCKED_SIGSYS      KILLED_BY_LIMIT     
+limit_mem     ESCAPED             ESCAPED             ESCAPED             KILLED_BY_LIMIT     KILLED_BY_LIMIT     KILLED_BY_LIMIT     
 limit_pids    ESCAPED             BLOCKED_SIGSYS      ESCAPED             BLOCKED_SIGSYS      BLOCKED_SIGSYS      DENIED              
 \n========== SUMMARY ==========
 bare: ESCAPED=8, NO_ESCAPE_MARKER=0, TIMEOUT=0, ERROR=0

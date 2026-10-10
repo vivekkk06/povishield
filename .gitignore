@@ -9,3 +9,5 @@ node_modules/
 frontend/dist/
 .venv/
 api/.venv/
+*.bak
+*.bak-*

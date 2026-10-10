@@ -50,8 +50,10 @@ def main():
         static_prof = RES / "profiles" / "benign-static.json"
         save_profile(static_prof, learn([str(ROOT / "build" / "escape-static" / "control_ok"), "/tmp"],
                                         tmp / "static.json"))
+        rootfs_prof = RES / "profiles" / "benign-rootfs.json"
+        save_profile(rootfs_prof, merge_profiles([load_profile(benign), load_profile(static_prof)]))
         configs["full+rootfs"] = lambda b, d: [str(BIN), "run", "--rootfs", RF, "--mem", "256", "--pids", "64",
-                                               "--profile", str(static_prof), "--", "/t/" + Path(b).name, "/tmp"]
+                                               "--profile", str(rootfs_prof), "--", "/t/" + Path(b).name, "/tmp"]
 
     if RF and Path(RF, "t", "control_ok").exists():
         # isolates the rootfs from seccomp: no --profile
