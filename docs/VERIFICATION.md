@@ -23,3 +23,5 @@ Environment: Linux 7.2.8-200.fc44.x86_64 x86_64, Fedora Linux 44 (Workstation Ed
 - Bug fixed: with --profile and no --rootfs the profile was opened after capabilities were dropped, so an absolute path under a 0700 home failed (EACCES). The profile is now opened before any privilege drop.
 - esc_ptrace uses PTRACE_TRACEME (unprivileged), so it is a syscall-blocking test, not a containment test; it is excluded from the containment count.
 - Containment (rootfs + limits + dropped caps, no seccomp): chroot, hostfs, mount, rawsock, unshare denied; memory limit kills the hog; pids limit stops the fork test.
+- Root cause of the 'full' column failure: the sandboxed process is root with no capabilities, so it obeys file permissions and cannot exec binaries under a 0700 $HOME via absolute path. The harness now runs tests from /tmp/ps-escape-bin. Users who run `povishield run` on programs in private directories must use a readable path or --keep-caps.
+- exec failure after seccomp load now reports via write(2) with exit 127 (perror's dup() would trigger SIGSYS).

@@ -148,7 +148,10 @@ static int child_main(void *arg) {
     if (profile && ps_apply_seccomp(profile, c->audit) < 0) _exit(126);
 
     execvp(c->cmd[0], c->cmd);
-    perror(c->cmd[0]);
+    {   /* plain write(2): perror() calls dup(), which a seccomp profile may not allow */
+        int exec_errno = errno;
+        dprintf(2, "%s: %s\n", c->cmd[0], strerror(exec_errno));
+    }
     _exit(127);
 }
 

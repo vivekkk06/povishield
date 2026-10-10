@@ -22,6 +22,15 @@ def main():
         print("WARNING: not root. Privileged-call tests will fail everywhere and prove nothing. Use sudo.")
     RES.mkdir(exist_ok=True)
     tmp = Path(tempfile.mkdtemp())
+    global ESC
+    pub = Path("/tmp/ps-escape-bin")
+    shutil.rmtree(pub, ignore_errors=True)
+    pub.mkdir(mode=0o755)
+    for f in ESC.glob("*"):
+        if f.is_file():
+            shutil.copy2(f, pub / f.name)
+    os.chmod(pub, 0o755)
+    ESC = pub          # sandboxed root has no DAC_OVERRIDE, so it cannot traverse a 0700 $HOME
     # a benign profile (what a harmless program such as `ls` needs)
     benign = RES / "profiles" / "benign-for-escape.json"
     save_profile(benign, merge_profiles([learn(["ls", "-la", "/"], tmp / "a.json"),
