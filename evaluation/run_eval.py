@@ -160,7 +160,7 @@ def main():
             ov.update({"median": round((med_b / med_n - 1) * 100, 2), "ci95": [round(lo, 2), round(hi, 2)]})
         else:
             ov.update({"median": None, "ci95": None,
-                       "note": f"{bad}/{runs} sandboxed timing runs did not exit like the native run (killed?); overhead not reported"})
+                       "note": f"{bad}/{runs} sandboxed timing runs differed from native exit code or stdout; overhead not reported"})
             print(f"[{name}] WARNING: timing invalid -> {ov['note']}", flush=True)
 
         out.append({
