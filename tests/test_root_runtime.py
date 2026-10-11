@@ -261,6 +261,84 @@ class CleanupAndSignals(unittest.TestCase):
         self.assertFalse(alive(), f"orphan: host pid {host_child} (pid {ns_child} inside the sandbox) "
                                   f"survived its supervisor")
 
+    def test_sigterm_kills_forked_descendant(self):
+        import os
+        import signal
+        import subprocess
+        import tempfile
+        import time
+
+        def children_of(pid):
+            out = []
+            try:
+                for tid in os.listdir(f"/proc/{pid}/task"):
+                    with open(f"/proc/{pid}/task/{tid}/children") as f:
+                        out += [int(x) for x in f.read().split()]
+            except (FileNotFoundError, ProcessLookupError):
+                pass
+            return out
+
+        def tree_below(root):
+            seen, todo = [], children_of(root)
+            while todo:
+                pid = todo.pop()
+                if pid not in seen:
+                    seen.append(pid)
+                    todo += children_of(pid)
+            return seen
+
+        def running(pid):
+            # A zombie is no longer executing, so it counts as terminated.
+            try:
+                with open(f"/proc/{pid}/stat") as f:
+                    data = f.read()
+            except (FileNotFoundError, ProcessLookupError):
+                return False
+            return data.rsplit(")", 1)[1].split()[0] != "Z"
+
+        with tempfile.TemporaryDirectory(prefix="povishield-tree-") as td:
+            pid_file = os.path.join(td, "child.pid")
+            p = subprocess.Popen(
+                [str(BIN), "run", "--", str(PROBE), "tree", pid_file],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            tree = []
+            try:
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    if p.poll() is not None:
+                        self.fail("runtime exited before the descendant was ready")
+                    if os.path.exists(pid_file):
+                        tree = tree_below(p.pid)
+                        if len(tree) >= 2:
+                            break
+                    time.sleep(0.05)
+                self.assertGreaterEqual(
+                    len(tree), 2, "descendant never appeared under the runtime")
+
+                p.send_signal(signal.SIGTERM)
+                try:
+                    p.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.fail("runtime did not exit after SIGTERM")
+
+                deadline = time.monotonic() + 3
+                while time.monotonic() < deadline and any(running(x) for x in tree):
+                    time.sleep(0.05)
+                survivors = [x for x in tree if running(x)]
+                self.assertEqual(survivors, [],
+                                 f"descendants still running after SIGTERM: {survivors}")
+            finally:
+                for x in tree:
+                    try:
+                        os.kill(x, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                if p.poll() is None:
+                    p.kill()
+                    p.wait()
+
 
 @unittest.skipUnless(IS_ROOT and cgroup_v2_usable(), "needs root and a writable cgroup v2 hierarchy")
 class ResourceLimits(unittest.TestCase):
