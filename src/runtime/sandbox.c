@@ -227,15 +227,25 @@ static int parse_limit(const char *option, const char *text,
 }
 
 /* A just-killed cgroup can stay busy for a few ms while its tasks are torn down. */
-static void remove_cgroup(const char *cg) {
+static int remove_cgroup(const char *cg) {
+    int last_error = 0;
+
     for (int attempt = 0; attempt < 50; attempt++) {
-        if (rmdir(cg) == 0 || errno == ENOENT)
-            return;
-        if (errno != EBUSY)
+        if (rmdir(cg) == 0)
+            return 0;
+
+        last_error = errno;
+        if (last_error == ENOENT)
+            return 0;
+        if (last_error != EBUSY)
             break;
+
         usleep(10000);
     }
+
+    errno = last_error ? last_error : EIO;
     perror("remove cgroup");
+    return -1;
 }
 
 int cmd_run(int argc, char **argv) {
@@ -496,8 +506,8 @@ abort_child:
 done:
     if (sync_open)
         close(c.sync[1]);
-    if (cg_created)
-        remove_cgroup(cg);
+    if (cg_created && remove_cgroup(cg) != 0 && rc == 0)
+        rc = 1;
     munmap(stack, STACK_SZ);
     if (term_installed)
         sigaction(SIGTERM, &old_term, NULL);
