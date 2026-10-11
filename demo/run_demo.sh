@@ -65,6 +65,7 @@ if ! gcc -static -O2 -Wall -Wextra demo/vuln_viewer.c -o "$STATIC_VIEWER"; then
 fi
 
 ROOTFS="$(mktemp -d /tmp/povishield-demo-rootfs.XXXXXX)"
+chmod 755 "$ROOTFS"   # mktemp makes it 0700; the sandbox has no CAP_DAC_OVERRIDE
 mkdir -p "$ROOTFS/bin" "$ROOTFS/data" "$ROOTFS/proc" "$ROOTFS/tmp"
 install -m 755 "$STATIC_VIEWER" "$ROOTFS/bin/vuln_viewer"
 install -m 644 demo/data/notes.txt "$ROOTFS/data/notes.txt"
