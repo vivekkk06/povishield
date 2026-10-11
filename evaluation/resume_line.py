@@ -24,7 +24,7 @@ def matrix():
 
 def main():
     r = json.loads((ROOT / "results" / "results.json").read_text())["aggregate"]
-    bits = [f"Across {r['targets']} real programs: avg attack-surface reduction {r['avg_attack_surface_reduction_pct']}%",
+    bits = [f"Across {r['targets']} workload configurations: avg attack-surface reduction {r['avg_attack_surface_reduction_pct']}%",
             f"held-out policy coverage {r['avg_heldout_coverage_pct']}%",
             f"compatibility {r['avg_compat_pct']}% ({r['total_false_kills']} false kill(s))"]
     if r.get("avg_median_overhead_pct") is not None:
@@ -36,7 +36,7 @@ def main():
         s = m[col]
         blocked = sum(x in BLOCKED for x in s)
         base = m.get("bare")
-        tail = f"{blocked}/{len(s)} escape and resource-abuse tests contained by the full sandbox"
+        tail = f"{blocked}/{len(s)} escape and resource-abuse tests contained by the full+rootfs sandbox"
         if base:
             tail += f" (vs {sum(x == 'ESCAPED' for x in base)}/{len(base)} succeeding unconfined)"
         bits.append(tail)

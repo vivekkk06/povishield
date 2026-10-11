@@ -3,8 +3,8 @@
 Every number written to results/results.json is computed here. Methodology (docs/BENCHMARKING.md):
   * the policy is trained under the SAME stdout conditions as the test (grep skips write() on /dev/null);
   * compatibility compares exit code AND stdout with the native run;
-  * a timing run only counts if the sandboxed run exits exactly like the native one (a killed process is
-    fast, which would otherwise show up as a bogus negative overhead);
+  * timing is valid only when every measured sandboxed run matches the native reference exit code AND stdout
+    (a killed process or incorrect output must not appear as a fast successful run);
   * native and sandboxed runs are interleaved (alternating order) after warm-up, so thermal / frequency /
     background-load drift hits both equally; raw samples are saved to results/raw/;
   * short workloads are flagged: below ~20 ms the % overhead measures process start-up, not seccomp.
@@ -36,7 +36,7 @@ def run_out(cmd):
 def timed(cmd):
     t = time.perf_counter()
     r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=DEVNULL)
-    return (time.perf_counter() - t) * 1000, r.returncode
+    return (time.perf_counter() - t) * 1000, r.returncode, r.stdout
 
 
 def p95(xs):
@@ -89,15 +89,15 @@ def environment(runs):
             "loadavg_start": [round(x, 2) for x in os.getloadavg()], "cpu_idle_pct_start": cpu_idle_pct()}
 
 
-def benchmark(native_cmd, boxed_cmd, runs, expect_rc):
+def benchmark(native_cmd, boxed_cmd, runs, expect_rc, expect_out):
     nat, box, bad = [], [], 0
     for i in range(WARMUP + runs):
         order = (("n", native_cmd), ("b", boxed_cmd)) if i % 2 == 0 else (("b", boxed_cmd), ("n", native_cmd))
         for kind, cmd in order:
-            ms, rc = timed(cmd)
+            ms, rc, stdout = timed(cmd)
             if i < WARMUP:
                 continue
-            if kind == "b" and rc != expect_rc:
+            if kind == "b" and (rc != expect_rc or stdout != expect_out):
                 bad += 1
             (nat if kind == "n" else box).append(ms)
     return nat, box, bad
@@ -147,8 +147,8 @@ def main():
         print(f"[{name}] benchmarking ({runs} interleaved runs) ...", flush=True)
         c0 = t["test"][0]
         boxed = [str(BIN), "enforce", "-p", str(ppath), "--"] + c0
-        expect_rc, _ = run_out(c0)
-        nat, box, bad = benchmark(c0, boxed, runs, expect_rc)
+        expect_rc, expect_out = run_out(c0)
+        nat, box, bad = benchmark(c0, boxed, runs, expect_rc, expect_out)
         (RES / "raw" / f"{name}.json").write_text(json.dumps({"native_ms": nat, "sandboxed_ms": box, "command": c0}))
         med_n, med_b = statistics.median(nat), statistics.median(box)
         valid = bad == 0
