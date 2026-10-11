@@ -1,27 +1,58 @@
-# Verification status (2026-10-10)
-Environment: Linux 7.2.8-200.fc44.x86_64 x86_64, Fedora Linux 44 (Workstation Edition), cgroup fs: cgroup2fs
+# Verification status (2026-10-11)
 
-## Passed (this host, native)
-- Build with -Wall -Wextra: no warnings. Unit tests: 6/6.
-- CLI validation: invalid --max-event-bytes / --mem / --pids / --cpu / --rootfs rejected with exit 2.
-- learn: valid profile + event log JSON; byte cap stops tracing (exit 75); unwritable output fails (exit 1).
-- run: SIGINT -> 130 and SIGTERM -> 143 with child killed and cgroup removed; memory limit enforced (OOM kill, exit 137); pids limit enforced (fork EAGAIN); no leftover cgroups.
+Environment: Fedora Linux 44 (Workstation), Linux 7.2.8-200.fc44.x86_64,
+x86_64, cgroup v2 (cgroup2fs).
 
-## Not yet verified
-- rootfs isolation (needs disposable VM), escape suite with --rootfs,
-  why the 'namespaces' escape column blocked nothing, seccomp overhead variance (31.6% vs 48.4% across runs).
+## Passed on this host
+
+- `make -B all`: build completed successfully.
+- `make lint`: cppcheck completed without errors.
+- `make test`: 67 tests discovered; 29 passed and 38 root-required
+  tests were skipped in the non-root run.
+- `sudo make test-root`: all 38 root-required tests passed.
+- `git diff --check`: passed.
+
+These results describe the tests run on this host. They do not guarantee
+that every attack, kernel configuration, or execution path is covered.
+
+## Not yet established
+
+- Security validation in a disposable VM or across different host kernels.
+- Complete syscall coverage for every program execution path.
+- A statistically conclusive performance improvement or regression.
+- Protection against every possible sandbox escape.
 
 ## Known limitations
-- Syscall filtering cannot stop path traversal (esc_hostfs); use run --rootfs.
-- A learn run stopped by --max-event-bytes yields an incomplete profile.
 
-## Escape matrix (Fedora 44 host, native, root; this host is not a disposable VM)
-- rootfs-only: esc_hostfs DENIED, so --rootfs alone confines the host-path read; limit_mem KILLED_BY_LIMIT.
-- full+rootfs: every test is a SIGSYS kill; it demonstrates the profile, not the rootfs.
-- Capability bounding set is dropped by default (see rootfs-only column); --keep-caps restores the old baseline.
-- limit_pids: test fixed to report ESCAPED when the limit does not hold; see matrix.
-- Bug fixed: with --profile and no --rootfs the profile was opened after capabilities were dropped, so an absolute path under a 0700 home failed (EACCES). The profile is now opened before any privilege drop.
-- esc_ptrace uses PTRACE_TRACEME (unprivileged), so it is a syscall-blocking test, not a containment test; it is excluded from the containment count.
-- Containment (rootfs + limits + dropped caps, no seccomp): chroot, hostfs, mount, rawsock, unshare denied; memory limit kills the hog; pids limit stops the fork test.
-- Root cause of the 'full' column failure: the sandboxed process is root with no capabilities, so it obeys file permissions and cannot exec binaries under a 0700 $HOME via absolute path. The harness now runs tests from /tmp/ps-escape-bin. Users who run `povishield run` on programs in private directories must use a readable path or --keep-caps.
-- exec failure after seccomp load now reports via write(2) with exit 127 (perror's dup() would trigger SIGSYS).
+- Syscall filtering alone cannot prevent path traversal when permitted
+  syscalls allow access to the target path. Use `run --rootfs` for
+  filesystem confinement.
+- A learning run stopped by `--max-event-bytes` produces an incomplete profile.
+- Ptrace-based learning can miss rare or input-dependent execution paths.
+- A missing escape marker alone does not prove that a security boundary held.
+- Capabilities are dropped by default; `--keep-caps` is a less-restrictive
+  option intended for baselines.
+
+## Escape matrix (docs/escape-matrix.txt, 8 tests x 6 configurations)
+
+Results from `sudo make escape-full` on this host:
+
+- `bare` and `namespaces`: all 8 tests escaped.
+- `seccomp` only: 2 of 8 escaped (`esc_hostfs`, `limit_mem`); the others
+  were terminated by SIGSYS.
+- `full`: 1 escape (`esc_hostfs`); `limit_mem` was killed by the memory limit.
+- `rootfs-only` and `full+rootfs`: 0 escapes. `esc_hostfs` was denied by
+  rootfs confinement; in `full+rootfs` the other syscall-based tests were
+  terminated by seccomp, which shows policy enforcement, not rootfs isolation.
+- A missing escape marker alone does not prove that a security boundary held.
+
+## Implementation notes (confirmed in source)
+
+- The seccomp profile is opened (`O_CLOEXEC`) before capabilities are
+  dropped, so profiles under a private home directory still load.
+- A failed `exec` reports the error with `dprintf` to stderr (no `dup()`)
+  and exits with status 127.
+- The escape harness copies test binaries to `/tmp/ps-escape-bin` (mode 755)
+  to avoid unrelated failures caused by private directory permissions.
+- Exit codes: 125 for rootfs, `/proc` mount, or privilege-drop failure;
+  126 for profile open or seccomp failure; 127 for exec failure.
