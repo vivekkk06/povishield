@@ -77,3 +77,32 @@ docs:                     ## regenerate docs/RESULTS.md from measured data
 
 verify: all test fuzz          ## everything that needs no root
 > @echo "verify OK (run: sudo make escape  for the escape matrix)"
+
+.PHONY: test-root escape-full web audit dashboard-check final
+test-root: all                 ## privileged runtime + rootfs tests (needs sudo)
+> sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_root_*.py' -v
+
+escape-full: all               ## escape matrix incl. rootfs columns -> docs/escape-matrix.txt (needs sudo)
+> sudo PS_ROOTFS=/tmp/ps-escape-rootfs bash tests/escape/make_rootfs.sh
+> sudo env PS_ROOTFS=/tmp/ps-escape-rootfs PYTHONDONTWRITEBYTECODE=1 python3 tests/escape/run_escape.py 2>&1 | tee results/escape-matrix.txt
+> cp results/escape-matrix.txt docs/escape-matrix.txt
+> sudo chown -R $$USER:$$USER results docs
+
+web:                           ## frontend production build
+> cd frontend && npm ci && npm run build
+
+audit:                         ## read-only repository audit -> results/audit.txt
+> bash scripts/audit.sh
+
+dashboard-check:               ## does the API show live data?
+> python3 scripts/verify_dashboard.py
+
+final: all                     ## everything, in the right order (quiet machine first, then the noisy tests)
+> sudo -v
+> $(MAKE) test
+> $(MAKE) eval
+> $(MAKE) verify
+> $(MAKE) test-root
+> $(MAKE) escape-full
+> $(MAKE) docs
+> $(MAKE) resume-line

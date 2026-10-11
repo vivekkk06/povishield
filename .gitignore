@@ -12,3 +12,7 @@ api/.venv/
 *.bak
 *.bak-*
 .backups/
+.pytest_cache/
+*.precheck
+*.pre-*
+*.bak.*

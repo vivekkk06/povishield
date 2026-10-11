@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     const char *c = argv[1];
     if (!strcmp(c, "learn"))   return cmd_learn(argc - 1, argv + 1);
     if (!strcmp(c, "enforce")) return cmd_enforce(argc - 1, argv + 1);
-    if (!strcmp(c, "run"))     return cmd_run(argc - 1, argv + 1);
+    if (!strcmp(c, "run"))     { if (ps_validate_run_args(argc - 1, argv + 1) != 0) return 2; return cmd_run(argc - 1, argv + 1); }
     if (!strcmp(c, "info"))    return cmd_info(argc - 1, argv + 1);
     usage();
     return 2;

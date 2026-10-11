@@ -15,6 +15,10 @@ for ep in health overview policies experiments events/profile; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/api/$ep")
   [ "$code" = "200" ] && echo "[PASS] /api/$ep -> 200" || { echo "[FAIL] /api/$ep -> $code"; FAIL=1; }
 done
+echo
+echo "=== LIVE MONITOR API INTEGRATION ==="
+python3 tests/check_monitor_api.py && echo "[PASS] live monitor API integration" || FAIL=1
+echo
 echo "NOTE: HTTP 200 does not prove live monitoring or enforcement is active."
 kill $APIPID 2>/dev/null; wait $APIPID 2>/dev/null
 ( cd frontend && npm run build >/tmp/ps-fe.log 2>&1 ) && echo "[PASS] frontend build" || { echo "[FAIL] frontend build (see /tmp/ps-fe.log)"; FAIL=1; }

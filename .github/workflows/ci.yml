@@ -1,15 +1,38 @@
 name: ci
 on: [push, pull_request]
 jobs:
-  build-test-eval:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential libseccomp-dev python3 cppcheck libc6-dev
+      - run: make
+      - run: make test
+      - run: make lint
+      - run: make fuzz
+  root-tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true          # hosted runners restrict namespaces/cgroups; informational
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y build-essential libseccomp-dev python3
+      - run: make
+      - run: sudo make test-root
+  eval-smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y build-essential libseccomp-dev python3
       - run: make
-      - run: make test
-      - run: make eval
-      - run: sudo make escape
-      - run: make resume-line
+      - run: PS_RUNS=3 make eval
+      - run: make docs && make resume-line
       - uses: actions/upload-artifact@v4
-        with: { name: povishield-results, path: results/ }
+        with: { name: results, path: "results/\ndocs/RESULTS.md" }
+  frontend:
+    if: ${{ hashFiles('frontend/package.json') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: cd frontend && npm ci && npm run build

@@ -15,4 +15,6 @@ int ps_total_syscalls(void);
 /* Load a profile JSON and install a seccomp filter. audit=1 logs instead of killing. */
 int ps_apply_seccomp(const char *profile, int audit);
 
+int ps_validate_run_args(int argc, char **argv);   /* strict --mem/--pids/--cpu parsing */
+
 #endif

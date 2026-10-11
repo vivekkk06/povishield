@@ -305,7 +305,9 @@ function App() {
                       ))}
                       <div className="policy-row">
                         <span>Live monitoring</span>
-                        <strong className="warning-text">Not connected</strong>
+                        <strong className={health?.live_events_connected ? "" : "warning-text"}>
+                          {error ? "API unavailable" : health?.live_events_connected ? "Active session" : "No active session"}
+                        </strong>
                       </div>
                     </div>
                   </section>

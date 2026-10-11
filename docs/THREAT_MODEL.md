@@ -27,3 +27,12 @@ but the loader fails closed on malformed ones); learn mode is not safe to run on
   Mitigation: merge several workloads, use `--audit` first.
 - Learner is x86_64 only and ptrace-based (slow).
 - Escape results are evidence for the listed tests only, not a proof of security.
+
+## Privileges and operational requirements
+- `learn` and `enforce` need no privileges; `run` needs root (namespaces, mounts, cgroups).
+- cgroup limits need a writable cgroup v2 hierarchy. A limit that is requested but cannot be applied must stop the run;
+  `tests/test_root_runtime.py` checks the limits really bite (memory kill, process cap, CPU throttle) and that the cgroup is removed.
+- `--rootfs` must contain everything the target needs. Static binaries are simplest. `tests/test_root_rootfs.py` checks that
+  host paths, `..` traversal, `/proc/*/root` and a privileged chroot break-out do not reach the host.
+- Capabilities are dropped by default. `--keep-caps` exists for baselines and tests only; never use it for untrusted programs.
+- Run every privileged test in a disposable VM (`docs/VM_TESTING.md`).
