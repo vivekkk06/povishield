@@ -206,12 +206,15 @@ def main():
                 shutil.copyfile(cand_path, active_path)
                 appr_file = ROOT / "results" / "approvals.jsonl"
                 appr_file.parent.mkdir(parents=True, exist_ok=True)
+                now_iso = datetime.now(timezone.utc).isoformat()
                 with open(appr_file, "a") as f:
                     f.write(json.dumps({
                         "candidate": str(cand_path),
                         "active": str(active_path),
                         "target": args.target,
-                        "approved_at": report["candidate"],
+                        "timestamp": now_iso,
+                        "approved_at": now_iso,
+                        "status": "APPROVED",
                     }) + "\n")
                 print(f"\n[POLICY REPLACED] Active policy '{active_path}' securely updated with approved candidate.")
             else:

@@ -9,12 +9,14 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
+import sys
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 RESULTS = ROOT / "results"
 EVENTS_FILE = RESULTS / "syscall-events.jsonl"
 
@@ -471,16 +473,23 @@ def events(limit: int = 100):
 @app.get("/api/policies")
 def policies():
     items = []
+    all_files = list(RESULTS.glob("*.json"))
+    if (RESULTS / "profiles").is_dir():
+        all_files.extend((RESULTS / "profiles").glob("*.json"))
 
-    for path in sorted(RESULTS.glob("*.json")):
-        if path.name in {"results.json", "escape.json"}:
+    for path in sorted(all_files):
+        if path.name in {"results.json", "escape.json", "ablation_eval.json"}:
             continue
 
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            rel = path.relative_to(RESULTS).as_posix()
             items.append({
-                "name": path.name,
+                "name": rel,
+                "filename": path.name,
                 "size_bytes": path.stat().st_size,
+                "schema": data.get("schema", 1),
+                "count": data.get("count", len(data.get("syscalls", []))),
                 "data": data,
             })
         except (json.JSONDecodeError, OSError):
@@ -494,3 +503,161 @@ def policies():
         "count": len(items),
         "note": "Artifact listing only; this endpoint does not enforce policies.",
     }
+
+
+@app.get("/api/ablation/results")
+def ablation_results():
+    ablation_json = RESULTS / "ablation_eval.json"
+    ablation_md = RESULTS / "ablation_report.md"
+    if not ablation_json.is_file():
+        raise HTTPException(status_code=404, detail="Ablation evaluation results not found. Run make eval-ablate first.")
+    try:
+        data = json.loads(ablation_json.read_text(encoding="utf-8"))
+        report_text = ablation_md.read_text(encoding="utf-8") if ablation_md.is_file() else ""
+        return {
+            "source": "results/ablation_eval.json",
+            "data": data,
+            "report_markdown": report_text,
+            "aggregate": data.get("aggregate", {}),
+            "targets": data.get("targets", []),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read ablation results: {e}")
+
+
+@app.get("/api/ledgers")
+def list_ledgers():
+    ledgers_dir = RESULTS / "ledgers"
+    if not ledgers_dir.exists():
+        return {"ledgers": [], "count": 0}
+    ledgers = []
+    for lpath in sorted(ledgers_dir.glob("*.jsonl")):
+        count = 0
+        try:
+            with open(lpath, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        count += 1
+            ledgers.append({
+                "target": lpath.stem,
+                "filename": lpath.name,
+                "trial_count": count,
+                "size_bytes": lpath.stat().st_size,
+            })
+        except Exception:
+            continue
+    return {"ledgers": ledgers, "count": len(ledgers)}
+
+
+@app.get("/api/ledgers/{target}")
+def get_ledger_trials(target: str, limit: int = 50, offset: int = 0, verdict: str = None, syscall: str = None):
+    ledgers_dir = RESULTS / "ledgers"
+    lpath = ledgers_dir / f"{target}.jsonl"
+    if not lpath.is_file():
+        raise HTTPException(status_code=404, detail=f"Ledger for target '{target}' not found")
+    trials = []
+    total_in_file = 0
+    try:
+        with open(lpath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                total_in_file += 1
+                try:
+                    d = json.loads(line)
+                    if verdict and d.get("verdict") != verdict:
+                        continue
+                    if syscall and d.get("ablated_syscall") != syscall:
+                        continue
+                    trials.append(d)
+                except Exception:
+                    continue
+        selected = trials[offset:offset + limit]
+        return {
+            "target": target,
+            "total_records": total_in_file,
+            "filtered_records": len(trials),
+            "offset": offset,
+            "limit": limit,
+            "trials": selected,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read ledger: {e}")
+
+
+@app.get("/api/ledgers/{target}/audit")
+def audit_target_ledger(target: str, candidate_profile: str = None):
+    from analysis.audit_ledger import audit_ledger_file
+    lpath = RESULTS / "ledgers" / f"{target}.jsonl"
+    cpath = (RESULTS / candidate_profile) if candidate_profile else None
+    if not lpath.is_file():
+        raise HTTPException(status_code=404, detail=f"Ledger file for '{target}' not found")
+    ok, report = audit_ledger_file(lpath, cpath)
+    return report
+
+
+@app.get("/api/policies/compare")
+def compare_policies(base: str, cand: str):
+    from analysis.common import load_profile_meta, total_syscalls
+    from analysis.risk import risk_pct
+
+    def resolve_p(name: str) -> Path:
+        p1 = RESULTS / name
+        if p1.is_file():
+            return p1
+        p2 = RESULTS / "profiles" / name
+        if p2.is_file():
+            return p2
+        if not name.endswith(".json"):
+            p3 = RESULTS / "profiles" / f"{name}.json"
+            if p3.is_file():
+                return p3
+        raise HTTPException(status_code=404, detail=f"Profile '{name}' not found")
+
+    p_base = resolve_p(base)
+    p_cand = resolve_p(cand)
+    meta_base = load_profile_meta(p_base)
+    meta_cand = load_profile_meta(p_cand)
+    s_base = set(meta_base.get("syscalls", []))
+    s_cand = set(meta_cand.get("syscalls", []))
+    tot = total_syscalls()
+
+    added = sorted(s_cand - s_base)
+    removed = sorted(s_base - s_cand)
+    tiers = meta_cand.get("permission_tiers", {})
+    if not tiers and "evidence" in meta_cand:
+        ev = meta_cand.get("evidence", {})
+        tiers = {
+            "experimentally_necessary": sorted([k for k, v in ev.items() if v.get("classification") == "experimentally_necessary"]),
+            "removable_for_tested_tasks": sorted([k for k, v in ev.items() if v.get("classification") == "removable_for_tested_tasks"]),
+            "not_yet_validated": sorted([s for s in meta_cand.get("syscalls", []) if s not in ev]),
+        }
+    return {
+        "base_name": p_base.name,
+        "cand_name": p_cand.name,
+        "base_count": len(s_base),
+        "cand_count": len(s_cand),
+        "base_risk": round(risk_pct(s_base, tot), 2),
+        "cand_risk": round(risk_pct(s_cand, tot), 2),
+        "added_syscalls": added,
+        "removed_syscalls": removed,
+        "permission_tiers": tiers,
+        "cand_schema": meta_cand.get("schema", 1),
+    }
+
+
+@app.get("/api/approvals")
+def get_approvals():
+    appr_file = RESULTS / "approvals.jsonl"
+    if not appr_file.is_file():
+        return {"approvals": [], "count": 0}
+    items = []
+    try:
+        with open(appr_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    items.append(json.loads(line))
+        return {"approvals": list(reversed(items)), "count": len(items)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read approvals: {e}")
