@@ -11,11 +11,24 @@ def load_profile(path):
         return set(json.load(f)["syscalls"])
 
 
-def save_profile(path, syscalls, command="merged"):
+def load_profile_meta(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def save_profile(path, syscalls, command="merged", schema=1, extra=None):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+    doc = {
+        "schema": schema,
+        "command": command,
+        "arch": platform.machine(),
+        "count": len(syscalls),
+        "syscalls": sorted(syscalls),
+    }
+    if extra:
+        doc.update(extra)
     with open(path, "w") as f:
-        json.dump({"schema": 1, "command": command, "arch": platform.machine(),
-                   "count": len(syscalls), "syscalls": sorted(syscalls)}, f, indent=2)
+        json.dump(doc, f, indent=2)
 
 
 def total_syscalls():

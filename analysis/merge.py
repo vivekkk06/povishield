@@ -1,6 +1,11 @@
 """Union several profiles (multiple learning runs always beat a single run)."""
 import sys
-from .common import load_profile, save_profile
+from pathlib import Path
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from analysis.common import load_profile, save_profile
+else:
+    from .common import load_profile, save_profile
 
 
 def merge_profiles(sets):

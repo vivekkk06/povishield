@@ -6,7 +6,13 @@ cite and justify any change in docs/ARCHITECTURE.md.
 Score = sum(weight of allowed syscalls) / sum(weight of ALL syscalls) * 100
 """
 import argparse
-from .common import load_profile, total_syscalls
+if __package__ is None or __package__ == "":
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from analysis.common import load_profile, total_syscalls
+else:
+    from .common import load_profile, total_syscalls
 
 CRITICAL = """ptrace mount umount2 unshare setns init_module finit_module delete_module bpf kexec_load
 kexec_file_load pivot_root chroot reboot swapon swapoff iopl ioperm perf_event_open userfaultfd

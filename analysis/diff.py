@@ -1,7 +1,14 @@
 """Profile diff: which syscalls were added/removed and what that does to risk."""
 import argparse, html
-from .common import load_profile, total_syscalls
-from .risk import risk_pct, weight
+if __package__ is None or __package__ == "":
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from analysis.common import load_profile, total_syscalls
+    from analysis.risk import risk_pct, weight
+else:
+    from .common import load_profile, total_syscalls
+    from .risk import risk_pct, weight
 
 RED, GRN, RST = "\033[31m", "\033[32m", "\033[0m"
 
