@@ -124,7 +124,7 @@ def main():
     for n, r in rows.items():
         print(f"{n:<14}" + "".join(f"{r[c]:<20}" for c in configs))
 
-    print("\\n========== SUMMARY ==========")
+    print("\n========== SUMMARY ==========")
     for cname in configs:
         item = result[cname]
         if item["status"] == "INVALID_CONFIG":
