@@ -45,6 +45,12 @@ demo: all                      ## attack demo
 demo-cf: all                   ## counterfactual permission verification & ledger demo
 > bash demo/run_counterfactual_demo.sh
 
+watch: all                     ## watch directory, verify syntax & permissions on change
+> python3 scripts/watch_and_verify.py --watch
+
+watch-commit: all              ## watch directory, verify and auto-commit to main branch
+> python3 scripts/watch_and_verify.py --watch --auto-commit
+
 dashboard:                     ## live cgroup dashboard
 > python3 dashboard/tui.py
 

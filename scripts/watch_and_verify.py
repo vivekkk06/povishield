@@ -56,16 +56,19 @@ def get_uncommitted_files() -> List[Path]:
             line = line.strip()
             if not line:
                 continue
-            # format: XY filename or XY orig -> filename
             parts = line.split(maxsplit=1)
             if len(parts) >= 2:
                 rel_path = parts[1]
                 if " -> " in rel_path:
                     rel_path = rel_path.split(" -> ")[1]
                 p = ROOT / rel_path
-                if p.suffix in FILE_EXTENSIONS and p.exists() and not p.name.startswith("."):
+                if p.is_dir():
+                    for child in p.rglob("*"):
+                        if child.is_file() and (child.suffix in FILE_EXTENSIONS or child.name == "Makefile"):
+                            files.append(child)
+                elif p.is_file() and (p.suffix in FILE_EXTENSIONS or p.name == "Makefile"):
                     files.append(p)
-        return files
+        return sorted(list(set(files)))
     except Exception:
         return []
 
