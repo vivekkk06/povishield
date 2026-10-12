@@ -525,6 +525,31 @@ def ablation_results():
         raise HTTPException(status_code=500, detail=f"Failed to read ablation results: {e}")
 
 
+@app.get("/api/ablation/noisy")
+def ablation_noisy_results():
+    noisy_json = RESULTS / "noisy_ablation_eval.json"
+    noisy_md = RESULTS / "noisy_ablation_report.md"
+    if not noisy_json.is_file():
+        return {
+            "available": False,
+            "message": "Controlled noisy ablation evaluation not yet run. Execute: make eval-noisy",
+        }
+    try:
+        data = json.loads(noisy_json.read_text(encoding="utf-8"))
+        report_text = noisy_md.read_text(encoding="utf-8") if noisy_md.is_file() else ""
+        return {
+            "available": True,
+            "source": "results/noisy_ablation_eval.json",
+            "data": data,
+            "report_markdown": report_text,
+            "aggregate": data.get("aggregate", {}),
+            "targets": data.get("targets", []),
+            "injected_permissions": data.get("injected_permissions_catalog", []),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read noisy ablation results: {e}")
+
+
 @app.get("/api/ledgers")
 def list_ledgers():
     ledgers_dir = RESULTS / "ledgers"

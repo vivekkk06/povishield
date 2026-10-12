@@ -339,6 +339,94 @@ class TestConservativeAblationRules(unittest.TestCase):
             self.assertFalse(intact)
             self.assertIn(trial.verdict, (Verdict.REQUIRED.value, Verdict.TIMED_OUT.value, Verdict.POLICY_NOT_APPLIED.value, Verdict.EXECUTION_ERROR.value))
 
+    def test_negative_required_permission_removal_fails(self):
+        """Negative test: Genuinely required permissions (e.g. read) cannot be ablated and trigger SIGSYS."""
+        with tempfile.TemporaryDirectory() as td:
+            tdir = Path(td)
+            cmd = ["cat", "/etc/hostname"]
+            prof = tdir / "base.json"
+            subprocess.run(
+                [str(BIN), "learn", "-o", str(prof), "--"] + cmd,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            syscalls = load_profile(prof)
+            without_read = tdir / "no_read.json"
+            save_profile(without_read, syscalls - {"read"}, command="cat")
+            rc, _, _ = run_workload(cmd, profile_path=without_read)
+            self.assertIn(rc, (-31, 159), f"Expected SIGSYS (-31 or 159), got {rc}")
+
+    def test_nondeterministic_workload_support(self):
+        """When check_stdout=False, variable output is tolerated as long as exit code and seccomp pass."""
+        with tempfile.TemporaryDirectory() as td:
+            tdir = Path(td)
+            cmd = ["sh", "-c", "echo $RANDOM > /dev/null"]
+            prof = tdir / "base.json"
+            subprocess.run(
+                [str(BIN), "learn", "-o", str(prof), "--"] + cmd,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            syscalls = load_profile(prof)
+            noisy = syscalls | {"ptrace"}
+            res = ablate_policy(
+                target="rand_test",
+                base_syscalls=noisy,
+                workloads=[cmd],
+                strategy="minimize",
+                ledger=EvidenceLedger("rand_test", ledger_path=tdir / "l.jsonl"),
+                verbose=False,
+                check_stdout=False,
+            )
+            self.assertIn("ptrace", res["removable_syscalls"])
+            self.assertNotIn("ptrace", res["final_syscalls"])
+
+    def test_nonzero_native_exit_code_matching(self):
+        """Workloads with legitimate non-zero native exit codes (e.g. grep pattern not found => rc 1) are preserved."""
+        with tempfile.TemporaryDirectory() as td:
+            tdir = Path(td)
+            cmd = ["grep", "-q", "nonexistent_pattern_12345", "/etc/passwd"]
+            prof = tdir / "base.json"
+            subprocess.run(
+                [str(BIN), "learn", "-o", str(prof), "--"] + cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            syscalls = load_profile(prof)
+            ref_rc, _, _ = run_workload(cmd)
+            self.assertEqual(ref_rc, 1)
+
+            # Under full policy, sandboxed run must also return 1
+            boxed_rc, _, _ = run_workload(cmd, profile_path=prof)
+            self.assertEqual(boxed_rc, 1)
+
+            # Ablating ptrace (not used) must succeed and retain rc 1
+            noisy = syscalls | {"ptrace"}
+            res = ablate_policy(
+                target="grep_rc1",
+                base_syscalls=noisy,
+                workloads=[cmd],
+                strategy="minimize",
+                ledger=EvidenceLedger("grep_rc1", ledger_path=tdir / "l.jsonl"),
+                verbose=False,
+            )
+            self.assertIn("ptrace", res["removable_syscalls"])
+
+    def test_enforce_missing_profile_fails_closed(self):
+        """povishield enforce on missing profile must fail closed with exit 125, never executing target."""
+        rc, _, _ = run_workload(["/bin/true"], profile_path=Path("/tmp/nonexistent_profile_12345.json"))
+        self.assertEqual(rc, 125)
+
+    def test_enforce_malformed_profile_fails_closed(self):
+        """povishield enforce on malformed profile must fail closed with exit 125."""
+        with tempfile.TemporaryDirectory() as td:
+            bad_prof = Path(td) / "bad.json"
+            bad_prof.write_text("{ garbage token no syscalls array }")
+            rc, _, _ = run_workload(["/bin/true"], profile_path=bad_prof)
+            self.assertEqual(rc, 125)
+
 
 if __name__ == "__main__":
     unittest.main()

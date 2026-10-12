@@ -62,11 +62,14 @@ def test_ablation_trial(
     ref_out: bytes,
     ledger: EvidenceLedger,
     tmp_dir: Path,
+    check_stdout: bool = True,
 ) -> Tuple[bool, Optional[TrialRecord]]:
     """Tests if removing ablated_sc breaks the workload.
 
     Conservative rule: Any timeout, policy-not-applied error, exec failure,
     or divergence causes the permission to be RETAINED (failed = True).
+    If check_stdout is False, byte-for-byte output equality is not required,
+    supporting nondeterministic workloads while still strictly checking exit codes and SIGSYS.
     """
     trial_profile = tmp_dir / f"test_without_{ablated_sc}.json"
     save_profile(trial_profile, candidate_syscalls, command=target)
@@ -78,7 +81,7 @@ def test_ablation_trial(
 
     is_sigsys = cand_rc in SIGSYS_CODES
     signal_name = "SIGSYS" if is_sigsys else (f"SIGNAL_{abs(cand_rc)}" if cand_rc < 0 and cand_rc != -999 else None)
-    output_diverged = (cand_out != ref_out)
+    output_diverged = (cand_out != ref_out) if check_stdout else False
     is_timeout = (cand_rc == -999)
 
     # Classify verdict conservatively
@@ -145,6 +148,7 @@ def ablate_policy(
     strategy: str = "loo",
     ledger: Optional[EvidenceLedger] = None,
     verbose: bool = True,
+    check_stdout: bool = True,
 ) -> Dict[str, Any]:
     """Executes counterfactual permission testing against the workload suite."""
     if not BIN.exists():
@@ -179,7 +183,7 @@ def ablate_policy(
 
                 for w, (ref_rc, ref_out) in zip(workloads, baselines):
                     intact, trial = test_ablation_trial(
-                        target, w, sc, current_policy, candidate_set, ref_rc, ref_out, ledger, tmp_dir
+                        target, w, sc, current_policy, candidate_set, ref_rc, ref_out, ledger, tmp_dir, check_stdout=check_stdout
                     )
                     if not intact:
                         broken = True

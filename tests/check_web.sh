@@ -11,7 +11,7 @@ PY=.venv/bin/python; [ -x "$PY" ] || PY=api/.venv/bin/python
 APIPID=$!
 trap 'kill $APIPID 2>/dev/null' EXIT
 sleep 3
-for ep in health overview policies experiments events/profile ablation/results ledgers approvals; do
+for ep in health overview policies experiments events/profile ablation/results ablation/noisy ledgers approvals; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/api/$ep")
   [ "$code" = "200" ] && echo "[PASS] /api/$ep -> 200" || { echo "[FAIL] /api/$ep -> $code"; FAIL=1; }
 done

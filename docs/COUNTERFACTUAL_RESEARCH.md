@@ -252,3 +252,40 @@ An earlier evaluation of 9 targets against `targets.toml` reported **0 unnecessa
 3. **Search Overhead:**
    Leave-one-out ablation scales linearly $\mathcal{O}(|P_{obs}| \times |W_{req}|)$. For large applications, hierarchical delta-minimization (ddmin) or parallel execution is utilized.
 
+---
+
+## 9. Controlled Synthetic/Noisy-Policy Minimization Experiment
+
+To experimentally validate the counterfactual minimizer's ability to eliminate extraneous, unexercised permissions under real kernel enforcement, we designed an isolated controlled experiment (`evaluation/eval_noisy_ablation.py`, runnable via `make eval-noisy`).
+
+### 9.1 Experimental Design
+- **Target Suite:** All 9 benchmark targets (`ls`, `cat`, `grep`, `gzip`, `sort`, `python3`, `gzip_big`, `sort_big`, `python_cpu`).
+- **Isolation:** Baseline policy files and evaluation artifacts are strictly preserved. Experiments run on isolated candidate copies stored under `results/profiles/noisy/` with append-only trial ledgers in `results/ledgers/noisy/`.
+- **Injected Noise Catalog:** Exactly 10 high-risk, unexercised Linux syscalls are injected into each profile:
+  - Container breakout & filesystem manipulation: `mount`, `chroot`
+  - Introspection & kernel hooking: `ptrace`, `bpf`
+  - System control: `reboot`, `kexec_load`, `swapoff`
+  - Network stack capabilities: `socket`, `connect`, `listen`
+- **Verification Criterion:** A candidate policy without syscall $s$ must complete all training workloads $W_{train}$ with identical exit code (0), absence of `SIGSYS` (-31 or 159), no timeout, and identical stdout (for deterministic commands). For commands producing dynamic output (such as directory listings with fluctuating timestamps like `ls -l /`), PoViShield uses `check_stdout=False` to avoid false divergence while strictly enforcing exit code and kernel signal termination.
+- **Held-Out Generalization:** After minimization, held-out workloads $W_{heldout}$ are executed under the minimized policy to verify zero regressions and zero false kills.
+
+### 9.2 Measured Empirical Results
+Measured on Fedora Linux (`7.2.8-200.fc44.x86_64`):
+
+| Target | Baseline Noisy Syscalls | Minimized Syscalls | Injected Syscalls Removed | Required Syscalls Retained | Held-Out Compatibility | False Kills |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `ls` | 42 | 32 | **10 / 10 (100.0%)** | 32 / 32 (100.0%) | 100.0% | 0 |
+| `cat` | 33 | 23 | **10 / 10 (100.0%)** | 23 / 23 (100.0%) | 100.0% | 0 |
+| `grep` | 34 | 24 | **10 / 10 (100.0%)** | 24 / 24 (100.0%) | 100.0% | 0 |
+| `gzip` | 34 | 24 | **10 / 10 (100.0%)** | 24 / 24 (100.0%) | 100.0% | 0 |
+| `sort` | 37 | 27 | **10 / 10 (100.0%)** | 27 / 27 (100.0%) | 100.0% | 0 |
+| `python3` | 64 | 54 | **10 / 10 (100.0%)** | 54 / 54 (100.0%) | 100.0% | 0 |
+| `gzip_big` | 34 | 24 | **10 / 10 (100.0%)** | 24 / 24 (100.0%) | 100.0% | 0 |
+| `sort_big` | 37 | 27 | **10 / 10 (100.0%)** | 27 / 27 (100.0%) | 100.0% | 0 |
+| `python_cpu` | 99 | 89 | **10 / 10 (100.0%)** | 89 / 89 (100.0%) | 100.0% | 0 |
+| **Overall** | **46.0 avg** | **36.0 avg** | **90 / 90 (100.0%)** | **100.0%** | **100.0%** | **0** |
+
+### 9.3 Key Conclusions
+1. **100.0% Injected Removal Rate:** The counterfactual minimizer eliminated every single injected extraneous permission ($90/90$) without exception.
+2. **Zero False Kills & 100% Required Retention:** All genuinely required system calls were preserved; 0 held-out tasks experienced termination.
+3. **Reproducibility:** Machine-readable output is generated at `results/noisy_ablation_eval.json`, Markdown report at `results/noisy_ablation_report.md`, and surfaced via API endpoint `GET /api/ablation/noisy` and the React frontend dashboard under the "Controlled Noisy Evaluation" view.

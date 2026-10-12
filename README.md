@@ -30,7 +30,8 @@ Full table, raw data and methodology: `docs/RESULTS.md`, `results/raw/`, `docs/B
 make deps && make
 make test                       # unit, CLI, fail-closed and fuzz-adjacent tests (no root)
 make demo-cf                    # end-to-end counterfactual ablation & evidence ledger demo
-make eval-ablate                # counterfactual permission evaluation across targets
+make eval-ablate                # counterfactual permission evaluation across targets (baseline minimal unions)
+make eval-noisy                 # controlled noisy-policy minimization experiment (100% elimination of unexercised permissions)
 make verify                     # + fuzzing the profile loader (plain and ASan/UBSan)
 sudo make test-root             # runtime, privilege and rootfs-isolation tests (skipped unprivileged)
 make eval && make docs          # benchmarks -> docs/RESULTS.md

@@ -33,6 +33,9 @@ eval: all                      ## full benchmark -> results/results.json + repor
 eval-ablate: all               ## counterfactual permission ablation evaluation -> results/ablation_eval.json
 > python3 -m evaluation.eval_ablation
 
+eval-noisy: all                ## controlled noisy-policy ablation experiment -> results/noisy_ablation_eval.json
+> python3 -m evaluation.eval_noisy_ablation
+
 escape: all                    ## escape suite, run as root: sudo make escape
 > python3 tests/escape/run_escape.py
 
