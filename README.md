@@ -29,8 +29,10 @@ Full table, raw data and methodology: `docs/RESULTS.md`, `results/raw/`, `docs/B
 ```bash
 make deps && make
 make test                       # unit, CLI, fail-closed and fuzz-adjacent tests (no root)
+make demo-cf                    # end-to-end counterfactual ablation & evidence ledger demo
+make eval-ablate                # counterfactual permission evaluation across targets
 make verify                     # + fuzzing the profile loader (plain and ASan/UBSan)
-sudo make test-root             # runtime, privilege and rootfs-isolation tests
+sudo make test-root             # runtime, privilege and rootfs-isolation tests (skipped unprivileged)
 make eval && make docs          # benchmarks -> docs/RESULTS.md
 sudo make escape-full           # escape matrix -> docs/escape-matrix.txt
 make resume-line                # summary line generated from measured data
@@ -38,14 +40,27 @@ make resume-line                # summary line generated from measured data
 
 ## Using it
 ```bash
-build/povishield learn   -o app.json -- ./app --typical-args        # observe
-python3 -m analysis.merge merged.json run1.json run2.json            # combine workloads
-build/povishield enforce -p merged.json -- ./app                     # seccomp only (kills on violation)
-build/povishield enforce -p merged.json --audit -- ./app             # log instead of kill
+# 1. Learn observed system calls
+build/povishield learn   -o app.json -- ./app --typical-args
+
+# 2. Challenge permissions via Counterfactual Verification
+python3 -m analysis.ablate --profile app.json --workload "./app --arg1" -o app_candidate.json
+
+# 3. Independently audit the evidence ledger (fail-closed check)
+python3 -m analysis.audit_ledger results/ledgers/app.jsonl --candidate app_candidate.json
+
+# 4. Verify candidate policy via safety gate before active enforcement
+python3 -m analysis.verify app_candidate.json --active app.json --regression "./app --arg1" --approve
+
+# 5. Enforce verified policy
+build/povishield enforce -p app_candidate.json -- ./app                  # seccomp only (kills on violation)
+build/povishield enforce -p app_candidate.json --audit -- ./app          # log instead of kill
 sudo build/povishield run --mem 256 --pids 64 --cpu 50 \
-     --rootfs ./rootfs --profile merged.json -- /app                 # full sandbox
-python3 -m analysis.risk merged.json                                 # attack-surface score
-python3 -m analysis.diff old.json new.json                           # what changed between versions
+     --rootfs ./rootfs --profile app_candidate.json -- /app              # full sandbox
+
+# 6. Analyze risk and diff policies
+python3 -m analysis.risk app_candidate.json                              # attack-surface score
+python3 -m analysis.diff app.json app_candidate.json                     # policy delta
 ```
 Resource limits are validated strictly: an unparsable `--mem`, `--pids` or `--cpu` stops the run instead of
 silently meaning "unlimited". A malformed or empty profile aborts with exit status 125 and never runs the command.
@@ -54,20 +69,24 @@ silently meaning "unlimited". A malformed or empty profile aborts with exit stat
 | layer | mechanism | source |
 |---|---|---|
 | learn | `ptrace` follows fork/clone/exec, records syscalls, atomic profile write | `src/tracer/learn.c` |
-| policy | libseccomp allow-list, default kill, fail-closed loader | `src/policy/seccomp_gen.c` |
+| ablation | Leave-one-out and greedy fixed-point minimization under `SCMP_ACT_KILL_PROCESS` | `analysis/ablate.py` |
+| evidence ledger | Append-only JSONL trial records, SHA-256 hashes, repro commands, fail-closed audit | `analysis/ledger.py`, `analysis/audit_ledger.py` |
+| verification gate | Pre-enforcement safety gate: regression test, adversarial containment, approval lifecycle | `analysis/verify.py` |
+| policy | libseccomp allow-list, default kill, fail-closed Schema 1 & Schema 2 loader | `src/policy/seccomp_gen.c`, `analysis/common.py` |
 | isolation | PID/mount/UTS/IPC/net namespaces, `pivot_root`, capability dropping | `src/runtime/sandbox.c` |
 | limits | cgroup v2 `memory.max`, `pids.max`, `cpu.max` | `src/runtime/sandbox.c` |
 | analysis | risk score, profile diff and merge | `analysis/` |
-| evidence | benchmarks, escape matrix, fuzzing, root tests | `evaluation/`, `tests/` |
+| evidence | benchmarks, counterfactual evaluation, escape matrix, fuzzing, root tests | `evaluation/`, `tests/` |
 
 ## Documentation
-`docs/THREAT_MODEL.md` · `docs/ARCHITECTURE.md` · `docs/BENCHMARKING.md` · `docs/PROFILE_QUALITY.md` ·
+`docs/COUNTERFACTUAL_RESEARCH.md` · `docs/THREAT_MODEL.md` · `docs/ARCHITECTURE.md` · `docs/BENCHMARKING.md` · `docs/PROFILE_QUALITY.md` ·
 `docs/ESCAPE_ANALYSIS.md` · `docs/VM_TESTING.md` · `docs/RESULTS.md` (generated)
 
 ## Limitations (summary)
-A profile covers only observed behaviour. Seccomp does not inspect syscall arguments or restrict filesystem paths.
+A profile covers only observed behaviour unless experimentally verified. Counterfactual ablation proves permissions
+unnecessary for tested workloads, but cannot guarantee unseen code paths. Seccomp does not inspect syscall pointer arguments or restrict filesystem paths.
 Namespaces alone do not contain a root process that keeps its capabilities. Learn mode is x86_64 only and must not be
-run on hostile code. Kernel bugs are out of scope. Details in `docs/THREAT_MODEL.md`.
+run on hostile code. Details in `docs/THREAT_MODEL.md` and `docs/COUNTERFACTUAL_RESEARCH.md`.
 
 ## Dashboard (experimental)
 `api/` (FastAPI) and `frontend/` (React + Vite) visualise saved profiles and results. Whether a given view reflects
