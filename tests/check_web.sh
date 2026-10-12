@@ -11,13 +11,14 @@ PY=.venv/bin/python; [ -x "$PY" ] || PY=api/.venv/bin/python
 APIPID=$!
 trap 'kill $APIPID 2>/dev/null' EXIT
 sleep 3
-for ep in health overview policies experiments events/profile ablation/results ablation/noisy ledgers approvals; do
+for ep in health overview policies experiments events/profile ablation/results ablation/noisy ledgers approvals "events?limit=10"; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/api/$ep")
   [ "$code" = "200" ] && echo "[PASS] /api/$ep -> 200" || { echo "[FAIL] /api/$ep -> $code"; FAIL=1; }
 done
 echo
 echo "=== LIVE MONITOR API INTEGRATION ==="
 python3 tests/check_monitor_api.py && echo "[PASS] live monitor API integration" || FAIL=1
+API=http://127.0.0.1:8001 python3 tests/check_monitor_security.py && echo "[PASS] monitor API security verification" || FAIL=1
 echo
 echo "NOTE: HTTP 200 does not prove live monitoring or enforcement is active."
 kill $APIPID 2>/dev/null; wait $APIPID 2>/dev/null

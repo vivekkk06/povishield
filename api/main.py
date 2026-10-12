@@ -44,9 +44,19 @@ class MonitorStartRequest(BaseModel):
 # Host is checked against DNS rebinding, Origin against cross-site requests. Keep TRUSTED_ORIGINS in sync with
 # the CORS allow_origins list below; override with POVISHIELD_ALLOWED_ORIGINS="http://a:1,http://b:2".
 TRUSTED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
-TRUSTED_ORIGINS = {o.strip() for o in os.environ.get(
-    "POVISHIELD_ALLOWED_ORIGINS",
-    "http://127.0.0.1:5175,http://localhost:5175,http://127.0.0.1:4173,http://localhost:4173").split(",") if o.strip()}
+DEFAULT_ORIGINS = (
+    "http://127.0.0.1:5173,http://localhost:5173,"
+    "http://127.0.0.1:5174,http://localhost:5174,"
+    "http://127.0.0.1:5175,http://localhost:5175,"
+    "http://127.0.0.1:4173,http://localhost:4173,"
+    "http://127.0.0.1:4174,http://localhost:4174,"
+    "http://127.0.0.1:8000,http://localhost:8000"
+)
+TRUSTED_ORIGINS = {
+    o.strip()
+    for o in os.environ.get("POVISHIELD_ALLOWED_ORIGINS", DEFAULT_ORIGINS).split(",")
+    if o.strip()
+}
 
 # Only these may be traced. Deliberately small and read-only: no env/find/xargs/awk/sed/tar/git/curl and no
 # `sort` (--compress-program runs an arbitrary program). Add absolute paths with POVISHIELD_MONITOR_ALLOW=/a:/b
@@ -169,16 +179,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-    ],
+    allow_origins=sorted(TRUSTED_ORIGINS),
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 

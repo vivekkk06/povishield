@@ -11,8 +11,7 @@ import {
   Tooltip, ResponsiveContainer, BarChart, Bar
 } from "recharts";
 import "./App.css";
-
-const API = "http://127.0.0.1:8000/api";
+const API = import.meta.env.VITE_API_URL || (typeof window !== "undefined" && window.location.protocol !== "file:" ? "/api" : "http://127.0.0.1:8000/api");
 
 const navigation = [
   { name: "Overview", icon: LayoutDashboard },
