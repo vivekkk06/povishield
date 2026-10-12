@@ -30,6 +30,9 @@ test: all                      ## unit tests (no root needed)
 eval: all                      ## full benchmark -> results/results.json + report.md
 > python3 -m evaluation.run_eval
 
+eval-ablate: all               ## counterfactual permission ablation evaluation -> results/ablation_eval.json
+> python3 -m evaluation.eval_ablation
+
 escape: all                    ## escape suite, run as root: sudo make escape
 > python3 tests/escape/run_escape.py
 
@@ -38,6 +41,9 @@ resume-line:                   ## print resume bullet from measured results
 
 demo: all                      ## attack demo
 > bash demo/run_demo.sh
+
+demo-cf: all                   ## counterfactual permission verification & ledger demo
+> bash demo/run_counterfactual_demo.sh
 
 dashboard:                     ## live cgroup dashboard
 > python3 dashboard/tui.py
