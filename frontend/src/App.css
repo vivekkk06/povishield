@@ -233,3 +233,71 @@ td code, .rule-row code { padding: 4px 6px; border: 1px solid #28354a; backgroun
 .monitor-stop-button { border-color:#684047; color:#ffb6bd; }
 .monitor-session-id { color:#8292a8; font:10px ui-monospace,monospace; }
 @media (max-width:650px) { .monitor-actions .secondary-button { flex:1; justify-content:center; } .monitor-state { margin-top:8px; } }
+
+/* Policy Comparator */
+.comparator-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 15px 0 20px; }
+.compare-select-card { background: #101a29; border: 1px solid #202c40; border-radius: 9px; padding: 14px; }
+.compare-select-card label { display: block; font-size: 11px; color: #8a9cb5; margin-bottom: 8px; font-weight: 600; }
+.compare-select-card select { width: 100%; padding: 9px 11px; background: #0a1220; border: 1px solid #28374d; border-radius: 7px; color: #dce7f5; font-size: 12px; }
+.diff-summary-card { background: #0d1624; border: 1px solid #202e42; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+.diff-stat-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; }
+.diff-stat-item { background: #121c2d; padding: 10px 14px; border-radius: 8px; border: 1px solid #24354c; flex: 1; min-width: 140px; }
+.diff-stat-item span { display: block; font-size: 10px; color: #7f90a8; }
+.diff-stat-item strong { display: block; font-size: 18px; margin-top: 4px; color: #e1ebf7; }
+.diff-added { color: #f4b251 !important; }
+.diff-removed { color: #45d6a5 !important; }
+.diff-risk-down { color: #45d6a5 !important; }
+.syscall-pill-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.syscall-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 5px; font: 10px/1.4 ui-monospace,monospace; border: 1px solid #253449; background: #101a28; color: #c4d4eb; }
+.syscall-pill.pill-necessary { background: #132b24; border-color: #245744; color: #78e6bc; }
+.syscall-pill.pill-removable { background: #2f2514; border-color: #594524; color: #f4c46d; }
+.syscall-pill.pill-untested { background: #211c2a; border-color: #433359; color: #c9abf5; }
+.syscall-pill.pill-removed { background: #2f1d22; border-color: #5c2c36; color: #ff9ca7; text-decoration: line-through; }
+.syscall-pill.pill-added { background: #2d2613; border-color: #544421; color: #ebd171; }
+.tier-section { margin-top: 16px; padding: 12px; background: #0c1421; border: 1px solid #1c2a3d; border-radius: 8px; }
+.tier-section h4 { margin: 0 0 6px; font-size: 11px; display: flex; align-items: center; gap: 8px; }
+
+/* Evidence Ledger & Independent Auditor */
+.ledger-controls { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 12px; margin-bottom: 18px; align-items: end; }
+.ledger-target-select select, .ledger-filter-select select, .ledger-search-input input {
+  width: 100%; padding: 9px 12px; background: #101a29; border: 1px solid #29364a; border-radius: 7px; color: #d3deec; font-size: 11px; outline: none;
+}
+.ledger-target-select select:focus, .ledger-filter-select select:focus, .ledger-search-input input:focus { border-color: #45d6a5; }
+.audit-panel { background: #0c1523; border: 1px solid #1f2c40; border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+.audit-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 12px; }
+.audit-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.6px; }
+.audit-badge.passed { background: #132e25; border: 1px solid #24634c; color: #5ee6b2; }
+.audit-badge.failed { background: #38151c; border: 1px solid #732635; color: #ff8696; }
+.audit-details-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.audit-detail-card { background: #101b2a; border: 1px solid #223044; border-radius: 7px; padding: 10px; }
+.audit-detail-card span { font-size: 9px; color: #7f90a6; display: block; margin-bottom: 4px; }
+.audit-detail-card strong { font-size: 15px; color: #dbe4f1; }
+.audit-error-list { margin-top: 12px; padding: 10px 14px; background: #2b1318; border: 1px solid #5a202b; border-radius: 7px; color: #ffa2ad; font-size: 11px; }
+
+/* Trial Detail Drawer */
+.trial-drawer { margin-top: 18px; background: #0d1624; border: 1px solid #23344a; border-radius: 10px; padding: 18px; }
+.trial-drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.reproduce-box { background: #070d17; border: 1px solid #1e2c3e; border-radius: 8px; padding: 14px; margin-top: 8px; position: relative; }
+.reproduce-code { font: 11px/1.6 ui-monospace,SFMono-Regular,monospace; color: #8ee3c2; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.copy-btn { position: absolute; top: 10px; right: 10px; background: #142233; border: 1px solid #2c415c; border-radius: 6px; color: #9bb0cb; padding: 5px 9px; font-size: 10px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.copy-btn:hover { background: #1b2e46; color: #dce7f5; }
+.fingerprint-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.fingerprint-card { background: #111a28; border: 1px solid #202d3f; border-radius: 6px; padding: 8px 10px; font-size: 10px; }
+.fingerprint-card span { color: #76869b; display: block; margin-bottom: 3px; }
+.fingerprint-card strong { color: #cbd7e8; font-family: ui-monospace,monospace; }
+
+/* Verdict badges */
+.verdict-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.verdict-tag.verdict-necessary { background: #142e26; color: #64e3b3; border: 1px solid #25614a; }
+.verdict-tag.verdict-removable { background: #332715; color: #e8bf72; border: 1px solid #634a26; }
+.verdict-tag.verdict-sigsys { background: #3b171e; color: #ff8696; border: 1px solid #752936; }
+.verdict-tag.verdict-approved { background: #142e26; color: #64e3b3; border: 1px solid #25614a; }
+
+/* Research & Literature Comparison */
+.lit-table-wrap { margin-top: 15px; overflow-x: auto; }
+.lit-table th { background: #0f1827; }
+.lit-badge-yes { color: #5ee6b2; font-weight: 600; }
+.lit-badge-no { color: #7d8b9e; }
+.report-toggle-btn { margin-top: 15px; }
+.report-view-box { background: #080e18; border: 1px solid #1f2d40; border-radius: 8px; padding: 16px; margin-top: 12px; max-height: 400px; overflow-y: auto; }
+.report-view-box pre { font: 11px/1.6 ui-monospace,monospace; color: #9ab0ca; margin: 0; white-space: pre-wrap; }
