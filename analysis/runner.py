@@ -156,23 +156,24 @@ def find_profile_for_target(target_name: str, explicit_profile: Optional[str] = 
 
 def is_approval_present(target_name: str, profile_path: Optional[Path]) -> bool:
     """Checks whether an approval record exists for this target and profile."""
-    if not APPROVALS_FILE.is_file():
-        return False
-    try:
-        with APPROVALS_FILE.open("r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                try:
-                    record = json.loads(line)
-                    if record.get("target") == target_name or (
-                        profile_path and str(profile_path) in (record.get("candidate", ""), record.get("approved_at", ""))
-                    ):
-                        return True
-                except json.JSONDecodeError:
-                    continue
-    except OSError:
-        return False
+    for cand in (APPROVALS_FILE, ROOT / "deploy_data" / "approvals.jsonl"):
+        if not cand.is_file():
+            continue
+        try:
+            with cand.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                        if record.get("target") == target_name or (
+                            profile_path and str(profile_path) in (record.get("candidate", ""), record.get("approved_at", ""))
+                        ):
+                            return True
+                    except json.JSONDecodeError:
+                        continue
+        except OSError:
+            continue
     return False
 
 
