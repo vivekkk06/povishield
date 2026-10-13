@@ -293,8 +293,12 @@ export default function FleetDeviceConsole({ API }) {
                         fontWeight: 700,
                         background: isRevoked ? "#381014" : isOnline ? "#064e3b" : "#1e293b",
                         color: isRevoked ? "#f87171" : isOnline ? "#34d399" : "#94a3b8",
-                        border: isRevoked ? "1px solid #7f1d1d" : isOnline ? "1px solid #059669" : "1px solid #334155"
+                        border: isRevoked ? "1px solid #7f1d1d" : isOnline ? "1px solid #059669" : "1px solid #334155",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5
                       }}>
+                        {isOnline && !isRevoked && <span className="live-pulse-dot" style={{ width: 5, height: 5 }} />}
                         {isRevoked ? "REVOKED" : isOnline ? "ONLINE" : "OFFLINE"}
                       </span>
                     </div>
