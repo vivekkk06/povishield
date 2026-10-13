@@ -654,6 +654,11 @@ function App() {
                 className="device-select-dropdown"
               >
                 <option value="gateway">🌐 Local Server Gateway</option>
+                {devices.filter(d => d.status !== "revoked").length > 0 && (
+                  <option value="broadcast" style={{ color: "#38bdf8", fontWeight: 700 }}>
+                    ⚡ All Fleet Devices (Broadcast · {devices.filter(d => d.status !== "revoked").length} nodes)
+                  </option>
+                )}
                 {devices.map(d => (
                   <option key={d.id} value={d.id}>
                     💻 {d.name || d.hostname} ({d.is_live ? "Online" : d.status === "revoked" ? "Revoked" : "Offline"})
@@ -663,7 +668,13 @@ function App() {
               </select>
             </div>
 
-            {activeDevice ? (
+            {activeDeviceId === "broadcast" ? (
+              <div className="telemetry-chip" style={{ borderColor: "#0284c7" }}>
+                <span className="live-pulse-dot" style={{ background: "#38bdf8" }} />
+                <span style={{ color: "#38bdf8" }}>TARGET:</span>
+                <strong style={{ color: "#38bdf8" }}>ALL FLEET NODES ({devices.filter(d => d.status !== "revoked").length})</strong>
+              </div>
+            ) : activeDevice ? (
               <>
                 <div className="telemetry-chip">
                   <span className="live-pulse-dot" style={{ background: activeDevice.is_live ? "#10b981" : "#64748b" }} />
@@ -2552,7 +2563,7 @@ function App() {
                       <div className="policy-row">
                         <span>Active Fleet Scope</span>
                         <strong style={{ color: activeDeviceId === "gateway" ? "#94a3b8" : "#34d399" }}>
-                          {activeDeviceId === "gateway" ? "Global Fleet / Gateway" : (activeDevice?.hostname || activeDeviceId)}
+                          {activeDeviceId === "gateway" ? "Global Fleet / Gateway" : activeDeviceId === "broadcast" ? "All Fleet Devices (Broadcast)" : (activeDevice?.hostname || activeDeviceId)}
                         </strong>
                       </div>
                       <div className="policy-row">

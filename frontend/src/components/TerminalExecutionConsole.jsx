@@ -304,9 +304,9 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                 }}
               >
                 <option value="gateway">🌐 Local Server Gateway</option>
-                {devices.filter(d => d.status !== "revoked" && d.is_live).length > 0 && (
+                {devices.filter(d => d.status !== "revoked").length > 0 && (
                   <option value="broadcast" style={{ color: "#38bdf8", fontWeight: 700 }}>
-                    ⚡ All Online Devices (Fleet Broadcast · {devices.filter(d => d.status !== "revoked" && d.is_live).length} nodes)
+                    ⚡ All Fleet Devices (Broadcast · {devices.filter(d => d.status !== "revoked").length} nodes)
                   </option>
                 )}
                 {devices.map(d => (
@@ -319,7 +319,7 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
             {execTarget !== "gateway" && (
               <span style={{ fontSize: 11, color: "#34d399", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", gap: 6 }}>
                 <span className="live-pulse-dot" style={{ width: 6, height: 6 }} />
-                REMOTE FLEET DISPATCH ACTIVE
+                {execTarget === "broadcast" ? "FLEET BROADCAST ACTIVE (ALL NODES)" : "REMOTE FLEET DISPATCH ACTIVE"}
               </span>
             )}
           </div>
@@ -327,7 +327,11 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
           {/* Input Bar */}
           <div className="terminal-input-bar">
             <span className="terminal-prompt-icon">
-              {execTarget !== "gateway" ? `[${devices.find(d => d.id === execTarget)?.hostname || "remote"}]$ ` : "$ "}povishield run --
+              {execTarget === "broadcast"
+                ? "[all-fleet-nodes]$ "
+                : execTarget !== "gateway"
+                  ? `[${devices.find(d => d.id === execTarget)?.hostname || "remote"}]$ `
+                  : "$ "}povishield run --
             </span>
             <input
               type="text"

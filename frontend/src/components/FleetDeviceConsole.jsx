@@ -11,6 +11,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState(new Set());
 
   // Pairing Wizard Modal State
   const [showPairModal, setShowPairModal] = useState(false);
@@ -42,12 +43,19 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       const res = await fetch(`${API}/devices`);
       if (res.ok) {
         const data = await res.json();
-        setDevices(data.devices || []);
-        if (data.devices?.length && !selectedDevice) {
-          setSelectedDevice(data.devices[0]);
-        } else if (selectedDevice) {
-          const updated = data.devices.find(d => d.id === selectedDevice.id);
-          if (updated) setSelectedDevice(updated);
+        const devList = data.devices || [];
+        setDevices(devList);
+        const activeDevs = devList.filter(d => d.status !== "revoked");
+
+        if (devList.length > 0) {
+          if (!selectedDevice || selectedDevice.id === "all") {
+            // Default to selecting ALL fleet devices
+            setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+            setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+          } else {
+            const updated = devList.find(d => d.id === selectedDevice.id);
+            if (updated) setSelectedDevice(updated);
+          }
         }
       }
     } catch (err) {
@@ -63,8 +71,73 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    if (activeDeviceId === "broadcast" || activeDeviceId === "gateway" || !activeDeviceId) {
+      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+      setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+    } else {
+      const found = devices.find(d => d.id === activeDeviceId);
+      if (found) {
+        setSelectedDevice(found);
+        setSelectedDeviceIds(new Set([found.id]));
+      }
+    }
+  }, [activeDeviceId, devices.length]);
+
+  const handleToggleSelectAll = () => {
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    if (selectedDeviceIds.size === activeDevs.length && selectedDeviceIds.size > 0) {
+      setSelectedDeviceIds(new Set());
+      setSelectedDevice({ id: "all", name: "0 Devices Selected", isAll: true, count: 0 });
+    } else {
+      setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+      if (setActiveDeviceId) setActiveDeviceId("broadcast");
+    }
+  };
+
+  const handleToggleDeviceCheckbox = (e, dev) => {
+    e.stopPropagation();
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    let current = selectedDeviceIds;
+    if (selectedDevice?.id === "all" && current.size === 0) {
+      current = new Set(activeDevs.map(d => d.id));
+    }
+    const next = new Set(current);
+    if (next.has(dev.id)) {
+      next.delete(dev.id);
+    } else {
+      next.add(dev.id);
+    }
+    setSelectedDeviceIds(next);
+
+    if (next.size === 0) {
+      setSelectedDevice({ id: "all", name: "0 Devices Selected", isAll: true, count: 0 });
+    } else if (next.size === activeDevs.length) {
+      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+      if (setActiveDeviceId) setActiveDeviceId("broadcast");
+    } else if (next.size === 1) {
+      const singleId = Array.from(next)[0];
+      const found = devices.find(d => d.id === singleId);
+      if (found) {
+        setSelectedDevice(found);
+        if (setActiveDeviceId) setActiveDeviceId(found.id);
+      }
+    } else {
+      setSelectedDevice({ id: "all", name: `${next.size} Selected Devices`, isAll: true, count: next.size });
+      if (setActiveDeviceId) setActiveDeviceId("broadcast");
+    }
+  };
+
+  const handleSelectSingleDevice = (dev) => {
+    setSelectedDevice(dev);
+    setSelectedDeviceIds(new Set([dev.id]));
+    if (setActiveDeviceId) setActiveDeviceId(dev.id);
+  };
+
   const loadDeviceDetails = async (devId) => {
-    if (!devId) return;
+    if (!devId || devId === "all") return;
     setDetailsLoading(true);
     try {
       const res = await fetch(`${API}/devices/${devId}`);
@@ -81,7 +154,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   };
 
   useEffect(() => {
-    if (selectedDevice?.id) {
+    if (selectedDevice?.id && selectedDevice.id !== "all") {
       loadDeviceDetails(selectedDevice.id);
     }
   }, [selectedDevice?.id]);
@@ -90,7 +163,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     setRefreshing(true);
     try {
       await fetchDevices();
-      if (selectedDevice?.id) {
+      if (selectedDevice?.id && selectedDevice.id !== "all") {
         await loadDeviceDetails(selectedDevice.id);
       }
     } finally {
@@ -149,8 +222,80 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     return () => clearInterval(timer);
   }, [waitingForPair, pairingData]);
 
+  // Broadcast task to multiple / all endpoints
+  const handleBroadcastTask = async (overrideCmd, overrideMode) => {
+    const effectiveCmd = overrideCmd || commandInput;
+    const effectiveMode = overrideMode || execMode;
+    const tokens = effectiveCmd.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+    const args = tokens.map(t => (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")) ? t.slice(1, -1) : t);
+    if (!args.length) return;
+
+    if (selectedDeviceIds.size === 0) {
+      setError("Please select at least one fleet endpoint to broadcast the command.");
+      return;
+    }
+
+    setBroadcastRunning(true);
+    setBroadcastResult(null);
+
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    const targetIds = (selectedDeviceIds.size > 0 && selectedDeviceIds.size < activeDevs.length)
+      ? Array.from(selectedDeviceIds)
+      : null;
+
+    try {
+      const payload = { command: args, mode: effectiveMode };
+      if (targetIds && targetIds.length > 0) {
+        payload.target_device_ids = targetIds;
+      }
+      const res = await fetch(`${API}/devices/broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || `Broadcast failed (${res.status})`);
+
+      setBroadcastResult(data);
+
+      let currentDispatched = data.dispatched || [];
+      let polls = 0;
+      const pollBroadcast = setInterval(async () => {
+        polls++;
+        let allDone = true;
+        currentDispatched = await Promise.all(currentDispatched.map(async (item) => {
+          if (item.status === "completed" || item.status === "failed") return item;
+          try {
+            const tr = await fetch(`${API}/devices/${item.device_id}/tasks/${item.task_id}`);
+            if (tr.ok) {
+              const tData = await tr.json();
+              if (tData.status === "completed" || tData.status === "failed") {
+                return { ...item, status: tData.status, result: tData.result };
+              }
+            }
+          } catch {}
+          allDone = false;
+          return item;
+        }));
+
+        setBroadcastResult(prev => ({ ...(prev || data), dispatched: currentDispatched }));
+        if (allDone || polls > 25) {
+          clearInterval(pollBroadcast);
+          setBroadcastRunning(false);
+          fetchDevices();
+        }
+      }, 1000);
+    } catch (err) {
+      setError(err.message || "Failed to broadcast task");
+      setBroadcastRunning(false);
+    }
+  };
+
   // Dispatch Remote Task
   const handleDispatchTask = async (overrideCmd, overrideMode) => {
+    if (selectedDevice?.id === "all") {
+      return handleBroadcastTask(overrideCmd, overrideMode);
+    }
     if (!selectedDevice || selectedDevice.status === "revoked") return;
     const effectiveCmd = overrideCmd || commandInput;
     const effectiveMode = overrideMode || execMode;
@@ -246,6 +391,12 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   const onlineDevicesCount = devices.filter(d => d.is_live).length;
   const verifiedEnforceCount = devices.filter(d => d.capabilities?.enforcement_verified).length;
 
+  const filteredDevices = devices.filter(d => {
+    if (fleetFilter === "online") return d.is_live && d.status !== "revoked";
+    if (fleetFilter === "seccomp") return d.capabilities?.enforcement_verified && d.status !== "revoked";
+    return true;
+  });
+
   return (
     <div className="fleet-view">
       {/* Top Fleet Summary Metrics */}
@@ -326,73 +477,553 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 </button>
               </div>
             ) : (
-              devices.map(dev => {
-                const isSelected = selectedDevice?.id === dev.id;
-                const isOnline = dev.is_live;
-                const isRevoked = dev.status === "revoked";
-
-                return (
-                  <div
-                    key={dev.id}
-                    onClick={() => setSelectedDevice(dev)}
-                    className={`device-card ${isSelected ? "selected" : ""}`}
+              <>
+                {/* Filter Tabs */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => setFleetFilter("all")}
                     style={{
-                      padding: "14px 16px",
-                      borderRadius: 8,
-                      border: isSelected ? "1px solid #10b981" : "1px solid #1e293b",
-                      background: isSelected ? "#0a1f18" : "#0a0f1d",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease"
+                      padding: "4px 8px", fontSize: 11, borderRadius: 5, cursor: "pointer",
+                      background: fleetFilter === "all" ? "#1e293b" : "transparent",
+                      color: fleetFilter === "all" ? "#f1f5f9" : "#64748b",
+                      border: "1px solid",
+                      borderColor: fleetFilter === "all" ? "#334155" : "#1e293b",
+                      fontFamily: "var(--font-mono)"
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <strong style={{ fontSize: 14, color: isSelected ? "#34d399" : "#f1f5f9" }}>
-                        {dev.name || dev.hostname}
+                    All ({devices.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFleetFilter("online")}
+                    style={{
+                      padding: "4px 8px", fontSize: 11, borderRadius: 5, cursor: "pointer",
+                      background: fleetFilter === "online" ? "#064e3b" : "transparent",
+                      color: fleetFilter === "online" ? "#34d399" : "#64748b",
+                      border: "1px solid",
+                      borderColor: fleetFilter === "online" ? "#059669" : "#1e293b",
+                      fontFamily: "var(--font-mono)"
+                    }}
+                  >
+                    Online ({onlineDevicesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFleetFilter("seccomp")}
+                    style={{
+                      padding: "4px 8px", fontSize: 11, borderRadius: 5, cursor: "pointer",
+                      background: fleetFilter === "seccomp" ? "#0c2d48" : "transparent",
+                      color: fleetFilter === "seccomp" ? "#38bdf8" : "#64748b",
+                      border: "1px solid",
+                      borderColor: fleetFilter === "seccomp" ? "#0284c7" : "#1e293b",
+                      fontFamily: "var(--font-mono)"
+                    }}
+                  >
+                    Seccomp ({verifiedEnforceCount})
+                  </button>
+                </div>
+
+                {/* ⚡ All Fleet Devices (Broadcast / Multi-Device Selection) Card */}
+                <div
+                  onClick={() => {
+                    const activeDevs = devices.filter(d => d.status !== "revoked");
+                    setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+                    setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+                    if (setActiveDeviceId) setActiveDeviceId("broadcast");
+                  }}
+                  className={`device-card ${selectedDevice?.id === "all" ? "selected" : ""}`}
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: 8,
+                    border: selectedDevice?.id === "all" ? "1px solid #38bdf8" : "1px solid #1e293b",
+                    background: selectedDevice?.id === "all" ? "#082038" : "#070e1c",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={devices.length > 0 && selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length}
+                        onChange={handleToggleSelectAll}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ cursor: "pointer", accentColor: "#38bdf8" }}
+                      />
+                      <strong style={{ fontSize: 13, color: selectedDevice?.id === "all" ? "#38bdf8" : "#f1f5f9" }}>
+                        ⚡ All Fleet Devices (Broadcast)
                       </strong>
-                      <span className={`status-pill ${isRevoked ? "revoked" : isOnline ? "online" : "offline"}`} style={{
-                        fontSize: 10,
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        fontFamily: "var(--font-mono)",
-                        fontWeight: 700,
-                        background: isRevoked ? "#381014" : isOnline ? "#064e3b" : "#1e293b",
-                        color: isRevoked ? "#f87171" : isOnline ? "#34d399" : "#94a3b8",
-                        border: isRevoked ? "1px solid #7f1d1d" : isOnline ? "1px solid #059669" : "1px solid #334155",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 5
-                      }}>
-                        {isOnline && !isRevoked && <span className="live-pulse-dot" style={{ width: 5, height: 5 }} />}
-                        {isRevoked ? "REVOKED" : isOnline ? "ONLINE" : "OFFLINE"}
-                      </span>
                     </div>
-
-                    <div style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", display: "flex", flexDirection: "column", gap: 3 }}>
-                      <span>HOST: {dev.hostname} ({dev.arch})</span>
-                      <span>KERNEL: {dev.kernel_version?.slice(0, 22)}</span>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                      {dev.capabilities?.enforcement_verified && (
-                        <span style={{ fontSize: 9, background: "#064e3b", color: "#34d399", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
-                          SECCOMP BPF
-                        </span>
-                      )}
-                      {dev.capabilities?.cgroups_v2 && (
-                        <span style={{ fontSize: 9, background: "#0c2d48", color: "#38bdf8", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
-                          CGROUPS V2
-                        </span>
-                      )}
-                    </div>
+                    <span style={{
+                      fontSize: 10,
+                      padding: "2px 7px",
+                      borderRadius: 999,
+                      fontFamily: "var(--font-mono)",
+                      fontWeight: 700,
+                      background: "#0c2d48",
+                      color: "#38bdf8",
+                      border: "1px solid #0284c7"
+                    }}>
+                      {devices.filter(d => d.status !== "revoked").length} NODES
+                    </span>
                   </div>
-                );
-              })
+                  <div style={{ fontSize: 11, color: "#94a3b8", paddingLeft: 22 }}>
+                    Execute policies across all endpoints simultaneously & stream fleet telemetry.
+                  </div>
+                </div>
+
+                {/* Section header: Individual Endpoints with Select All toggle */}
+                <div style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  margin: "6px 0 2px", padding: "0 4px"
+                }}>
+                  <span style={{ fontSize: 10, color: "#64748b", fontFamily: "var(--font-mono)", fontWeight: 700, textTransform: "uppercase" }}>
+                    INDIVIDUAL ENDPOINTS ({filteredDevices.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    style={{
+                      background: "none", border: "none", color: "#38bdf8",
+                      fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer", textDecoration: "underline"
+                    }}
+                  >
+                    {selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length ? "Deselect All" : "Select All"}
+                  </button>
+                </div>
+
+                {filteredDevices.map(dev => {
+                  const isSelected = selectedDevice?.id === dev.id;
+                  const isChecked = selectedDeviceIds.has(dev.id);
+                  const isOnline = dev.is_live;
+                  const isRevoked = dev.status === "revoked";
+
+                  return (
+                    <div
+                      key={dev.id}
+                      onClick={() => handleSelectSingleDevice(dev)}
+                      className={`device-card ${isSelected ? "selected" : ""}`}
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 8,
+                        border: isSelected ? "1px solid #10b981" : isChecked ? "1px solid #1e3a5f" : "1px solid #1e293b",
+                        background: isSelected ? "#0a1f18" : isChecked ? "#081224" : "#0a0f1d",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleToggleDeviceCheckbox(e, dev)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ cursor: "pointer", accentColor: "#10b981" }}
+                          />
+                          <strong style={{ fontSize: 13, color: isSelected ? "#34d399" : "#f1f5f9" }}>
+                            {dev.name || dev.hostname}
+                          </strong>
+                        </div>
+                        <span className={`status-pill ${isRevoked ? "revoked" : isOnline ? "online" : "offline"}`} style={{
+                          fontSize: 10,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: 700,
+                          background: isRevoked ? "#381014" : isOnline ? "#064e3b" : "#1e293b",
+                          color: isRevoked ? "#f87171" : isOnline ? "#34d399" : "#94a3b8",
+                          border: isRevoked ? "1px solid #7f1d1d" : isOnline ? "1px solid #059669" : "1px solid #334155",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5
+                        }}>
+                          {isOnline && !isRevoked && <span className="live-pulse-dot" style={{ width: 5, height: 5 }} />}
+                          {isRevoked ? "REVOKED" : isOnline ? "ONLINE" : "OFFLINE"}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", display: "flex", flexDirection: "column", gap: 3, paddingLeft: 22 }}>
+                        <span>HOST: {dev.hostname} ({dev.arch})</span>
+                        <span>KERNEL: {dev.kernel_version?.slice(0, 22)}</span>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, paddingLeft: 22, flexWrap: "wrap" }}>
+                        {dev.capabilities?.enforcement_verified && (
+                          <span style={{ fontSize: 9, background: "#064e3b", color: "#34d399", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
+                            SECCOMP BPF
+                          </span>
+                        )}
+                        {dev.capabilities?.cgroups_v2 && (
+                          <span style={{ fontSize: 9, background: "#0c2d48", color: "#38bdf8", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
+                            CGROUPS V2
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
 
         {/* Right Column: Detailed Device Console & Remote Supervisor */}
-        {selectedDevice ? (
+        {selectedDevice?.id === "all" ? (
+          <div className="panel fleet-detail-panel">
+            <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    ⚡ {selectedDevice.name || "All Fleet Devices"}
+                  </h2>
+                  <span style={{
+                    fontSize: 11,
+                    fontFamily: "var(--font-mono)",
+                    color: "#38bdf8",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5
+                  }}>
+                    <span style={{
+                      width: 7, height: 7, borderRadius: "50%",
+                      background: "#0ea5e9"
+                    }} />
+                    FLEET BROADCAST SUPERVISOR
+                  </span>
+                </div>
+                <p style={{ marginTop: 4 }}>
+                  Targeting <strong>{selectedDeviceIds.size}</strong> of {devices.filter(d => d.status !== "revoked").length} registered endpoint(s) · Simultaneous policy dispatch & real-time kernel observability
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  className="secondary-button"
+                  onClick={handleRefreshFleet}
+                  disabled={refreshing}
+                  title="Refresh all fleet telemetry"
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  <RefreshCw size={14} className={refreshing ? "spin" : ""} />
+                  {refreshing ? "Refreshing..." : "Refresh"}
+                </button>
+
+                <button
+                  className="secondary-button"
+                  onClick={handleToggleSelectAll}
+                  style={{ borderColor: "#1e3a5f", color: "#38bdf8", padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                  title="Select or deselect all nodes in fleet"
+                >
+                  <CheckCircle2 size={14} />
+                  {selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length ? "Deselect All Nodes" : "Select All Nodes"}
+                </button>
+
+                {setActiveDeviceId && (
+                  activeDeviceId === "broadcast" ? (
+                    <span className="demo-badge" style={{ borderColor: "#0284c7", color: "#38bdf8", padding: "6px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <span className="live-pulse-dot" style={{ width: 6, height: 6, background: "#38bdf8" }} /> GLOBAL TARGET: ALL NODES
+                    </span>
+                  ) : (
+                    <button
+                      className="secondary-button"
+                      onClick={() => setActiveDeviceId("broadcast")}
+                      title="Scope entire dashboard to broadcast mode across all fleet nodes"
+                      style={{ borderColor: "#1e3a5f", color: "#38bdf8", padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <Activity size={14} /> Scope Dashboard to All Nodes
+                    </button>
+                  )
+                )}
+
+                <button
+                  className="primary-button"
+                  onClick={() => handleBroadcastTask("/usr/bin/uname -a", "enforce")}
+                  disabled={broadcastRunning || selectedDeviceIds.size === 0}
+                  style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                  title="Dispatch kernel probe across all selected nodes"
+                >
+                  <ShieldCheck size={14} /> Probe All Nodes
+                </button>
+              </div>
+            </div>
+
+            {/* Capability Diagnostics Grid across targeted nodes */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, margin: "16px 0 20px" }}>
+              <div className="eval-metric-box">
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Target Nodes Selected</span>
+                <strong style={{ color: selectedDeviceIds.size > 0 ? "#38bdf8" : "#f87171", fontSize: 14, fontFamily: "var(--font-mono)" }}>
+                  {selectedDeviceIds.size} / {devices.filter(d => d.status !== "revoked").length}
+                </strong>
+              </div>
+              <div className="eval-metric-box">
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Live Heartbeats (Online)</span>
+                <strong style={{ color: "#34d399", fontSize: 14, fontFamily: "var(--font-mono)" }}>
+                  {devices.filter(d => selectedDeviceIds.has(d.id) && d.is_live).length} ONLINE
+                </strong>
+              </div>
+              <div className="eval-metric-box">
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Kernel Seccomp-BPF Active</span>
+                <strong style={{ color: "#34d399", fontSize: 14, fontFamily: "var(--font-mono)" }}>
+                  {devices.filter(d => selectedDeviceIds.has(d.id) && d.capabilities?.enforcement_verified).length} NODES
+                </strong>
+              </div>
+              <div className="eval-metric-box">
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Cgroups v2 Resource Cap</span>
+                <strong style={{ color: "#38bdf8", fontSize: 14, fontFamily: "var(--font-mono)" }}>
+                  {devices.filter(d => selectedDeviceIds.has(d.id) && d.capabilities?.cgroups_v2).length} NODES
+                </strong>
+              </div>
+            </div>
+
+            {/* Target Endpoints Chip Bar */}
+            <div style={{ marginBottom: 20, padding: "10px 14px", background: "#050914", border: "1px solid #142034", borderRadius: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+                  ACTIVE BROADCAST TARGET POOL ({selectedDeviceIds.size} nodes):
+                </span>
+                <span style={{ fontSize: 10, color: "#64748b" }}>Click an endpoint to inspect its individual kernel diagnostics</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {devices.filter(d => d.status !== "revoked").map(dev => {
+                  const isChecked = selectedDeviceIds.has(dev.id);
+                  return (
+                    <div
+                      key={dev.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        background: isChecked ? "#08243b" : "#080e1a",
+                        border: isChecked ? "1px solid #0284c7" : "1px solid #1e293b",
+                        fontSize: 11,
+                        fontFamily: "var(--font-mono)",
+                        color: isChecked ? "#38bdf8" : "#64748b"
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => handleToggleDeviceCheckbox(e, dev)}
+                        style={{ cursor: "pointer", accentColor: "#38bdf8" }}
+                      />
+                      <span
+                        onClick={() => handleSelectSingleDevice(dev)}
+                        style={{ cursor: "pointer", textDecoration: "underline" }}
+                        title="Click to inspect this device individually"
+                      >
+                        💻 {dev.name || dev.hostname}
+                      </span>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: "50%",
+                        background: dev.is_live ? "#10b981" : "#64748b"
+                      }} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Fleet-Wide Command Dispatch Section */}
+            <div style={{ marginBottom: 24, padding: "16px 18px", background: "#070c1a", border: "1px solid #1e293b", borderRadius: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Terminal size={15} color="#38bdf8" /> Multi-Node Command Dispatch
+                </span>
+                <span style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)" }}>
+                  Broadcasts simultaneously to all {selectedDeviceIds.size} selected nodes
+                </span>
+              </div>
+
+              {/* Quick Presets */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                {[
+                  { label: "Echo Hello", cmd: "/usr/bin/echo 'PoViShield Fleet Broadcast Active'", mode: "enforce" },
+                  { label: "Probe Kernel Release", cmd: "/usr/bin/uname -a", mode: "enforce" },
+                  { label: "Inspect Distro Matrix", cmd: "/usr/bin/cat /etc/os-release", mode: "enforce" },
+                  { label: "Check System Uptime", cmd: "/usr/bin/uptime", mode: "enforce" },
+                  { label: "SIGSYS Curl Block Test", cmd: "/usr/bin/curl -s https://example.com", mode: "enforce" },
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setCommandInput(preset.cmd);
+                      setExecMode(preset.mode);
+                    }}
+                    style={{
+                      padding: "3px 8px", fontSize: 10, background: "#0b1528",
+                      border: "1px solid #1e3a5f", color: "#93c5fd", borderRadius: 4,
+                      cursor: "pointer", fontFamily: "var(--font-mono)"
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Dispatch Form */}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: 280, display: "flex", alignItems: "center", background: "#03060f", border: "1px solid #1e293b", borderRadius: 6, padding: "0 10px" }}>
+                  <span style={{ fontSize: 11, color: "#38bdf8", fontFamily: "var(--font-mono)", marginRight: 6 }}>[all-fleet]$</span>
+                  <input
+                    type="text"
+                    value={commandInput}
+                    onChange={(e) => setCommandInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !broadcastRunning) handleBroadcastTask(); }}
+                    placeholder="/usr/bin/uname -a"
+                    style={{ flex: 1, background: "transparent", border: "none", color: "#f1f5f9", fontFamily: "var(--font-mono)", fontSize: 12, padding: "8px 0", outline: "none" }}
+                  />
+                </div>
+
+                <select
+                  value={execMode}
+                  onChange={(e) => setExecMode(e.target.value)}
+                  style={{
+                    padding: "8px 12px", background: "#050914", border: "1px solid #1e293b",
+                    borderRadius: 6, color: "#f1f5f9", fontFamily: "var(--font-mono)", fontSize: 11
+                  }}
+                >
+                  <option value="enforce">Mode: ENFORCE (Seccomp-BPF Kill)</option>
+                  <option value="inspect">Mode: INSPECT (Ptrace Trace Audit)</option>
+                  <option value="approval-required">Mode: APPROVAL (Safety Ledger)</option>
+                </select>
+
+                <button
+                  className="primary-button"
+                  onClick={() => handleBroadcastTask()}
+                  disabled={broadcastRunning || selectedDeviceIds.size === 0}
+                  style={{ padding: "8px 16px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  {broadcastRunning ? <RefreshCw size={14} className="spin" /> : <Terminal size={14} />}
+                  {broadcastRunning ? "Broadcasting..." : `Dispatch to All (${selectedDeviceIds.size})`}
+                </button>
+              </div>
+            </div>
+
+            {/* Broadcast Results Section */}
+            {broadcastRunning && (
+              <div style={{
+                marginBottom: 24, padding: "16px 20px", background: "#081d33",
+                border: "1px solid #0284c7", borderRadius: 8, display: "flex", alignItems: "center", gap: 14
+              }}>
+                <RefreshCw size={20} className="spin" color="#38bdf8" />
+                <div>
+                  <strong style={{ fontSize: 13, color: "#38bdf8" }}>Broadcasting task across active endpoints...</strong>
+                  <p style={{ margin: "3px 0 0", fontSize: 11, color: "#93c5fd" }}>
+                    Dispatching policy-gated seccomp workload and awaiting kernel verdict confirmation from each endpoint.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {broadcastResult && (
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 13, margin: 0, color: "#f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Activity size={15} color="#34d399" /> Fleet Execution Results ({broadcastResult.dispatched?.length || 0} Endpoints)
+                  </h3>
+                  <span style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)" }}>
+                    Command: <code>{Array.isArray(broadcastResult.command) ? broadcastResult.command.join(" ") : broadcastResult.command}</code>
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {(broadcastResult.dispatched || []).map((item, idx) => {
+                    const res = item.result;
+                    const isDone = item.status === "completed";
+                    const isFailed = item.status === "failed";
+                    const exitZero = res?.exit_code === 0;
+
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          background: "#050914",
+                          border: isDone ? (exitZero ? "1px solid #059669" : "1px solid #b91c1c") : "1px solid #1e3a5f",
+                          borderRadius: 8,
+                          padding: "12px 16px"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <strong style={{ fontSize: 13, color: "#f1f5f9" }}>
+                              💻 {item.device_name || item.hostname || item.device_id}
+                            </strong>
+                            <span style={{ fontSize: 10, color: "#64748b", fontFamily: "var(--font-mono)" }}>
+                              ({item.device_id})
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {res?.syscalls && res.syscalls.length > 0 && (
+                              <span style={{ fontSize: 10, background: "#0c2d48", color: "#38bdf8", padding: "2px 6px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
+                                {res.syscalls.length} syscalls observed
+                              </span>
+                            )}
+                            <span style={{
+                              fontSize: 10,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              fontFamily: "var(--font-mono)",
+                              fontWeight: 700,
+                              background: isDone ? (exitZero ? "#064e3b" : "#381014") : "#0c2d48",
+                              color: isDone ? (exitZero ? "#34d399" : "#f87171") : "#38bdf8",
+                              border: isDone ? (exitZero ? "1px solid #059669" : "1px solid #7f1d1d") : "1px solid #0284c7"
+                            }}>
+                              {item.status.toUpperCase()} {res?.exit_code !== undefined ? `(EXIT: ${res.exit_code})` : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Terminal stdout / stderr output */}
+                        {res ? (
+                          <div style={{
+                            background: "#02040a",
+                            border: "1px solid #142034",
+                            borderRadius: 6,
+                            padding: "8px 12px",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 11,
+                            color: res.exit_code === 0 ? "#34d399" : "#f87171",
+                            whiteSpace: "pre-wrap",
+                            maxHeight: 160,
+                            overflowY: "auto",
+                            wordBreak: "break-all"
+                          }}>
+                            {res.stdout || res.stderr || "(No terminal output captured)"}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", fontStyle: "italic" }}>
+                            Task queued. Awaiting endpoint execution and telemetry sync...
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Fleet Overview Guidance */}
+            {!broadcastResult && !broadcastRunning && (
+              <div style={{
+                padding: "24px 20px", background: "#050914", border: "1px dashed #1e293b",
+                borderRadius: 8, textAlign: "center", color: "#64748b"
+              }}>
+                <Server size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+                <h4 style={{ margin: "0 0 6px", color: "#cbd5e1", fontSize: 13 }}>Multi-Device Fleet Dispatch Ready</h4>
+                <p style={{ margin: 0, fontSize: 11, maxWidth: 540, marginLeft: "auto", marginRight: "auto" }}>
+                  Enter any Linux command above or pick a preset to execute across all {selectedDeviceIds.size} selected nodes simultaneously.
+                  Each endpoint enforces local seccomp BPF filters and streams observed syscall events back to this supervisor console.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : selectedDevice ? (
           <div className="panel fleet-detail-panel">
             <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
