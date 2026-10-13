@@ -50,6 +50,12 @@ try:
         revoke_device_endpoint,
         get_execution_endpoint,
         list_executions_endpoint,
+        ApprovalRequestCreate,
+        request_approval_endpoint,
+        list_pending_approvals,
+        get_approval_status_endpoint,
+        grant_approval_endpoint,
+        deny_approval_endpoint,
     )
     HAS_FASTAPI = True
 except ImportError:
@@ -539,6 +545,79 @@ class TestMultiDeviceFleet(unittest.TestCase):
         self.assertTrue(found.get("is_terminal_cli"))
         self.assertEqual(found.get("exit_code"), 0)
         self.assertIn("write", found.get("syscalls", []))
+
+    def test_15_targeted_broadcast_and_approvals(self):
+        """Single device targeting and interactive Safety Gate approvals lifecycle."""
+        user_req = make_req()
+
+        # 1. Enroll two separate devices
+        gen1 = generate_pairing_code(PairingGenerateRequest(), user_req)
+        p1 = agent_pair_endpoint(AgentPairRequest(
+            pairing_code=gen1["code"],
+            name="Laptop-Target-1",
+            hostname="host-alpha",
+            os_info="Linux 6.6",
+            kernel_version="6.6.1",
+            arch="x86_64"
+        ), user_req)
+
+        gen2 = generate_pairing_code(PairingGenerateRequest(), user_req)
+        p2 = agent_pair_endpoint(AgentPairRequest(
+            pairing_code=gen2["code"],
+            name="Desktop-Target-2",
+            hostname="host-beta",
+            os_info="Linux 6.6",
+            kernel_version="6.6.1",
+            arch="x86_64"
+        ), user_req)
+
+        dev1_id = p1["device_id"]
+        dev2_id = p2["device_id"]
+
+        # 2. Targeted dispatch: pass target_device_ids with ONLY dev1_id
+        bcast = broadcast_device_task(DeviceBroadcastTaskRequest(
+            command=["/usr/bin/echo", "Single device targeted"],
+            mode="enforce",
+            target_device_ids=[dev1_id]
+        ), user_req)
+
+        self.assertEqual(bcast["task_count"], 1)
+        dispatched_ids = [d["device_id"] for d in bcast["dispatched"]]
+        self.assertIn(dev1_id, dispatched_ids)
+        self.assertNotIn(dev2_id, dispatched_ids)
+
+        # 3. Interactive Safety Gate approval request
+        appr_req = request_approval_endpoint(ApprovalRequestCreate(
+            target="grep",
+            command=["/usr/bin/grep", "secret", "/tmp/file"],
+            mode="approval-required",
+            device_id=dev1_id,
+            hostname="host-alpha",
+            rationale="Security audit verification"
+        ), user_req)
+
+        appr_id = appr_req["id"]
+        self.assertEqual(appr_req["status"], "pending")
+
+        # 4. Check list of pending approvals
+        pending = list_pending_approvals()
+        self.assertTrue(any(p["id"] == appr_id for p in pending["pending"]))
+
+        # 5. Check status endpoint before grant
+        status_before = get_approval_status_endpoint(appr_id)
+        self.assertEqual(status_before["status"], "pending")
+
+        # 6. Operator grants approval
+        grant_res = grant_approval_endpoint(appr_id, user_req)
+        self.assertEqual(grant_res["status"], "approved")
+
+        # 7. Check status endpoint after grant
+        status_after = get_approval_status_endpoint(appr_id)
+        self.assertEqual(status_after["status"], "approved")
+
+        # 8. Pending list is now empty for this approval
+        pending_after = list_pending_approvals()
+        self.assertFalse(any(p["id"] == appr_id for p in pending_after["pending"]))
 
 
 if __name__ == "__main__":

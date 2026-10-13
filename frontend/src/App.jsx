@@ -4,7 +4,7 @@ import {
   FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, ChevronLeft, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
-  Check, Copy, Terminal, Server
+  Check, Copy, Terminal, Server, X
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -233,6 +233,7 @@ function App() {
   const [ablationSubTab, setAblationSubTab] = useState("noisy");
   const [ledgersList, setLedgersList] = useState([]);
   const [approvalsList, setApprovalsList] = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
 
   // Activity Monitor state
   const [eventsData, setEventsData] = useState(null);
@@ -337,6 +338,11 @@ function App() {
       } catch {}
 
       try {
+        const pAppr = await getJSON("/approvals/pending");
+        setPendingApprovals(pAppr.pending ?? []);
+      } catch {}
+
+      try {
         const devRes = await getJSON("/devices");
         setDevices(devRes.devices ?? []);
       } catch {}
@@ -372,6 +378,43 @@ function App() {
       setLoading(false);
     }
   }
+
+  const fetchPendingApprovals = async () => {
+    try {
+      const pAppr = await getJSON("/approvals/pending");
+      setPendingApprovals(pAppr.pending ?? []);
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchPendingApprovals();
+    const timer = setInterval(fetchPendingApprovals, 2500);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleGrantApproval = async (approvalId) => {
+    try {
+      const res = await fetch(`${API}/approvals/${approvalId}/grant`, { method: "POST" });
+      if (res.ok) {
+        await fetchPendingApprovals();
+        await loadData();
+      }
+    } catch (err) {
+      console.error("Failed to grant approval:", err);
+    }
+  };
+
+  const handleDenyApproval = async (approvalId) => {
+    try {
+      const res = await fetch(`${API}/approvals/${approvalId}/deny`, { method: "POST" });
+      if (res.ok) {
+        await fetchPendingApprovals();
+        await loadData();
+      }
+    } catch (err) {
+      console.error("Failed to deny approval:", err);
+    }
+  };
 
   useEffect(() => {
     const pollDevices = async () => {
@@ -805,6 +848,120 @@ function App() {
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Real-Time Pending Safety Gate Approvals Banner */}
+          {pendingApprovals && pendingApprovals.length > 0 && (
+            <div style={{
+              background: "linear-gradient(135deg, rgba(234, 88, 12, 0.15) 0%, rgba(220, 38, 38, 0.2) 100%)",
+              border: "1px solid rgba(249, 115, 22, 0.6)",
+              borderRadius: 10,
+              padding: "16px 20px",
+              marginBottom: 20,
+              boxShadow: "0 4px 24px rgba(249, 115, 22, 0.15)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <ShieldAlert size={22} color="#fb923c" />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 15, color: "#fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
+                      ⚠️ Safety Gate Permission Request ({pendingApprovals.length} Pending)
+                    </h3>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "#cbd5e1" }}>
+                      An interactive terminal or remote host has requested execution authorization under policy-gated confinement.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={() => setPage("Safety Gate & Approvals")}
+                  style={{ fontSize: 11, padding: "4px 10px", borderColor: "#f97316", color: "#fdba74" }}
+                >
+                  View In Safety Gate →
+                </button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {pendingApprovals.map((req) => (
+                  <div
+                    key={req.id}
+                    style={{
+                      background: "rgba(10, 15, 29, 0.9)",
+                      border: "1px solid rgba(249, 115, 22, 0.3)",
+                      borderRadius: 8,
+                      padding: "12px 16px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#38bdf8", fontFamily: "var(--font-mono)" }}>
+                          💻 {req.hostname || "local"} ({req.device_id || "laptop_terminal"})
+                        </span>
+                        <span style={{
+                          fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                          background: "#431407", color: "#fb923c", border: "1px solid #7c2d12",
+                          fontFamily: "var(--font-mono)", fontWeight: 700
+                        }}>
+                          MODE: {req.mode?.toUpperCase() || "APPROVAL-REQUIRED"}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 13, color: "#f8fafc", fontFamily: "var(--font-mono)", background: "#030712", padding: "4px 8px", borderRadius: 4, border: "1px solid #1f2937" }}>
+                          $ {Array.isArray(req.command) ? req.command.join(" ") : req.target}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                        {req.rationale || "Interactive execution permission requested"} · Request ID: <code style={{ color: "#fdba74" }}>{req.id}</code>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="primary-button"
+                        onClick={() => handleGrantApproval(req.id)}
+                        style={{
+                          background: "#059669",
+                          borderColor: "#10b981",
+                          color: "#ffffff",
+                          padding: "8px 16px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          cursor: "pointer"
+                        }}
+                      >
+                        <Check size={15} /> Grant Permission / Approve
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => handleDenyApproval(req.id)}
+                        style={{
+                          background: "rgba(185, 28, 28, 0.2)",
+                          borderColor: "#dc2626",
+                          color: "#fca5a5",
+                          padding: "8px 14px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          cursor: "pointer"
+                        }}
+                      >
+                        <X size={15} /> Deny
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -2333,6 +2490,85 @@ function App() {
                       </ul>
                     </div>
                   </div>
+
+                  {/* Pending Authorization Queue */}
+                  <section className="panel" style={{
+                    marginBottom: 24,
+                    border: pendingApprovals.length > 0 ? "1px solid #f97316" : "1px solid #1e293b",
+                    background: pendingApprovals.length > 0 ? "rgba(234, 88, 12, 0.05)" : undefined
+                  }}>
+                    <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <ShieldAlert size={18} color={pendingApprovals.length > 0 ? "#fb923c" : "#94a3b8"} />
+                          Pending Safety Gate Authorization Queue ({pendingApprovals.length})
+                        </h3>
+                        <p>Real-time queue of commands and candidate profiles awaiting interactive operator verdict</p>
+                      </div>
+                      <span className="demo-badge" style={{
+                        borderColor: pendingApprovals.length > 0 ? "#ea580c" : "#334155",
+                        color: pendingApprovals.length > 0 ? "#fdba74" : "#94a3b8"
+                      }}>
+                        {pendingApprovals.length > 0 ? `${pendingApprovals.length} ACTION REQUIRED` : "QUEUE EMPTY"}
+                      </span>
+                    </div>
+
+                    {pendingApprovals.length === 0 ? (
+                      <p className="muted" style={{ padding: "12px 0 6px" }}>
+                        No pending approval requests. When an interactive terminal or remote host runs in <code>approval-required</code> mode, permission requests appear here in real-time.
+                      </p>
+                    ) : (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>REQUEST ID</th>
+                              <th>ORIGIN HOST</th>
+                              <th>COMMAND / TARGET</th>
+                              <th>REQUESTED AT</th>
+                              <th>RATIONALE</th>
+                              <th style={{ textAlign: "right" }}>DECISION ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pendingApprovals.map((req) => (
+                              <tr key={req.id}>
+                                <td><code style={{ color: "#fdba74" }}>{req.id}</code></td>
+                                <td>
+                                  <strong>{req.hostname || "local"}</strong>
+                                  <div style={{ fontSize: 10, color: "#64748b" }}>{req.device_id || "laptop_terminal"}</div>
+                                </td>
+                                <td>
+                                  <code>{Array.isArray(req.command) ? req.command.join(" ") : req.target}</code>
+                                  <div style={{ fontSize: 10, color: "#38bdf8" }}>MODE: {req.mode}</div>
+                                </td>
+                                <td className="time-cell">{req.requested_at || "—"}</td>
+                                <td style={{ fontSize: 12, color: "#94a3b8" }}>{req.rationale}</td>
+                                <td style={{ textAlign: "right" }}>
+                                  <div style={{ display: "inline-flex", gap: 6 }}>
+                                    <button
+                                      className="primary-button"
+                                      onClick={() => handleGrantApproval(req.id)}
+                                      style={{ padding: "4px 10px", fontSize: 11, background: "#059669", borderColor: "#10b981", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                    >
+                                      <Check size={13} /> Approve
+                                    </button>
+                                    <button
+                                      className="secondary-button"
+                                      onClick={() => handleDenyApproval(req.id)}
+                                      style={{ padding: "4px 10px", fontSize: 11, borderColor: "#dc2626", color: "#fca5a5", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                    >
+                                      <X size={13} /> Deny
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
 
                   <section className="panel">
                     <div className="panel-heading">

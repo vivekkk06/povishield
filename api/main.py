@@ -143,6 +143,16 @@ class DeviceTaskCreateRequest(BaseModel):
     command: list[str] = Field(min_length=1, max_length=16)
     mode: str = Field(default="enforce")
 
+
+class ApprovalRequestCreate(BaseModel):
+    target: str = Field(min_length=1, max_length=128)
+    command: list[str] = Field(default_factory=list)
+    mode: str = Field(default="approval-required")
+    device_id: Optional[str] = None
+    hostname: Optional[str] = None
+    rationale: Optional[str] = None
+    candidate: Optional[str] = None
+
 # --- who is really calling? ------------------------------------------------------------------------------------
 # A web page in your browser also connects from 127.0.0.1, so the TCP peer proves nothing about the caller.
 # Host is checked against DNS rebinding, Origin against cross-site requests. Keep TRUSTED_ORIGINS in sync with
@@ -1154,6 +1164,7 @@ def compare_policies(base: str, cand: str):
 
 
 @app.get("/api/approvals")
+@app.get("/approvals")
 def get_approvals():
     appr_file = RESULTS / "approvals.jsonl"
     if not appr_file.is_file():
@@ -1167,6 +1178,117 @@ def get_approvals():
         return {"approvals": list(reversed(items)), "count": len(items)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read approvals: {e}")
+
+
+_PENDING_APPROVALS_LOCK = threading.Lock()
+_PENDING_APPROVALS: dict[str, dict[str, Any]] = {}
+
+
+@app.get("/api/approvals/pending")
+@app.get("/approvals/pending")
+def list_pending_approvals():
+    with _PENDING_APPROVALS_LOCK:
+        pending = [v for v in _PENDING_APPROVALS.values() if v.get("status") == "pending"]
+        return {"pending": sorted(pending, key=lambda x: x.get("requested_at", ""), reverse=True), "count": len(pending)}
+
+
+@app.post("/api/approvals/request")
+@app.post("/approvals/request")
+def request_approval_endpoint(payload: ApprovalRequestCreate, request: Request):
+    appr_id = f"apprv_{uuid.uuid4().hex[:10]}"
+    req_data = {
+        "id": appr_id,
+        "target": payload.target,
+        "command": payload.command or [payload.target],
+        "mode": payload.mode,
+        "device_id": payload.device_id or "laptop_terminal",
+        "hostname": payload.hostname or socket.gethostname(),
+        "rationale": payload.rationale or f"Interactive operator permission requested for '{payload.target}'",
+        "candidate": payload.candidate or f"results/profiles/{payload.target}.json",
+        "requested_at": datetime.now(timezone.utc).isoformat(),
+        "status": "pending"
+    }
+    with _PENDING_APPROVALS_LOCK:
+        _PENDING_APPROVALS[appr_id] = req_data
+
+    # Log device event if from an enrolled device
+    if payload.device_id and payload.device_id != "laptop_terminal":
+        try:
+            db.record_device_event(
+                device_id=payload.device_id,
+                event_type="approval_requested",
+                payload={"approval_id": appr_id, "target": payload.target, "command": payload.command}
+            )
+        except Exception:
+            pass
+
+    return req_data
+
+
+@app.get("/api/approvals/{approval_id}/status")
+@app.get("/approvals/{approval_id}/status")
+def get_approval_status_endpoint(approval_id: str):
+    with _PENDING_APPROVALS_LOCK:
+        appr = _PENDING_APPROVALS.get(approval_id)
+        if appr:
+            return {"id": approval_id, "status": appr["status"], "approval": appr}
+
+    # Also check approvals.jsonl
+    appr_file = RESULTS / "approvals.jsonl"
+    if appr_file.is_file():
+        try:
+            with open(appr_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        r = json.loads(line)
+                        if r.get("id") == approval_id or r.get("approval_id") == approval_id:
+                            return {"id": approval_id, "status": "approved", "approval": r}
+        except Exception:
+            pass
+    raise HTTPException(status_code=404, detail="Approval request not found")
+
+
+@app.post("/api/approvals/{approval_id}/grant")
+@app.post("/approvals/{approval_id}/grant")
+def grant_approval_endpoint(approval_id: str, request: Request):
+    with _PENDING_APPROVALS_LOCK:
+        appr = _PENDING_APPROVALS.get(approval_id)
+        if not appr:
+            raise HTTPException(status_code=404, detail="Approval request not found")
+        appr["status"] = "approved"
+        appr["approved_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Append to results/approvals.jsonl
+    appr_file = RESULTS / "approvals.jsonl"
+    appr_file.parent.mkdir(parents=True, exist_ok=True)
+    rec = {
+        "id": approval_id,
+        "target": appr["target"],
+        "candidate": appr["candidate"],
+        "active": appr["candidate"],
+        "approved_at": appr["approved_at"],
+        "device_id": appr.get("device_id"),
+        "hostname": appr.get("hostname"),
+        "command": appr.get("command"),
+        "operator": "web_lead",
+        "status": "approved"
+    }
+    with open(appr_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec) + "\n")
+
+    return {"status": "approved", "approval_id": approval_id, "record": rec}
+
+
+@app.post("/api/approvals/{approval_id}/deny")
+@app.post("/approvals/{approval_id}/deny")
+def deny_approval_endpoint(approval_id: str, request: Request):
+    with _PENDING_APPROVALS_LOCK:
+        appr = _PENDING_APPROVALS.get(approval_id)
+        if not appr:
+            raise HTTPException(status_code=404, detail="Approval request not found")
+        appr["status"] = "denied"
+        appr["denied_at"] = datetime.now(timezone.utc).isoformat()
+    return {"status": "denied", "approval_id": approval_id}
 
 
 # --- Multi-Device & Fleet Management Routes ---

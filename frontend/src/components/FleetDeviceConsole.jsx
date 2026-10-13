@@ -48,11 +48,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
         const activeDevs = devList.filter(d => d.status !== "revoked");
 
         if (devList.length > 0) {
-          if (!selectedDevice || selectedDevice.id === "all") {
-            // Default to selecting ALL fleet devices
+          if (!selectedDevice) {
+            // Default to selecting ALL fleet devices on initial load
             setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
             setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
-          } else {
+          } else if (selectedDevice.id !== "all") {
             const updated = devList.find(d => d.id === selectedDevice.id);
             if (updated) setSelectedDevice(updated);
           }
@@ -72,18 +72,19 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   }, []);
 
   useEffect(() => {
+    if (!devices.length) return;
     const activeDevs = devices.filter(d => d.status !== "revoked");
-    if (activeDeviceId === "broadcast" || activeDeviceId === "gateway" || !activeDeviceId) {
+    if (activeDeviceId === "broadcast") {
       setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
       setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
-    } else {
+    } else if (activeDeviceId && activeDeviceId !== "gateway") {
       const found = devices.find(d => d.id === activeDeviceId);
       if (found) {
         setSelectedDevice(found);
         setSelectedDeviceIds(new Set([found.id]));
       }
     }
-  }, [activeDeviceId, devices.length]);
+  }, [activeDeviceId]);
 
   const handleToggleSelectAll = () => {
     const activeDevs = devices.filter(d => d.status !== "revoked");
@@ -114,9 +115,6 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
     if (next.size === 0) {
       setSelectedDevice({ id: "all", name: "0 Devices Selected", isAll: true, count: 0 });
-    } else if (next.size === activeDevs.length) {
-      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
-      if (setActiveDeviceId) setActiveDeviceId("broadcast");
     } else if (next.size === 1) {
       const singleId = Array.from(next)[0];
       const found = devices.find(d => d.id === singleId);
@@ -124,6 +122,9 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
         setSelectedDevice(found);
         if (setActiveDeviceId) setActiveDeviceId(found.id);
       }
+    } else if (next.size === activeDevs.length) {
+      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+      if (setActiveDeviceId) setActiveDeviceId("broadcast");
     } else {
       setSelectedDevice({ id: "all", name: `${next.size} Selected Devices`, isAll: true, count: next.size });
       if (setActiveDeviceId) setActiveDeviceId("broadcast");
@@ -224,8 +225,8 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
   // Broadcast task to multiple / all endpoints
   const handleBroadcastTask = async (overrideCmd, overrideMode) => {
-    const effectiveCmd = overrideCmd || commandInput;
-    const effectiveMode = overrideMode || execMode;
+    const effectiveCmd = (typeof overrideCmd === "string" ? overrideCmd : null) || commandInput;
+    const effectiveMode = (typeof overrideMode === "string" ? overrideMode : null) || execMode;
     const tokens = effectiveCmd.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
     const args = tokens.map(t => (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")) ? t.slice(1, -1) : t);
     if (!args.length) return;
@@ -238,15 +239,10 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     setBroadcastRunning(true);
     setBroadcastResult(null);
 
-    const activeDevs = devices.filter(d => d.status !== "revoked");
-    const targetIds = (selectedDeviceIds.size > 0 && selectedDeviceIds.size < activeDevs.length)
-      ? Array.from(selectedDeviceIds)
-      : null;
-
     try {
       const payload = { command: args, mode: effectiveMode };
-      if (targetIds && targetIds.length > 0) {
-        payload.target_device_ids = targetIds;
+      if (selectedDeviceIds.size > 0) {
+        payload.target_device_ids = Array.from(selectedDeviceIds);
       }
       const res = await fetch(`${API}/devices/broadcast`, {
         method: "POST",
@@ -297,8 +293,8 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       return handleBroadcastTask(overrideCmd, overrideMode);
     }
     if (!selectedDevice || selectedDevice.status === "revoked") return;
-    const effectiveCmd = overrideCmd || commandInput;
-    const effectiveMode = overrideMode || execMode;
+    const effectiveCmd = (typeof overrideCmd === "string" ? overrideCmd : null) || commandInput;
+    const effectiveMode = (typeof overrideMode === "string" ? overrideMode : null) || execMode;
     const tokens = effectiveCmd.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
     const args = tokens.map(t => (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")) ? t.slice(1, -1) : t);
     if (!args.length) return;
@@ -1208,7 +1204,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 </select>
                 <button
                   className="primary-button"
-                  onClick={handleDispatchTask}
+                  onClick={() => handleDispatchTask()}
                   disabled={dispatchingTask || selectedDevice.status === "revoked"}
                   style={{ minWidth: 140, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                 >

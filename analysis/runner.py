@@ -301,6 +301,100 @@ def evaluate_execution(
     )
 
 
+def _request_live_safety_gate_approval(
+    target_name: str,
+    full_cmd: List[str],
+    mode: str,
+    profile_path: Optional[str]
+) -> bool:
+    """Submits an interactive approval request to PoViShield Safety Gate and polls for operator decision."""
+    # In automated test suites or non-interactive headless processes, fail closed immediately
+    if "unittest" in sys.modules or "pytest" in sys.modules or not sys.stdin.isatty():
+        if os.environ.get("POVISHIELD_INTERACTIVE_APPROVAL") != "1":
+            return False
+
+    server_url = os.environ.get("POVI_SERVER_URL") or os.environ.get("POVISHIELD_SERVER")
+    token = None
+    device_id = None
+    for cfg_path in [Path.home() / ".povishield" / "agent.json", Path("/etc/povishield/agent.json")]:
+        if cfg_path.is_file():
+            try:
+                with cfg_path.open("r", encoding="utf-8") as cf:
+                    c = json.load(cf)
+                    if not server_url:
+                        server_url = c.get("server_url")
+                    token = c.get("token")
+                    device_id = c.get("device_id")
+                    break
+            except Exception:
+                pass
+
+    if not server_url:
+        server_url = "http://127.0.0.1:8000"
+
+    server_url = server_url.rstrip("/")
+    req_url = f"{server_url}/api/approvals/request"
+    hostname = socket.gethostname()
+
+    payload = {
+        "target": target_name,
+        "command": full_cmd,
+        "mode": mode,
+        "device_id": device_id or "laptop_terminal",
+        "hostname": hostname,
+        "candidate": profile_path or f"results/profiles/{target_name}.json",
+        "rationale": f"Interactive operator approval requested for '{' '.join(full_cmd)}'"
+    }
+
+    try:
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(req_url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            appr_id = data.get("id")
+    except Exception:
+        return False
+
+    if not appr_id:
+        return False
+
+    sys.stderr.write("\n╔══════════════════════════════════════════════════════════════════════════════╗\n")
+    sys.stderr.write("║           PoViShield Interactive Safety Gate Permission Request              ║\n")
+    sys.stderr.write("╚══════════════════════════════════════════════════════════════════════════════╝\n")
+    sys.stderr.write(f"[SAFETY GATE] Target '{target_name}' requires operator approval before execution.\n")
+    sys.stderr.write(f"[REQUEST ID]  {appr_id}\n")
+    sys.stderr.write(f"[DASHBOARD]   Open PoViShield Web Dashboard to Approve or Deny.\n")
+    sys.stderr.write(f"[WAITING]     Awaiting operator decision in web dashboard (timeout 30s)... \n")
+    sys.stderr.flush()
+
+    status_url = f"{server_url}/api/approvals/{appr_id}/status"
+    start_wait = time.monotonic()
+    while time.monotonic() - start_wait < 30.0:
+        time.sleep(1.0)
+        try:
+            s_req = urllib.request.Request(status_url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(s_req, timeout=2.0) as s_resp:
+                s_data = json.loads(s_resp.read().decode("utf-8"))
+                s_status = s_data.get("status")
+                if s_status == "approved":
+                    sys.stderr.write("\n[APPROVED]    Permission GRANTED by operator in web Safety Gate!\n")
+                    sys.stderr.write(f"[PROCEED]     Executing target '{target_name}' under verified confinement...\n\n")
+                    sys.stderr.flush()
+                    return True
+                elif s_status == "denied":
+                    sys.stderr.write("\n[DENIED]      Permission DENIED by operator in Safety Gate.\n\n")
+                    sys.stderr.flush()
+                    return False
+        except Exception:
+            continue
+
+    sys.stderr.write("\n[TIMEOUT]     Approval request timed out without operator verdict. Failing closed.\n\n")
+    sys.stderr.flush()
+    return False
+
+
 def execute_session(
     command: List[str],
     mode: str = "enforce",
@@ -329,15 +423,28 @@ def execute_session(
     session.add_event("POLICY_EVALUATED", f"Decision: {decision.action} ({decision.enforcement_mechanism})")
 
     if not decision.allowed:
-        session.status = "denied"
-        session.exit_code = 126
-        session.ended_at = datetime.now(timezone.utc).isoformat()
-        session.violation_detected = True
-        session.violation_detail = decision.rationale
-        session.stderr = f"PoViShield Security Gate Denied Execution: {decision.rationale}\n"
-        session.add_event("EXECUTION_DENIED", decision.rationale)
-        _persist_session(session)
-        return session
+        if mode == "approval-required" and decision.action == "APPROVAL_REQUIRED":
+            approved = _request_live_safety_gate_approval(
+                target_name=target_name,
+                full_cmd=full_cmd,
+                mode=mode,
+                profile_path=decision.profile_path
+            )
+            if approved:
+                decision = evaluate_execution(full_cmd, mode=mode, explicit_profile=explicit_profile)
+                session.decision = asdict(decision)
+                session.add_event("OPERATOR_APPROVAL_GRANTED", f"Operator granted permission for target '{target_name}' via Safety Gate")
+
+        if not decision.allowed:
+            session.status = "denied"
+            session.exit_code = 126
+            session.ended_at = datetime.now(timezone.utc).isoformat()
+            session.violation_detected = True
+            session.violation_detail = decision.rationale
+            session.stderr = f"PoViShield Security Gate Denied Execution: {decision.rationale}\n"
+            session.add_event("EXECUTION_DENIED", decision.rationale)
+            _persist_session(session)
+            return session
 
     # 2. Setup execution boundary
     events_file = SESSIONS_DIR / f"{session_id}-events.jsonl" if record_events else None
@@ -487,7 +594,30 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
                 except Exception:
                     pass
 
+        # Determine target server URL, token, device_id, and hostname from config first
+        server_url = os.environ.get("POVI_SERVER_URL") or os.environ.get("POVISHIELD_SERVER")
+        token = None
+        device_id = None
         hostname = socket.gethostname()
+
+        for cfg_path in [Path.home() / ".povishield" / "agent.json", Path("/etc/povishield/agent.json")]:
+            if cfg_path.is_file():
+                try:
+                    with cfg_path.open("r", encoding="utf-8") as cf:
+                        c = json.load(cf)
+                        if not server_url:
+                            server_url = c.get("server_url")
+                        token = c.get("token")
+                        if c.get("device_id"):
+                            device_id = c.get("device_id")
+                        if c.get("hostname"):
+                            hostname = c.get("hostname")
+                        break
+                except Exception:
+                    pass
+
+        dev_id = device_id or "laptop_terminal"
+        is_remote = (dev_id != "laptop_terminal")
 
         # Write to local events_file for live monitor
         if syscalls:
@@ -497,7 +627,7 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
                     for sc in syscalls[:15]:
                         ef.write(json.dumps({
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "device_id": "laptop_terminal",
+                            "device_id": dev_id,
                             "hostname": hostname,
                             "target": session.target,
                             "syscall": sc,
@@ -509,29 +639,11 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
         # Prepare payload for dashboard API sync
         data = asdict(session)
         data["is_terminal_cli"] = True
-        data["is_remote"] = False
+        data["is_remote"] = is_remote
         data["hostname"] = hostname
-        data["device_id"] = "laptop_terminal"
+        data["device_id"] = dev_id
         data["syscalls"] = syscalls
-        data["host_target"] = f"Local Terminal ({hostname})"
-
-        # Determine target server URL and auth token
-        server_url = os.environ.get("POVI_SERVER_URL") or os.environ.get("POVISHIELD_SERVER")
-        token = None
-
-        if not server_url:
-            for cfg_path in [Path.home() / ".povishield" / "agent.json", Path("/etc/povishield/agent.json")]:
-                if cfg_path.is_file():
-                    try:
-                        with cfg_path.open("r", encoding="utf-8") as cf:
-                            c = json.load(cf)
-                            server_url = c.get("server_url")
-                            token = c.get("token")
-                            if c.get("device_id"):
-                                data["device_id"] = c.get("device_id")
-                            break
-                    except Exception:
-                        pass
+        data["host_target"] = f"{hostname} ({dev_id})" if is_remote else f"Local Terminal ({hostname})"
 
         if not server_url:
             server_url = "http://127.0.0.1:8000"
