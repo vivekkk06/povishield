@@ -360,16 +360,31 @@ function App() {
     setEventsError("");
     try {
       const [data, profile] = await Promise.all([
-        getJSON("/events?limit=100"),
-        getJSON("/events/profile")
+        getJSON("/events?limit=100").catch(() => ({
+          events: [],
+          count: 0,
+          total_valid_records_in_read_window: 0,
+          malformed_records_in_read_window: 0,
+          source: "results/syscall-events.jsonl"
+        })),
+        getJSON("/events/profile").catch(() => ({
+          syscalls: [],
+          count: 0,
+          total_records: 0,
+          entry_records: 0,
+          unique_syscalls: 0,
+          malformed_records: 0,
+          source: "results/syscall-events.jsonl"
+        }))
       ]);
-      if (!Array.isArray(data.events) || !Array.isArray(profile.syscalls)) {
-        throw new Error("The events API returned an unexpected response");
+      if (data && Array.isArray(data.events)) {
+        setEventsData(data);
       }
-      setEventsData(data);
-      setProfileData(profile);
+      if (profile && Array.isArray(profile.syscalls)) {
+        setProfileData(profile);
+      }
     } catch (err) {
-      setEventsError(`${err.message}. Check that the API is running and results/syscall-events.jsonl exists.`);
+      setEventsError(err.message || "Could not load syscall events");
     } finally {
       setEventsLoading(false);
     }

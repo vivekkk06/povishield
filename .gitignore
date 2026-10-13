@@ -1,6 +1,7 @@
 build/
 results/*
 !results/.gitkeep
+!results/syscall-events.jsonl
 __pycache__/
 *.pyc
 results/live-*
