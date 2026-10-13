@@ -16,7 +16,9 @@ const AMBIENT_LOGS = [
   "[READY] PoViShield security operations console standing by",
 ];
 
-export default function TerminalBackground() {
+export default function TerminalBackground({ enabled = true }) {
+  if (!enabled) return null;
+
   const [lines, setLines] = useState(AMBIENT_LOGS.slice(0, 7));
   const [isPaused, setIsPaused] = useState(false);
   const logIndex = useRef(7);
