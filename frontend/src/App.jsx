@@ -309,7 +309,12 @@ function App() {
     return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
   }, [monitorSession?.id, monitorSession?.status]);
 
-  const aggregate = overview?.aggregate;
+  const aggregate = overview?.aggregate ?? {
+    targets: 0,
+    avg_attack_surface_reduction_pct: 0,
+    total_false_kills: 0,
+    avg_median_overhead_pct: 0,
+  };
   const targets = overview?.targets ?? [];
 
   const chartData = targets.map(t => ({
@@ -381,7 +386,7 @@ function App() {
             <button className="icon-button" onClick={loadData} title="Refresh data">
               <RefreshCw size={17} />
             </button>
-            <div className="avatar">PVS</div>
+            <div className="avatar">PV</div>
           </div>
         </header>
 
@@ -398,9 +403,14 @@ function App() {
           </div>
 
           {error && (
-            <div className="notice">
-              <ShieldAlert size={19} />
-              <div><strong>API connection problem</strong><p>{error}</p></div>
+            <div className="notice" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <ShieldAlert size={19} />
+                <div><strong>API connection problem</strong><p>{error}</p></div>
+              </div>
+              <button className="secondary-button" onClick={loadData} style={{ whiteSpace: "nowrap" }}>
+                <RefreshCw size={14} /> Retry Connection
+              </button>
             </div>
           )}
 

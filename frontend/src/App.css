@@ -320,6 +320,23 @@ button { cursor: pointer; }
 }
 .icon-button:hover { background: #111c2e; color: #f1f5f9; }
 
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #091a18 0%, #0d2822 100%);
+  border: 1px solid #10b981;
+  color: #34d399;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
 .page-content {
   max-width: 1560px;
   width: 100%;

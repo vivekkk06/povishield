@@ -69,7 +69,9 @@ DEFAULT_ORIGINS = (
     "http://127.0.0.1:5175,http://localhost:5175,"
     "http://127.0.0.1:4173,http://localhost:4173,"
     "http://127.0.0.1:4174,http://localhost:4174,"
-    "http://127.0.0.1:8000,http://localhost:8000"
+    "http://127.0.0.1:3000,http://localhost:3000,"
+    "http://127.0.0.1:8000,http://localhost:8000,"
+    "http://[::1]:5173,http://[::1]:5175,http://[::1]:4173"
 )
 TRUSTED_ORIGINS = {
     o.strip()
@@ -238,6 +240,28 @@ def health():
         "recorded_executions_count": recorded_count,
         "enforcement_ready": tracer.is_file() and os.access(tracer, os.X_OK),
     }
+
+
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "service": "PoViShield Security Research API",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/api/health",
+            "overview": "/api/overview",
+            "policies": "/api/policies",
+            "executions": "/api/executions",
+            "experiments": "/api/experiments",
+            "docs": "/docs"
+        }
+    }
+
+
+@app.get("/health")
+def root_health():
+    return health()
 
 
 @app.post("/api/executions/evaluate")

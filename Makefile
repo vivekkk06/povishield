@@ -15,6 +15,7 @@ all: $(BIN) $(ESC_BIN) $(BUILD)/vuln_viewer
 $(BIN): $(SRC) include/povishield.h
 > @mkdir -p $(BUILD)
 > $(CC) $(CFLAGS) $(SRC) -o $@ $(LDLIBS)
+> @ln -sf povishield pv
 
 $(BUILD)/escape/%: tests/escape/%.c
 > @mkdir -p $(dir $@)
