@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import select
 import shutil
 import signal
 import socket
@@ -54,6 +55,12 @@ MAX_OUTPUT_BYTES = 64 * 1024  # 64 KB bounded output buffer
 
 CRITICAL_SET = set(CRITICAL)
 HIGH_SET = set(HIGH)
+
+ELEVATED_COMMANDS = {
+    "sudo", "su", "pkexec", "doas", "useradd", "usermod", "userdel",
+    "groupadd", "passwd", "visudo", "iptables", "nft", "systemctl",
+    "reboot", "poweroff", "shutdown"
+}
 
 
 @dataclass
@@ -219,9 +226,15 @@ def evaluate_execution(
     profile_path = find_profile_for_target(target_name, explicit_profile)
     approval_verified = False
 
-    if mode == "approval-required":
+    is_elevated = (target_name in ELEVATED_COMMANDS or any(arg == "sudo" for arg in command[:2]))
+    if mode == "approval-required" or is_elevated:
         approval_verified = is_approval_present(target_name, profile_path)
         if not approval_verified:
+            rationale_text = (
+                f"Execution blocked: Target '{target_name}' is an elevated/privileged command requiring explicit operator authorization via PoViShield Safety Gate. "
+                if is_elevated else
+                f"Execution blocked: Target '{target_name}' requires explicit security approval. "
+            ) + f"No verified record was found in the safety gate ledger ({APPROVALS_FILE.name}). System fails closed to prevent unverified policy execution."
             return PolicyDecision(
                 action="APPROVAL_REQUIRED",
                 allowed=False,
@@ -235,11 +248,7 @@ def evaluate_execution(
                 risk_after=0.0,
                 allowed_syscalls=[],
                 withheld_critical_syscalls=CRITICAL[:8],
-                rationale=(
-                    f"Execution blocked: Target '{target_name}' requires explicit security approval. "
-                    f"No verified record was found in the safety gate ledger ({APPROVALS_FILE.name}). "
-                    f"System fails closed to prevent unverified policy execution."
-                ),
+                rationale=rationale_text,
                 approval_verified=False,
                 enforcement_mechanism="Fail-Closed Pre-Execution Gate",
             )
@@ -363,16 +372,67 @@ def _request_live_safety_gate_approval(
     sys.stderr.write("\n╔══════════════════════════════════════════════════════════════════════════════╗\n")
     sys.stderr.write("║           PoViShield Interactive Safety Gate Permission Request              ║\n")
     sys.stderr.write("╚══════════════════════════════════════════════════════════════════════════════╝\n")
-    sys.stderr.write(f"[SAFETY GATE] Target '{target_name}' requires operator approval before execution.\n")
+    sys.stderr.write(f"[SAFETY GATE] Target '{target_name}' requires security authorization before execution.\n")
     sys.stderr.write(f"[REQUEST ID]  {appr_id}\n")
+    sys.stderr.write(f"[COMMAND]     {' '.join(full_cmd)}\n")
     sys.stderr.write(f"[DASHBOARD]   Open PoViShield Web Dashboard to Approve or Deny.\n")
-    sys.stderr.write(f"[WAITING]     Awaiting operator decision in web dashboard (timeout 30s)... \n")
+    sys.stderr.write(f"[TERMINAL]    Or authorize now in this terminal [y = Approve / n = Deny / s = Sudo]: ")
     sys.stderr.flush()
 
     status_url = f"{server_url}/api/approvals/{appr_id}/status"
+    grant_url = f"{server_url}/api/approvals/{appr_id}/grant"
+    deny_url = f"{server_url}/api/approvals/{appr_id}/deny"
     start_wait = time.monotonic()
-    while time.monotonic() - start_wait < 30.0:
-        time.sleep(1.0)
+    while time.monotonic() - start_wait < 35.0:
+        if sys.stdin.isatty():
+            try:
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.5)
+                if rlist:
+                    line = sys.stdin.readline().strip().lower()
+                    if line in ("y", "yes"):
+                        sys.stderr.write("\n[APPROVED]    Permission GRANTED by local terminal operator!\n")
+                        sys.stderr.write(f"[PROCEED]     Executing target '{target_name}' under verified confinement...\n\n")
+                        sys.stderr.flush()
+                        try:
+                            g_req = urllib.request.Request(grant_url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+                            urllib.request.urlopen(g_req, timeout=1.5)
+                        except Exception:
+                            pass
+                        return True
+                    elif line in ("n", "no"):
+                        sys.stderr.write("\n[DENIED]      Permission DENIED by terminal operator. Failing closed.\n\n")
+                        sys.stderr.flush()
+                        try:
+                            d_req = urllib.request.Request(deny_url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+                            urllib.request.urlopen(d_req, timeout=1.5)
+                        except Exception:
+                            pass
+                        return False
+                    elif line in ("s", "sudo"):
+                        sys.stderr.write("\n[SUDO]        Verifying elevated permissions via sudo...\n")
+                        try:
+                            rc = subprocess.call(["sudo", "-v"])
+                            if rc == 0:
+                                sys.stderr.write("[SUDO]        Elevated authorization verified!\n")
+                                sys.stderr.write(f"[PROCEED]     Executing target '{target_name}' under verified confinement...\n\n")
+                                sys.stderr.flush()
+                                try:
+                                    g_req = urllib.request.Request(grant_url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+                                    urllib.request.urlopen(g_req, timeout=1.5)
+                                except Exception:
+                                    pass
+                                return True
+                            else:
+                                sys.stderr.write("[SUDO]        Sudo verification failed. Failing closed.\n\n")
+                                sys.stderr.flush()
+                                return False
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        else:
+            time.sleep(1.0)
+
         try:
             s_req = urllib.request.Request(status_url, headers={"Accept": "application/json"})
             with urllib.request.urlopen(s_req, timeout=2.0) as s_resp:
@@ -423,7 +483,8 @@ def execute_session(
     session.add_event("POLICY_EVALUATED", f"Decision: {decision.action} ({decision.enforcement_mechanism})")
 
     if not decision.allowed:
-        if mode == "approval-required" and decision.action == "APPROVAL_REQUIRED":
+        is_elevated = (target_name in ELEVATED_COMMANDS or any(arg == "sudo" for arg in full_cmd[:2]))
+        if (mode == "approval-required" or is_elevated) and decision.action == "APPROVAL_REQUIRED":
             approved = _request_live_safety_gate_approval(
                 target_name=target_name,
                 full_cmd=full_cmd,
