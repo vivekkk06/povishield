@@ -45,6 +45,8 @@ try:
         get_install_script,
         list_devices,
         revoke_device_endpoint,
+        get_execution_endpoint,
+        list_executions_endpoint,
     )
     HAS_FASTAPI = True
 except ImportError:
@@ -53,9 +55,12 @@ except ImportError:
 
 
 def make_req(headers=None, host="127.0.0.1"):
+    hdrs = {"host": host}
+    if headers:
+        hdrs.update(headers)
     return SimpleNamespace(
         client=SimpleNamespace(host=host),
-        headers=headers or {}
+        headers=hdrs
     )
 
 
@@ -368,6 +373,29 @@ class TestMultiDeviceFleet(unittest.TestCase):
         final_task = get_device_task(dev_id, task_id, user_req)
         self.assertEqual(final_task["status"], "completed")
         self.assertEqual(final_task["result"]["exit_code"], 0)
+        self.assertTrue(len(final_task["result"].get("syscalls", [])) > 0)
+
+        # 6. Verify that remote task produced an ExecutionSession recorded on disk
+        clean_suffix = task_id.replace("task_", "")
+        expected_session_id = f"run-remote-{clean_suffix}"
+        exec_detail = get_execution_endpoint(expected_session_id, user_req)
+        self.assertIsNotNone(exec_detail)
+        self.assertEqual(exec_detail["id"], expected_session_id)
+        self.assertTrue(exec_detail.get("is_remote"))
+        self.assertEqual(exec_detail.get("device_id"), dev_id)
+        self.assertTrue(len(exec_detail.get("syscalls", [])) > 0)
+        self.assertIn("decision", exec_detail)
+        self.assertGreater(exec_detail["decision"].get("attack_surface_reduction_pct", 0), 90.0)
+
+        # 7. Verify discovered in /api/executions
+        all_execs = list_executions_endpoint(user_req, limit=50)
+        session_ids = [e["id"] for e in all_execs["executions"]]
+        self.assertIn(expected_session_id, session_ids)
+
+        # 8. Verify filtering by device_id
+        filtered_execs = list_executions_endpoint(user_req, limit=50, device_id=dev_id)
+        self.assertTrue(all(e.get("device_id") == dev_id for e in filtered_execs["executions"]))
+        self.assertIn(expected_session_id, [e["id"] for e in filtered_execs["executions"]])
 
     def test_09_device_task_kernel_sigsys_enforced(self):
         """Enforced seccomp violation on remote device triggers kernel SIGSYS exit."""

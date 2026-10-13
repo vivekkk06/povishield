@@ -584,6 +584,21 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                         [ALERT: KERNEL SIGSYS TERMINATION] Unauthorized system call outside policy blocked. Kernel immediately terminated process with SIGSYS (returncode {activeTaskResult.exit_code}).
                       </div>
                     )}
+                    {activeTaskResult.syscalls?.length > 0 && (
+                      <div style={{ margin: "8px 0", padding: "6px 10px", background: "rgba(14, 165, 233, 0.08)", border: "1px solid rgba(14, 165, 233, 0.25)", borderRadius: 6 }}>
+                        <div style={{ fontSize: 10, color: "#38bdf8", fontWeight: 700, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+                          <span>[OS INTERACTION] {activeTaskResult.syscalls.length} Observed System Calls Talking to Remote Linux Kernel:</span>
+                          <span style={{ color: "#34d399" }}>Boundary Enforced</span>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {activeTaskResult.syscalls.map((sc, i) => (
+                            <span key={i} style={{ fontSize: 10, padding: "2px 6px", background: "#0e1a2d", border: "1px solid #1e3a5f", borderRadius: 4, color: "#93c5fd", fontFamily: "var(--font-mono)" }}>
+                              sys_{sc}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="terminal-line success">
                       [RESULT] Status: {activeTaskResult.status} | Duration: {activeTaskResult.duration_ms}ms
                     </div>
@@ -610,7 +625,14 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                         fontSize: 11,
                         fontFamily: "var(--font-mono)"
                       }}>
-                        <span>{t.command?.join(" ")}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span>{t.command?.join(" ")}</span>
+                          {t.result?.syscalls?.length > 0 && (
+                            <span style={{ fontSize: 9, padding: "1px 5px", background: "#0e1a2d", border: "1px solid #1e3a5f", borderRadius: 3, color: "#38bdf8" }}>
+                              {t.result.syscalls.length} syscalls
+                            </span>
+                          )}
+                        </div>
                         <span style={{ color: t.result?.exit_code === 0 ? "#34d399" : t.status === "completed" ? "#f87171" : "#38bdf8" }}>
                           {t.status.toUpperCase()} (EXIT: {t.result?.exit_code ?? "-"})
                         </span>
