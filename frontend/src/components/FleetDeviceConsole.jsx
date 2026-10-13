@@ -4,6 +4,7 @@ import {
   Copy, Check, Trash2, Lock, AlertTriangle, Cpu, Activity,
   Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink, Download
 } from "lucide-react";
+import RemoteWatchGuidePanel from "./RemoteWatchGuidePanel.jsx";
 
 export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDeviceId, refreshTick }) {
   const [devices, setDevices] = useState([]);
@@ -428,6 +429,9 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
           <div><strong>Fleet Console Alert</strong><p>{error}</p></div>
         </div>
       )}
+
+      {/* Step-by-Step Guide Panel: Run ./povishield watch on Another PC */}
+      <RemoteWatchGuidePanel API={API} onDevicePaired={fetchDevices} />
 
       {/* Main Layout: Device List + Device Detail Drawer */}
       <div className="fleet-layout" style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20 }}>

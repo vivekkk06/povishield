@@ -14,6 +14,7 @@ import "./App.css";
 import TerminalBackground from "./components/TerminalBackground.jsx";
 import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx";
 import FleetDeviceConsole from "./components/FleetDeviceConsole.jsx";
+import RemoteWatchGuidePanel from "./components/RemoteWatchGuidePanel.jsx";
 
 function getInitialApiUrl() {
   if (typeof window !== "undefined") {
@@ -547,7 +548,7 @@ function App() {
   useEffect(() => {
     if (selectedLedgerTarget) {
       loadLedgerTrials(selectedLedgerTarget, ledgerVerdictFilter, ledgerSyscallFilter);
-      setAuditReport(null);
+      runLedgerAudit(selectedLedgerTarget);
     }
   }, [selectedLedgerTarget, ledgerVerdictFilter, ledgerSyscallFilter]);
 
@@ -1122,6 +1123,9 @@ function App() {
                       value={`${aggregate.avg_median_overhead_pct}%`}
                       detail="Sub-microsecond kernel filtering overhead" accent="#f59e0b" />
                   </section>
+
+                  {/* Step-by-Step Guide Panel: Run ./povishield watch on Another PC */}
+                  <RemoteWatchGuidePanel API={API} />
 
                   {/* Interactive Architecture Pipeline */}
                   <section className="panel" style={{ marginBottom: 20 }}>
@@ -2598,6 +2602,8 @@ function App() {
                               <th>TARGET</th>
                               <th>STATUS</th>
                               <th>APPROVED AT</th>
+                              <th>ORIGIN HOST / DEVICE</th>
+                              <th>WORKLOAD COMMAND</th>
                               <th>CANDIDATE POLICY</th>
                               <th>ACTIVE POLICY</th>
                             </tr>
@@ -2608,6 +2614,13 @@ function App() {
                                 <td className="process-cell"><strong>{appr.target}</strong></td>
                                 <td><span className="verdict-tag verdict-approved">APPROVED</span></td>
                                 <td className="time-cell">{appr.timestamp || appr.approved_at || "—"}</td>
+                                <td>
+                                  <strong>{appr.hostname || "local"}</strong>
+                                  <div style={{ fontSize: 10, color: "#64748b" }}>{appr.device_id || "laptop_terminal"}</div>
+                                </td>
+                                <td>
+                                  <code style={{ fontSize: 11 }}>{Array.isArray(appr.command) ? appr.command.join(" ") : (appr.command || appr.target)}</code>
+                                </td>
                                 <td><code>{appr.candidate}</code></td>
                                 <td><code>{appr.active}</code></td>
                               </tr>

@@ -3,6 +3,7 @@ import {
   Terminal, Play, AlertTriangle, ShieldCheck, ShieldAlert, RefreshCw,
   Server, Check
 } from "lucide-react";
+import RemoteWatchGuidePanel from "./RemoteWatchGuidePanel.jsx";
 
 const PRESET_VECTORS = [
   { label: "Echo (Permitted)", cmd: "/usr/bin/echo 'Hello from PoViShield'", mode: "enforce", desc: "Executes standard output under verified least-privilege policy" },
@@ -56,6 +57,7 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   const [execError, setExecError] = useState("");
   const [autoFollow, setAutoFollow] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [showWatchGuide, setShowWatchGuide] = useState(false);
   const lastSeenLatestId = useRef(null);
 
   useEffect(() => {
@@ -559,6 +561,31 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
 
   return (
     <div className="terminal-execute-view">
+      {/* Remote PC Watch Guide Banner & Toggle */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <button
+          className="secondary-button"
+          onClick={() => setShowWatchGuide(prev => !prev)}
+          style={{
+            fontSize: "12px",
+            padding: "6px 12px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            background: showWatchGuide ? "rgba(16, 185, 129, 0.15)" : "rgba(15, 23, 42, 0.6)",
+            borderColor: showWatchGuide ? "#10b981" : "#1e293b",
+            color: showWatchGuide ? "#34d399" : "#94a3b8"
+          }}
+        >
+          <Terminal size={14} />
+          <span>{showWatchGuide ? "Hide Remote Watch Guide" : "Step-by-Step Guide: Run ./povishield watch on Another PC"}</span>
+        </button>
+      </div>
+
+      {showWatchGuide && (
+        <RemoteWatchGuidePanel API={API} />
+      )}
+
       {/* Quick Vector Presets */}
       <div className="quick-vector-chips">
         <span className="quick-chip-label">Research Presets:</span>

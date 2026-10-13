@@ -1102,30 +1102,37 @@ def events(limit: int = 100):
 @app.get("/api/policies")
 def policies():
     items = []
-    all_files = list(RESULTS.glob("*.json"))
-    if (RESULTS / "profiles").is_dir():
-        all_files.extend((RESULTS / "profiles").glob("*.json"))
+    seen_names = set()
 
-    for path in sorted(all_files):
-        if path.name in {"results.json", "escape.json", "ablation_eval.json"}:
+    search_dirs = [
+        RESULTS,
+        RESULTS / "profiles",
+        ROOT / "deploy_data",
+        ROOT / "deploy_data" / "profiles",
+    ]
+
+    for d in search_dirs:
+        if not d.is_dir():
             continue
-
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            rel = path.relative_to(RESULTS).as_posix()
-            items.append({
-                "name": rel,
-                "filename": path.name,
-                "size_bytes": path.stat().st_size,
-                "schema": data.get("schema", 1),
-                "count": data.get("count", len(data.get("syscalls", []))),
-                "data": data,
-            })
-        except (json.JSONDecodeError, OSError):
-            items.append({
-                "name": path.name,
-                "error": "Could not parse policy artifact",
-            })
+        for path in sorted(d.glob("*.json")):
+            if path.name in seen_names or path.name in {"results.json", "escape.json", "ablation_eval.json", "noisy_ablation_eval.json", "dashboard-probe.json"}:
+                continue
+            seen_names.add(path.name)
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                items.append({
+                    "name": path.name,
+                    "filename": path.name,
+                    "size_bytes": path.stat().st_size,
+                    "schema": data.get("schema", 1),
+                    "count": data.get("count", len(data.get("syscalls", []))),
+                    "data": data,
+                })
+            except (json.JSONDecodeError, OSError):
+                items.append({
+                    "name": path.name,
+                    "error": "Could not parse policy artifact",
+                })
 
     return {
         "items": items,
@@ -1137,14 +1144,23 @@ def policies():
 @app.get("/api/ablation/results")
 def ablation_results():
     ablation_json = RESULTS / "ablation_eval.json"
+    if not ablation_json.is_file():
+        alt = ROOT / "deploy_data" / "ablation_eval.json"
+        if alt.is_file():
+            ablation_json = alt
     ablation_md = RESULTS / "ablation_report.md"
+    if not ablation_md.is_file():
+        alt_md = ROOT / "deploy_data" / "ablation_report.md"
+        if alt_md.is_file():
+            ablation_md = alt_md
+
     if not ablation_json.is_file():
         raise HTTPException(status_code=404, detail="Ablation evaluation results not found. Run make eval-ablate first.")
     try:
         data = json.loads(ablation_json.read_text(encoding="utf-8"))
         report_text = ablation_md.read_text(encoding="utf-8") if ablation_md.is_file() else ""
         return {
-            "source": "results/ablation_eval.json",
+            "source": str(ablation_json.relative_to(ROOT)),
             "data": data,
             "report_markdown": report_text,
             "aggregate": data.get("aggregate", {}),
@@ -1157,7 +1173,16 @@ def ablation_results():
 @app.get("/api/ablation/noisy")
 def ablation_noisy_results():
     noisy_json = RESULTS / "noisy_ablation_eval.json"
+    if not noisy_json.is_file():
+        alt = ROOT / "deploy_data" / "noisy_ablation_eval.json"
+        if alt.is_file():
+            noisy_json = alt
     noisy_md = RESULTS / "noisy_ablation_report.md"
+    if not noisy_md.is_file():
+        alt_md = ROOT / "deploy_data" / "noisy_ablation_report.md"
+        if alt_md.is_file():
+            noisy_md = alt_md
+
     if not noisy_json.is_file():
         return {
             "available": False,
@@ -1168,7 +1193,7 @@ def ablation_noisy_results():
         report_text = noisy_md.read_text(encoding="utf-8") if noisy_md.is_file() else ""
         return {
             "available": True,
-            "source": "results/noisy_ablation_eval.json",
+            "source": str(noisy_json.relative_to(ROOT)),
             "data": data,
             "report_markdown": report_text,
             "aggregate": data.get("aggregate", {}),
@@ -1181,34 +1206,44 @@ def ablation_noisy_results():
 
 @app.get("/api/ledgers")
 def list_ledgers():
-    ledgers_dir = RESULTS / "ledgers"
-    if not ledgers_dir.exists():
-        return {"ledgers": [], "count": 0}
+    search_dirs = [RESULTS / "ledgers", ROOT / "deploy_data" / "ledgers"]
+    seen_targets = set()
     ledgers = []
-    for lpath in sorted(ledgers_dir.glob("*.jsonl")):
-        count = 0
-        try:
-            with open(lpath, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        count += 1
-            ledgers.append({
-                "target": lpath.stem,
-                "filename": lpath.name,
-                "trial_count": count,
-                "size_bytes": lpath.stat().st_size,
-            })
-        except Exception:
+
+    for ldir in search_dirs:
+        if not ldir.is_dir():
             continue
+        for lpath in sorted(ldir.glob("*.jsonl")):
+            target = lpath.stem
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            count = 0
+            try:
+                with open(lpath, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            count += 1
+                ledgers.append({
+                    "target": target,
+                    "filename": lpath.name,
+                    "trial_count": count,
+                    "size_bytes": lpath.stat().st_size,
+                })
+            except Exception:
+                continue
     return {"ledgers": ledgers, "count": len(ledgers)}
 
 
 @app.get("/api/ledgers/{target}")
 def get_ledger_trials(target: str, limit: int = 50, offset: int = 0, verdict: str = None, syscall: str = None):
-    ledgers_dir = RESULTS / "ledgers"
-    lpath = ledgers_dir / f"{target}.jsonl"
+    lpath = RESULTS / "ledgers" / f"{target}.jsonl"
     if not lpath.is_file():
-        raise HTTPException(status_code=404, detail=f"Ledger for target '{target}' not found")
+        alt = ROOT / "deploy_data" / "ledgers" / f"{target}.jsonl"
+        if alt.is_file():
+            lpath = alt
+        else:
+            raise HTTPException(status_code=404, detail=f"Ledger for target '{target}' not found")
     trials = []
     total_in_file = 0
     try:
@@ -1244,9 +1279,25 @@ def get_ledger_trials(target: str, limit: int = 50, offset: int = 0, verdict: st
 def audit_target_ledger(target: str, candidate_profile: str = None):
     from analysis.audit_ledger import audit_ledger_file
     lpath = RESULTS / "ledgers" / f"{target}.jsonl"
-    cpath = (RESULTS / candidate_profile) if candidate_profile else None
     if not lpath.is_file():
-        raise HTTPException(status_code=404, detail=f"Ledger file for '{target}' not found")
+        alt = ROOT / "deploy_data" / "ledgers" / f"{target}.jsonl"
+        if alt.is_file():
+            lpath = alt
+        else:
+            raise HTTPException(status_code=404, detail=f"Ledger file for '{target}' not found")
+
+    cpath = None
+    if candidate_profile:
+        for root in (RESULTS, ROOT / "deploy_data"):
+            cand1 = root / candidate_profile
+            if cand1.is_file():
+                cpath = cand1
+                break
+            cand2 = root / "profiles" / candidate_profile
+            if cand2.is_file():
+                cpath = cand2
+                break
+
     ok, report = audit_ledger_file(lpath, cpath)
     return report
 
@@ -1257,16 +1308,17 @@ def compare_policies(base: str, cand: str):
     from analysis.risk import risk_pct
 
     def resolve_p(name: str) -> Path:
-        p1 = RESULTS / name
-        if p1.is_file():
-            return p1
-        p2 = RESULTS / "profiles" / name
-        if p2.is_file():
-            return p2
-        if not name.endswith(".json"):
-            p3 = RESULTS / "profiles" / f"{name}.json"
-            if p3.is_file():
-                return p3
+        for root in (RESULTS, ROOT / "deploy_data"):
+            p1 = root / name
+            if p1.is_file():
+                return p1
+            p2 = root / "profiles" / name
+            if p2.is_file():
+                return p2
+            if not name.endswith(".json"):
+                p3 = root / "profiles" / f"{name}.json"
+                if p3.is_file():
+                    return p3
         raise HTTPException(status_code=404, detail=f"Profile '{name}' not found")
 
     p_base = resolve_p(base)
@@ -1304,18 +1356,28 @@ def compare_policies(base: str, cand: str):
 @app.get("/api/approvals")
 @app.get("/approvals")
 def get_approvals():
-    appr_file = RESULTS / "approvals.jsonl"
-    if not appr_file.is_file():
-        return {"approvals": [], "count": 0}
     items = []
-    try:
-        with open(appr_file, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip():
-                    items.append(json.loads(line))
-        return {"approvals": list(reversed(items)), "count": len(items)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read approvals: {e}")
+    seen_ids = set()
+
+    for appr_file in (RESULTS / "approvals.jsonl", ROOT / "deploy_data" / "approvals.jsonl"):
+        if not appr_file.is_file():
+            continue
+        try:
+            with open(appr_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            d = json.loads(line)
+                            d_id = d.get("id") or f"{d.get('target')}-{d.get('candidate')}"
+                            if d_id not in seen_ids:
+                                seen_ids.add(d_id)
+                                items.append(d)
+                        except json.JSONDecodeError:
+                            continue
+        except Exception:
+            continue
+
+    return {"approvals": list(reversed(items)), "count": len(items)}
 
 
 _PENDING_APPROVALS_LOCK = threading.Lock()
