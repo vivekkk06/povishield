@@ -109,11 +109,14 @@ DEFAULT_ORIGINS = (
     "http://127.0.0.1:5173,http://localhost:5173,"
     "http://127.0.0.1:5174,http://localhost:5174,"
     "http://127.0.0.1:5175,http://localhost:5175,"
+    "http://127.0.0.1:5176,http://localhost:5176,"
+    "http://127.0.0.1:5177,http://localhost:5177,"
+    "http://127.0.0.1:5178,http://localhost:5178,"
     "http://127.0.0.1:4173,http://localhost:4173,"
     "http://127.0.0.1:4174,http://localhost:4174,"
     "http://127.0.0.1:3000,http://localhost:3000,"
     "http://127.0.0.1:8000,http://localhost:8000,"
-    "http://[::1]:5173,http://[::1]:5175,http://[::1]:4173"
+    "http://[::1]:5173,http://[::1]:5175,http://[::1]:5176,http://[::1]:4173"
 )
 TRUSTED_ORIGINS = {
     o.strip()
@@ -323,6 +326,7 @@ def root_health():
 
 
 @app.post("/api/executions/evaluate")
+@app.post("/executions/evaluate")
 def evaluate_execution_endpoint(payload: ExecutionEvaluateRequest, request: Request):
     _require_local_request(request)
     if any(not isinstance(arg, str) or not arg or len(arg) > 512 for arg in payload.command):
@@ -338,6 +342,7 @@ def evaluate_execution_endpoint(payload: ExecutionEvaluateRequest, request: Requ
 
 
 @app.post("/api/executions")
+@app.post("/executions")
 def run_execution_endpoint(payload: ExecutionRunRequest, request: Request):
     _require_local_request(request)
     if os.geteuid() == 0:
@@ -361,6 +366,7 @@ def run_execution_endpoint(payload: ExecutionRunRequest, request: Request):
 
 
 @app.get("/api/executions")
+@app.get("/executions")
 def list_executions_endpoint(request: Request, limit: int = 50):
     _require_local_request(request)
     if limit < 1 or limit > 100:
@@ -369,6 +375,7 @@ def list_executions_endpoint(request: Request, limit: int = 50):
 
 
 @app.get("/api/executions/{session_id}")
+@app.get("/executions/{session_id}")
 def get_execution_endpoint(session_id: str, request: Request):
     _require_local_request(request)
     session = get_disk_session(session_id)
@@ -378,6 +385,7 @@ def get_execution_endpoint(session_id: str, request: Request):
 
 
 @app.post("/api/monitor/sessions")
+@app.post("/monitor/sessions")
 def start_monitor_session(payload: MonitorStartRequest, request: Request):
     _require_local_request(request)
     if os.geteuid() == 0:
@@ -426,6 +434,7 @@ def start_monitor_session(payload: MonitorStartRequest, request: Request):
 
 
 @app.get("/api/monitor/sessions/{session_id}")
+@app.get("/monitor/sessions/{session_id}")
 def get_monitor_session(session_id: str, request: Request):
     _require_local_request(request)
     with MONITOR_LOCK:
@@ -435,6 +444,7 @@ def get_monitor_session(session_id: str, request: Request):
 
 
 @app.post("/api/monitor/sessions/{session_id}/stop")
+@app.post("/monitor/sessions/{session_id}/stop")
 def stop_monitor_session(session_id: str, request: Request):
     _require_local_request(request)
     with MONITOR_LOCK:
@@ -451,6 +461,7 @@ def stop_monitor_session(session_id: str, request: Request):
 
 
 @app.get("/api/monitor/sessions/{session_id}/events")
+@app.get("/monitor/sessions/{session_id}/events")
 def get_monitor_session_events(session_id: str, request: Request, offset: int = 0, limit: int = 100):
     _require_local_request(request)
     if offset < 0 or limit < 1 or limit > 200:
@@ -872,6 +883,7 @@ def get_agent_script():
 
 
 @app.post("/api/pairing/generate")
+@app.post("/pairing/generate")
 def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
     user = get_current_user(request)
     code_record = db.create_pairing_code(
@@ -892,6 +904,7 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
 
 
 @app.get("/api/devices")
+@app.get("/devices")
 def list_devices(request: Request):
     user = get_current_user(request)
     devices = db.list_devices_for_user(user["id"])
@@ -899,6 +912,7 @@ def list_devices(request: Request):
 
 
 @app.get("/api/devices/{device_id}")
+@app.get("/devices/{device_id}")
 def get_device_details(device_id: str, request: Request):
     user = get_current_user(request)
     device = db.get_device(device_id)
@@ -916,6 +930,7 @@ def get_device_details(device_id: str, request: Request):
 
 
 @app.post("/api/devices/{device_id}/tasks")
+@app.post("/devices/{device_id}/tasks")
 def create_device_task(device_id: str, payload: DeviceTaskCreateRequest, request: Request):
     user = get_current_user(request)
     device = db.get_device(device_id)
@@ -951,6 +966,7 @@ def create_device_task(device_id: str, payload: DeviceTaskCreateRequest, request
 
 
 @app.get("/api/devices/{device_id}/tasks/{task_id}")
+@app.get("/devices/{device_id}/tasks/{task_id}")
 def get_device_task(device_id: str, task_id: str, request: Request):
     user = get_current_user(request)
     device = db.get_device(device_id)
@@ -963,6 +979,7 @@ def get_device_task(device_id: str, task_id: str, request: Request):
 
 
 @app.post("/api/devices/{device_id}/revoke")
+@app.post("/devices/{device_id}/revoke")
 def revoke_device_endpoint(device_id: str, request: Request):
     user = get_current_user(request)
     device = db.get_device(device_id)
@@ -980,6 +997,7 @@ def revoke_device_endpoint(device_id: str, request: Request):
 
 
 @app.delete("/api/devices/{device_id}")
+@app.delete("/devices/{device_id}")
 def delete_device_endpoint(device_id: str, request: Request):
     user = get_current_user(request)
     device = db.get_device(device_id)
@@ -992,6 +1010,7 @@ def delete_device_endpoint(device_id: str, request: Request):
 
 
 @app.get("/api/devices/{device_id}/events")
+@app.get("/devices/{device_id}/events")
 def get_device_events_endpoint(device_id: str, request: Request, limit: int = 50):
     user = get_current_user(request)
     device = db.get_device(device_id)

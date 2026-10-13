@@ -371,6 +371,8 @@ def main():
     start_parser = subparsers.add_parser("start", help="Start agent heartbeat and monitoring loop")
     start_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
     start_parser.add_argument("--poll-interval", type=float, default=3.0, help="Polling interval in seconds")
+    start_parser.add_argument("--iterations", type=int, default=None, help="Stop after N heartbeat iterations")
+    start_parser.add_argument("--once", action="store_true", help="Run a single heartbeat iteration and exit")
 
     # status
     subparsers.add_parser("status", help="Print configured device status and pairing state")
@@ -396,7 +398,8 @@ def main():
             print(f"[ERROR] Pairing failed: {exc}", file=sys.stderr)
             sys.exit(1)
     elif args.subcommand == "start":
-        run_agent_loop(config_path=Path(args.config), poll_interval=args.poll_interval)
+        max_iter = 1 if args.once else args.iterations
+        run_agent_loop(config_path=Path(args.config), poll_interval=args.poll_interval, max_iterations=max_iter)
     elif args.subcommand == "status":
         cfg = load_agent_config(Path(args.config if hasattr(args, "config") else DEFAULT_CONFIG_PATH))
         if not cfg:
