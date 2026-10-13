@@ -14,7 +14,11 @@ import "./App.css";
 import TerminalBackground from "./components/TerminalBackground.jsx";
 import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx";
 
-const API = import.meta.env.VITE_API_URL || (typeof window !== "undefined" && window.location.protocol !== "file:" ? "/api" : "http://127.0.0.1:8000/api");
+const API = import.meta.env.VITE_API_URL || (
+  typeof window !== "undefined" && (window.location.port === "5173" || window.location.port === "5174" || window.location.port === "5175" || window.location.port === "4173")
+    ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+    : (typeof window !== "undefined" && window.location.protocol !== "file:" ? "/api" : "http://127.0.0.1:8000/api")
+);
 
 const navigation = [
   { name: "Overview", icon: LayoutDashboard },
@@ -40,6 +44,14 @@ function getSyscallCategory(name) {
 async function getJSON(path) {
   const response = await fetch(`${API}${path}`);
   if (!response.ok) throw new Error(`API returned ${response.status}`);
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    if (text.trim().startsWith("<")) {
+      throw new Error(`Connected to web port, but received HTML instead of JSON. Ensure PoViShield API is running on port 8000.`);
+    }
+    throw new Error(`API returned non-JSON response (${contentType})`);
+  }
   return response.json();
 }
 

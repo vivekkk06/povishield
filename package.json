@@ -1,0 +1,12 @@
+{
+  "name": "povishield",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PoViShield Linux Security Research & Sandboxing Platform",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "start": "python3 scripts/run_web.py"
+  }
+}

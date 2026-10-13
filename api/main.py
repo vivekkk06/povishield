@@ -101,6 +101,21 @@ ALLOWED_EXECUTABLES = _allowed_executables()
 MAX_RUNNING_SESSIONS = 3
 
 
+def _is_allowed_origin(origin: Optional[str]) -> bool:
+    if not origin or origin == "null":
+        return False
+    if origin in TRUSTED_ORIGINS:
+        return True
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(origin)
+        if p.scheme in ("http", "https") and p.hostname in ("127.0.0.1", "localhost", "::1"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _require_local_request(request: Request) -> None:
     def deny(detail: str):
         raise HTTPException(status_code=403, detail=detail)
@@ -116,7 +131,7 @@ def _require_local_request(request: Request) -> None:
     if name not in TRUSTED_HOSTS:
         deny("Untrusted Host header")
     origin = request.headers.get("origin")
-    if origin is not None and origin not in TRUSTED_ORIGINS:     # absent for curl/scripts; present for every browser POST
+    if origin is not None and not _is_allowed_origin(origin):
         deny("Untrusted Origin")
 
 
@@ -201,6 +216,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=sorted(TRUSTED_ORIGINS),
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$",
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

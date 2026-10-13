@@ -58,6 +58,15 @@ watch-commit: all              ## watch directory, verify and auto-commit to mai
 dashboard:                     ## live cgroup dashboard
 > python3 dashboard/tui.py
 
+run:                           ## run full web security console and API supervisor
+> python3 scripts/run_web.py
+
+run-api:                       ## run local FastAPI server on 127.0.0.1:8000
+> .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+
+run-ui:                        ## run React Vite UI console
+> npm --prefix frontend run dev
+
 deps:                          ## Fedora (dnf) or Ubuntu/Debian (apt)
 > @if command -v dnf >/dev/null; then sudo dnf install -y gcc make libseccomp-devel python3 busybox git; \
 > elif command -v apt-get >/dev/null; then sudo apt-get install -y build-essential libseccomp-dev python3 busybox-static git; \
