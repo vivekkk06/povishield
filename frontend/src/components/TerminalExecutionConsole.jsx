@@ -70,6 +70,10 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
 
   useEffect(() => {
     loadHistory();
+    const interval = setInterval(() => {
+      loadHistory();
+    }, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -462,7 +466,11 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                     [INIT] Target Vector: {currentSession.command?.join(" ")}
                   </div>
                   <div className="terminal-line policy">
-                    [HOST TARGET] {currentSession.is_remote ? `Remote Endpoint: ${currentSession.host_target || currentSession.hostname || "Remote Linux PC"}` : "Local System: Gateway Host (127.0.0.1)"}
+                    [HOST TARGET] {currentSession.is_remote
+                      ? `Remote Endpoint: ${currentSession.host_target || currentSession.hostname || "Remote Linux PC"}`
+                      : (currentSession.is_terminal_cli
+                          ? `Host Terminal CLI: ${currentSession.hostname || "Local Machine"}`
+                          : "Local System: Gateway Host (127.0.0.1)")}
                   </div>
                   <div className="terminal-line policy">
                     [POLICY] Boundary: {currentSession.decision?.profile_path || "Synthesized"} | Allowed: {currentSession.decision?.allowed_syscalls_count ?? (currentSession.syscalls?.length || 0)} syscalls
@@ -592,12 +600,20 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                           fontWeight: 700,
                           padding: "1px 5px",
                           borderRadius: 3,
-                          background: sess.is_remote ? "rgba(168, 85, 247, 0.15)" : "rgba(34, 197, 94, 0.15)",
-                          color: sess.is_remote ? "#c084fc" : "#4ade80",
-                          border: sess.is_remote ? "1px solid rgba(168, 85, 247, 0.35)" : "1px solid rgba(34, 197, 94, 0.35)",
+                          background: sess.is_remote
+                            ? "rgba(168, 85, 247, 0.15)"
+                            : (sess.is_terminal_cli ? "rgba(56, 189, 248, 0.15)" : "rgba(34, 197, 94, 0.15)"),
+                          color: sess.is_remote
+                            ? "#c084fc"
+                            : (sess.is_terminal_cli ? "#38bdf8" : "#4ade80"),
+                          border: sess.is_remote
+                            ? "1px solid rgba(168, 85, 247, 0.35)"
+                            : (sess.is_terminal_cli ? "1px solid rgba(56, 189, 248, 0.35)" : "1px solid rgba(34, 197, 94, 0.35)"),
                           fontFamily: "var(--font-mono)"
                         }}>
-                          {sess.is_remote ? (sess.hostname ? `REMOTE: ${sess.hostname}` : "REMOTE") : "LOCAL"}
+                          {sess.is_remote
+                            ? (sess.hostname ? `REMOTE: ${sess.hostname}` : "REMOTE")
+                            : (sess.is_terminal_cli ? `TERMINAL CLI${sess.hostname ? ` (${sess.hostname})` : ""}` : "LOCAL")}
                         </span>
                       </div>
                       <span className={`history-exit ${isKill ? "code-sigsys" : sess.exit_code === 0 ? "code-0" : "code-other"}`}>

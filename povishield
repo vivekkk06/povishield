@@ -10,6 +10,9 @@ usage() {
 PoViShield v0.1.0 — Linux Application Sandboxing & Security Research Platform
 
 Usage:
+  povishield connect [SERVER_URL] [--code CODE] [--name NAME]
+      Directly link and enroll this device/laptop to the PoViShield platform (supports sudo/root)
+
   povishield run [--mode enforce|inspect|approval-required] [--profile FILE] -- CMD...
       Execute CMD under policy-gated seccomp enforcement with live session tracking
 
@@ -19,7 +22,7 @@ Usage:
   povishield list
       List recent execution sessions and audit logs
 
-  povishield agent probe|pair|start|status
+  povishield agent probe|pair|start|status|connect
       Manage local Linux endpoint security agent and pairing
 
 Low-level commands:
@@ -36,6 +39,9 @@ Low-level commands:
       Display total system calls recognized on this architecture
 
 Examples:
+  povishield connect
+  sudo povishield connect
+  povishield connect --server https://your-backend.onrender.com --code PVS-XXXX
   povishield run -- /usr/bin/echo "Hello from PoViShield"
   povishield run --mode inspect -- /usr/bin/cat /dev/null
   povishield run --mode approval-required -- /usr/bin/grep "root" /etc/passwd
@@ -54,6 +60,9 @@ CMD="$1"
 shift
 
 case "$CMD" in
+    connect)
+        exec python3 -m agent.povishield_agent connect "$@"
+        ;;
     agent)
         exec python3 -m agent.povishield_agent "$@"
         ;;

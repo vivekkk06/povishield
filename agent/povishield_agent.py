@@ -11,6 +11,7 @@ import os
 import platform
 import signal
 import socket
+import subprocess
 import sys
 import time
 import urllib.error
@@ -18,7 +19,7 @@ import urllib.request
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -208,6 +209,137 @@ def pair_agent(
         "paired_at": datetime.now(timezone.utc).isoformat(),
     }
     save_agent_config(config, config_path)
+    return config
+
+
+def direct_connect_agent(
+    server_url: str = "http://localhost:8000",
+    device_name: Optional[str] = None,
+    pairing_code: Optional[str] = None,
+    config_path: Path = DEFAULT_CONFIG_PATH,
+    start_daemon: bool = True,
+    foreground: bool = False
+) -> Dict[str, Any]:
+    """Inspects terminal permissions (sudo/root) and directly enrolls or connects the current device to PoViShield."""
+    is_root = (os.geteuid() == 0)
+    server_url = server_url.rstrip("/")
+    if not server_url.startswith(("http://", "https://")):
+        if "localhost" in server_url or "127.0.0.1" in server_url:
+            server_url = f"http://{server_url}"
+        else:
+            server_url = f"https://{server_url}"
+
+    probe = probe_local_security()
+    name = device_name or f"{probe['hostname']} ({'root' if is_root else 'user'})"
+
+    permissions = {
+        "is_root": is_root,
+        "allow_diagnostics": True,
+        "allow_monitoring": True,
+        "allow_enforcement": True,
+        "allow_execution": True,
+        "share_output": True,
+        "namespaces": is_root,
+        "cgroups": is_root,
+    }
+
+    print("╔══════════════════════════════════════════════════════════════════════════════╗")
+    print("║                   PoViShield Terminal Direct Device Link                     ║")
+    print("╚══════════════════════════════════════════════════════════════════════════════╝")
+    print(f"Device Name:       {name}")
+    print(f"Host / OS:         {probe['hostname']} ({probe['os_name']})")
+    print(f"Privilege Level:   {'[ROOT / SUPERVISOR ACTIVE]' if is_root else '[STANDARD USER (PR_SET_NO_NEW_PRIVS)]'}")
+    if not is_root:
+        print("                   (Tip: Run with 'sudo ./povishield connect' for full root container namespaces & cgroups v2)")
+    print(f"Kernel Seccomp:    {'[ACTIVE / SUPPORTED]' if probe['seccomp_bpf'] else '[NOT DETECTED]'}")
+    print(f"Server Target:     {server_url}")
+    print("────────────────────────────────────────────────────────────────────────────────")
+
+    payload = {
+        "name": name,
+        "hostname": probe["hostname"],
+        "os_info": probe["os_name"],
+        "kernel_version": probe["kernel_release"],
+        "arch": probe["architecture"],
+        "capabilities": probe,
+        "permissions": permissions,
+        "pairing_code": pairing_code.strip() if pairing_code else None,
+    }
+
+    connect_url = f"{server_url}/api/agent/direct-connect"
+    print(f"[CONNECTING] Requesting direct link from {connect_url}...")
+    status, resp = make_api_request(connect_url, method="POST", data=payload, timeout=12.0)
+
+    if status != 200:
+        err_detail = resp.get("detail", f"HTTP {status}")
+        raise RuntimeError(
+            f"Direct connect failed: {err_detail}.\n"
+            f"If connecting to a remote dashboard (e.g. Render), generate a Pairing Code in Fleet Console and run:\n"
+            f"  ./povishield connect --server {server_url} --code PVS-XXXX"
+        )
+
+    device_id = resp["device_id"]
+    token = resp["token"]
+    is_reconnect = resp.get("is_reconnect", False)
+
+    config = {
+        "server_url": server_url,
+        "device_id": device_id,
+        "token": token,
+        "name": name,
+        "permissions": permissions,
+        "paired_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Save to user config path
+    save_agent_config(config, config_path)
+    print(f"[CONFIG]     Saved configuration to: {config_path}")
+
+    # If running with root/sudo, also persist to /etc/povishield/agent.json so all users have access
+    if is_root:
+        try:
+            etc_path = Path("/etc/povishield/agent.json")
+            save_agent_config(config, etc_path)
+            print(f"[CONFIG]     Saved system-wide configuration to: {etc_path}")
+        except Exception:
+            pass
+        sudo_user = os.environ.get("SUDO_USER")
+        if sudo_user:
+            try:
+                user_cfg = Path(f"/home/{sudo_user}/.povishield/agent.json")
+                save_agent_config(config, user_cfg)
+                import pwd
+                pw = pwd.getpwnam(sudo_user)
+                os.chown(user_cfg, pw.pw_uid, pw.pw_gid)
+                os.chown(user_cfg.parent, pw.pw_uid, pw.pw_gid)
+                print(f"[CONFIG]     Saved user configuration to: {user_cfg}")
+            except Exception:
+                pass
+
+    if is_reconnect:
+        print(f"[CONNECTED]  Re-authenticated existing device '{name}' (ID: {device_id}) successfully!")
+    else:
+        print(f"[CONNECTED]  Direct connection established! Enrolled new device '{name}' (ID: {device_id})!")
+
+    print(f"[STATUS]     Device is now linked directly to PoViShield dashboard at {server_url}.")
+
+    if foreground:
+        print("\n[FOREGROUND] Starting live agent monitoring in foreground...")
+        run_agent_loop(config_path=config_path, poll_interval=3.0)
+    elif start_daemon:
+        stop_agent(config_path)
+        log_file = config_path.parent / "agent.log"
+        with open(log_file, "a") as lf:
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "agent.povishield_agent", "start", "--config", str(config_path)],
+                stdout=lf,
+                stderr=lf,
+                start_new_session=True,
+            )
+        print(f"[DAEMON]     Background agent supervisor running (PID: {proc.pid}, log: {log_file}).")
+        print(f"[VERIFIED]   Commands executed via './povishield run' will now appear live on the dashboard!")
+        print("════════════════════════════════════════════════════════════════════════════════")
+
     return config
 
 
@@ -598,6 +730,16 @@ def main():
     status_parser = subparsers.add_parser("status", help="Print configured device status and pairing state")
     status_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
 
+    # connect
+    connect_parser = subparsers.add_parser("connect", help="Directly connect current terminal / device to PoViShield dashboard (supports sudo)")
+    connect_parser.add_argument("server_pos", nargs="?", default=None, help="Dashboard URL e.g. http://localhost:8000 or https://your-backend.onrender.com")
+    connect_parser.add_argument("--server", default=None, help="Dashboard URL")
+    connect_parser.add_argument("--code", default=None, help="Optional pairing code if connecting to remote server")
+    connect_parser.add_argument("--name", default=None, help="Custom nickname for this device")
+    connect_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to save agent config")
+    connect_parser.add_argument("--foreground", action="store_true", help="Run loop in foreground instead of background daemon")
+    connect_parser.add_argument("--no-daemon", action="store_true", help="Do not start background daemon")
+
     # stop
     stop_parser = subparsers.add_parser("stop", help="Stop running background agent")
     stop_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
@@ -606,6 +748,20 @@ def main():
 
     if args.subcommand == "probe":
         print_security_probe()
+    elif args.subcommand == "connect":
+        try:
+            target_srv = args.server or args.server_pos or "http://localhost:8000"
+            direct_connect_agent(
+                server_url=target_srv,
+                device_name=args.name,
+                pairing_code=args.code,
+                config_path=Path(args.config),
+                start_daemon=not args.no_daemon,
+                foreground=args.foreground,
+            )
+        except Exception as exc:
+            print(f"[ERROR] Direct connect failed: {exc}", file=sys.stderr)
+            sys.exit(1)
     elif args.subcommand == "pair":
         try:
             cfg = pair_agent(

@@ -401,6 +401,9 @@ def list_devices_for_user(user_id: str) -> List[Dict[str, Any]]:
         conn.close()
 
 
+get_user_devices = list_devices_for_user
+
+
 def update_device_heartbeat(device_id: str, status: str = "online", updated_capabilities: Optional[Dict[str, Any]] = None) -> bool:
     now = datetime.now(timezone.utc).isoformat()
     with _LOCK:

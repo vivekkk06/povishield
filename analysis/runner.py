@@ -22,9 +22,11 @@ import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
+import urllib.request
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -448,7 +450,7 @@ def execute_session(
 
 
 def _persist_session(session: ExecutionSession) -> None:
-    """Saves session metadata to results/sessions/{session_id}.json."""
+    """Saves session metadata to results/sessions/{session_id}.json and syncs telemetry."""
     ensure_sessions_dir()
     dest = SESSIONS_DIR / f"{session.id}.json"
     try:
@@ -456,6 +458,94 @@ def _persist_session(session: ExecutionSession) -> None:
             json.dump(asdict(session), f, indent=2)
     except OSError as exc:
         sys.stderr.write(f"Warning: could not persist session {session.id}: {exc}\n")
+
+    _sync_session_telemetry(session)
+
+
+def _sync_session_telemetry(session: ExecutionSession) -> None:
+    """Syncs terminal execution session and observed syscalls to PoViShield dashboard."""
+    try:
+        events_file = RESULTS_DIR / "syscall-events.jsonl"
+        syscalls: List[str] = []
+        if session.decision and isinstance(session.decision, dict):
+            syscalls = list(session.decision.get("allowed_syscalls") or [])
+
+        # Also inspect event stream if produced
+        if session.events_path:
+            ep = ROOT / session.events_path
+            if ep.is_file():
+                try:
+                    with ep.open("r", encoding="utf-8") as ef:
+                        for line in ef:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            ev = json.loads(line)
+                            sc = ev.get("syscall")
+                            if sc and sc not in syscalls:
+                                syscalls.append(sc)
+                except Exception:
+                    pass
+
+        hostname = socket.gethostname()
+
+        # Write to local events_file for live monitor
+        if syscalls:
+            try:
+                events_file.parent.mkdir(parents=True, exist_ok=True)
+                with events_file.open("a", encoding="utf-8") as ef:
+                    for sc in syscalls[:15]:
+                        ef.write(json.dumps({
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "device_id": "laptop_terminal",
+                            "hostname": hostname,
+                            "target": session.target,
+                            "syscall": sc,
+                            "action": "ALLOWED"
+                        }) + "\n")
+            except Exception:
+                pass
+
+        # Prepare payload for dashboard API sync
+        data = asdict(session)
+        data["is_terminal_cli"] = True
+        data["is_remote"] = False
+        data["hostname"] = hostname
+        data["device_id"] = "laptop_terminal"
+        data["syscalls"] = syscalls
+        data["host_target"] = f"Local Terminal ({hostname})"
+
+        # Determine target server URL and auth token
+        server_url = os.environ.get("POVI_SERVER_URL") or os.environ.get("POVISHIELD_SERVER")
+        token = None
+
+        if not server_url:
+            for cfg_path in [Path.home() / ".povishield" / "agent.json", Path("/etc/povishield/agent.json")]:
+                if cfg_path.is_file():
+                    try:
+                        with cfg_path.open("r", encoding="utf-8") as cf:
+                            c = json.load(cf)
+                            server_url = c.get("server_url")
+                            token = c.get("token")
+                            if c.get("device_id"):
+                                data["device_id"] = c.get("device_id")
+                            break
+                    except Exception:
+                        pass
+
+        if not server_url:
+            server_url = "http://127.0.0.1:8000"
+
+        server_url = server_url.rstrip("/")
+        req_url = f"{server_url}/api/executions/record"
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(req_url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=1.5) as _:
+            pass
+    except Exception:
+        pass
 
 
 def list_sessions(limit: int = 50) -> List[Dict[str, Any]]:

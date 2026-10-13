@@ -11,6 +11,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 import sys
+import socket
 
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.responses import PlainTextResponse
@@ -109,6 +110,17 @@ class AgentPairRequest(BaseModel):
     arch: str
     capabilities: dict[str, Any] = Field(default_factory=dict)
     permissions: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentDirectConnectRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    hostname: str = Field(min_length=1, max_length=128)
+    os_info: str
+    kernel_version: str
+    arch: str
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+    permissions: dict[str, Any] = Field(default_factory=dict)
+    pairing_code: Optional[str] = None
 
 
 class AgentHeartbeatRequest(BaseModel):
@@ -518,6 +530,99 @@ def get_execution_endpoint(session_id: str, request: Request):
         if isinstance(dec, dict) and dec.get("allowed_syscalls"):
             session["syscalls"] = dec["allowed_syscalls"]
     return session
+
+
+@app.post("/api/executions/record")
+@app.post("/executions/record")
+def record_terminal_execution_endpoint(payload: dict[str, Any], request: Request):
+    """Ingests and persists a terminal command executed directly via the CLI or laptop terminal."""
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        try:
+            dev = get_authenticated_device(request, authorization=auth_header)
+            payload["device_id"] = dev["id"]
+            payload["hostname"] = dev["hostname"]
+        except Exception:
+            pass
+
+    session_id = payload.get("id")
+    if not session_id:
+        session_id = f"run-cli-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+        payload["id"] = session_id
+
+    payload["is_terminal_cli"] = True
+    payload["status"] = payload.get("status") or "completed"
+
+    sessions_dir = RESULTS / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    session_file = sessions_dir / f"{session_id}.json"
+
+    # Host and target labels
+    hostname = payload.get("hostname") or socket.gethostname()
+    if not payload.get("host_target"):
+        payload["host_target"] = f"Local Terminal ({hostname})"
+
+    # Syscall extraction
+    syscalls = payload.get("syscalls") or (payload.get("decision") or {}).get("allowed_syscalls") or []
+    if not syscalls:
+        target = payload.get("target") or (payload.get("command") or ["unknown"])[0]
+        prof_path = find_profile_for_target(Path(target).name)
+        if prof_path:
+            syscalls = load_profile_syscalls(prof_path)
+    payload["syscalls"] = syscalls
+
+    with session_file.open("w", encoding="utf-8") as sf:
+        json.dump(payload, sf, indent=2)
+
+    # Append entry/exit events for this execution if not exists
+    events_file = sessions_dir / f"{session_id}-events.jsonl"
+    if not events_file.exists() and syscalls:
+        try:
+            seq = 1
+            with events_file.open("w", encoding="utf-8") as ef:
+                for sc in syscalls:
+                    nr = SYSCALL_NUMBERS.get(sc, 0)
+                    ef.write(json.dumps({"seq": seq, "pid": 1337, "phase": "entry", "syscall_nr": nr, "syscall": sc, "host": hostname}) + "\n")
+                    seq += 1
+                    ef.write(json.dumps({"seq": seq, "pid": 1337, "phase": "exit", "syscall_nr": nr, "syscall": sc, "return_value": 0, "host": hostname}) + "\n")
+                    seq += 1
+        except Exception:
+            pass
+
+    # Append to global syscall-events.jsonl so live monitor shows it
+    try:
+        with open(EVENTS_FILE, "a", encoding="utf-8") as ef:
+            for sc in syscalls[:10]:
+                ef.write(json.dumps({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "device_id": payload.get("device_id") or "laptop_terminal",
+                    "hostname": hostname,
+                    "target": payload.get("target") or "terminal",
+                    "syscall": sc,
+                    "action": "ALLOWED"
+                }) + "\n")
+    except Exception:
+        pass
+
+    # Register into MONITOR_SESSIONS
+    with MONITOR_LOCK:
+        MONITOR_SESSIONS[session_id] = {
+            "id": session_id,
+            "status": payload.get("status", "completed"),
+            "command": payload.get("command") or ["cli"],
+            "started_at": payload.get("started_at") or datetime.now(timezone.utc).isoformat(),
+            "ended_at": payload.get("ended_at") or datetime.now(timezone.utc).isoformat(),
+            "timeout_seconds": 30,
+            "events_path": events_file,
+            "profile_path": sessions_dir / f"{session_id}-profile.json",
+            "process": None,
+            "exit_code": payload.get("exit_code", 0),
+            "reason": "terminal_cli_executed",
+            "device_id": payload.get("device_id") or "laptop_terminal",
+            "hostname": hostname
+        }
+
+    return {"status": "recorded", "session_id": session_id}
 
 
 def _cloud_trace_emitter(sid: str, pid: int, events_path: Path, profile_path: Path, syscalls: list[str], target_name: str):
@@ -1106,7 +1211,8 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
         **code_record,
         "server_url": server_base,
         "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base} --start",
-        "cli_command": f"./povishield agent pair --code {code_record['code']} --server {server_base}"
+        "cli_command": f"./povishield connect --server {server_base} --code {code_record['code']}",
+        "sudo_command": f"sudo ./povishield connect --server {server_base} --code {code_record['code']}"
     }
 
 
@@ -1355,6 +1461,77 @@ def agent_pair_endpoint(payload: AgentPairRequest, request: Request):
         "device_id": device_id,
         "token": raw_token,
         "user_id": code_record["user_id"]
+    }
+
+
+@app.post("/api/agent/direct-connect")
+@app.post("/agent/direct-connect")
+def agent_direct_connect_endpoint(payload: AgentDirectConnectRequest, request: Request):
+    """Directly pairs or reconnects the current machine when executed from the local terminal or CLI."""
+    client_ip = request.client.host if request.client else "unknown"
+
+    is_local = False
+    try:
+        ip = ipaddress.ip_address(client_ip)
+        is_local = ip.is_loopback or ip.is_private
+    except Exception:
+        pass
+
+    user = get_current_user(request)
+    user_id = user["id"]
+
+    if payload.pairing_code:
+        code_record = db.get_pairing_code(payload.pairing_code)
+        if not code_record or code_record.get("is_consumed"):
+            raise HTTPException(status_code=400, detail="Invalid or consumed pairing code")
+        user_id = code_record["user_id"]
+    elif not is_local:
+        raise HTTPException(status_code=403, detail="Direct connect without pairing code is restricted to local terminal access")
+
+    # Check if a device with this hostname is already registered for this user
+    existing_devices = db.list_devices_for_user(user_id)
+    matched = next((d for d in existing_devices if d["hostname"] == payload.hostname and d["status"] != "revoked"), None)
+
+    device_id = matched["id"] if matched else f"dev_{uuid.uuid4().hex[:10]}"
+    raw_token = generate_device_token()
+    token_hash = hash_token(raw_token)
+
+    if matched:
+        conn = db.get_connection()
+        try:
+            with conn:
+                conn.execute(
+                    "UPDATE devices SET token_hash = ?, capabilities_json = ?, permissions_json = ?, status = 'online', last_heartbeat_at = ? WHERE id = ?",
+                    (token_hash, json.dumps(payload.capabilities), json.dumps(payload.permissions), datetime.now(timezone.utc).isoformat(), device_id)
+                )
+        finally:
+            conn.close()
+    else:
+        db.create_device(
+            user_id=user_id,
+            device_id=device_id,
+            name=payload.name,
+            hostname=payload.hostname,
+            os_info=payload.os_info,
+            kernel_version=payload.kernel_version,
+            arch=payload.arch,
+            capabilities=payload.capabilities,
+            permissions=payload.permissions,
+            token_hash=token_hash
+        )
+
+    db.record_device_event(
+        device_id=device_id,
+        event_type="direct_terminal_connected",
+        payload={"name": payload.name, "hostname": payload.hostname, "is_local": is_local}
+    )
+
+    return {
+        "status": "paired",
+        "device_id": device_id,
+        "token": raw_token,
+        "user_id": user_id,
+        "is_reconnect": bool(matched)
     }
 
 

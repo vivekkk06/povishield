@@ -22,6 +22,7 @@ from api.auth import hash_token
 try:
     from fastapi import HTTPException
     from api.main import (
+        AgentDirectConnectRequest,
         AgentEventsRequest,
         AgentHeartbeatRequest,
         AgentPairRequest,
@@ -29,6 +30,7 @@ try:
         DeviceBroadcastTaskRequest,
         DeviceTaskCreateRequest,
         PairingGenerateRequest,
+        agent_direct_connect_endpoint,
         agent_disconnect_endpoint,
         agent_events_endpoint,
         agent_heartbeat_endpoint,
@@ -44,6 +46,7 @@ try:
         get_device_task,
         get_install_script,
         list_devices,
+        record_terminal_execution_endpoint,
         revoke_device_endpoint,
         get_execution_endpoint,
         list_executions_endpoint,
@@ -477,6 +480,65 @@ class TestMultiDeviceFleet(unittest.TestCase):
         self.assertEqual(b_res["status"], "broadcast_queued")
         self.assertGreaterEqual(b_res["task_count"], 1)
         self.assertTrue(len(b_res["dispatched"]) >= 1)
+
+    def test_13_terminal_direct_connect(self):
+        """Terminal can directly connect and pair local host machine with sudo/root capabilities."""
+        req = make_req(host="127.0.0.1")
+        conn_res = agent_direct_connect_endpoint(AgentDirectConnectRequest(
+            name="Laptop-Terminal-Direct",
+            hostname="my-laptop",
+            os_info="Linux 6.8.0",
+            kernel_version="6.8.0-generic",
+            arch="x86_64",
+            capabilities={"seccomp_bpf": True, "no_new_privs": True},
+            permissions={"is_root": True, "allow_execution": True, "namespaces": True}
+        ), req)
+
+        self.assertEqual(conn_res["status"], "paired")
+        self.assertTrue(conn_res["device_id"].startswith("dev_"))
+        self.assertTrue(conn_res["token"].startswith("pvs_agent_"))
+
+        # Re-connecting with same hostname updates token and keeps device ID
+        reconn = agent_direct_connect_endpoint(AgentDirectConnectRequest(
+            name="Laptop-Terminal-Direct",
+            hostname="my-laptop",
+            os_info="Linux 6.8.0",
+            kernel_version="6.8.0-generic",
+            arch="x86_64",
+            capabilities={"seccomp_bpf": True, "no_new_privs": True},
+            permissions={"is_root": True, "allow_execution": True}
+        ), req)
+        self.assertEqual(reconn["status"], "paired")
+        self.assertEqual(reconn["device_id"], conn_res["device_id"])
+        self.assertTrue(reconn["is_reconnect"])
+
+    def test_14_terminal_execution_record(self):
+        """CLI terminal execution is recorded and exposed to dashboard with live syscall events."""
+        req = make_req(host="127.0.0.1")
+        test_sid = f"run-cli-test-{os.getpid()}"
+        rec = record_terminal_execution_endpoint({
+            "id": test_sid,
+            "command": ["/usr/bin/echo", "Testing terminal sync"],
+            "target": "/usr/bin/echo",
+            "mode": "enforce",
+            "status": "completed",
+            "exit_code": 0,
+            "duration_ms": 14.5,
+            "stdout": "Testing terminal sync\n",
+            "stderr": "",
+            "syscalls": ["execve", "brk", "mmap", "write", "exit_group"]
+        }, req)
+
+        self.assertEqual(rec["status"], "recorded")
+        self.assertEqual(rec["session_id"], test_sid)
+
+        # Confirm it appears in execution list
+        lst = list_executions_endpoint(req, limit=20)
+        found = next((x for x in lst["executions"] if x.get("id") == test_sid), None)
+        self.assertIsNotNone(found)
+        self.assertTrue(found.get("is_terminal_cli"))
+        self.assertEqual(found.get("exit_code"), 0)
+        self.assertIn("write", found.get("syscalls", []))
 
 
 if __name__ == "__main__":
