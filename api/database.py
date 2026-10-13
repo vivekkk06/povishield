@@ -404,6 +404,15 @@ def list_devices_for_user(user_id: str) -> List[Dict[str, Any]]:
 get_user_devices = list_devices_for_user
 
 
+def list_all_devices() -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT * FROM devices ORDER BY created_at DESC").fetchall()
+        return [_row_to_device(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def update_device_heartbeat(device_id: str, status: str = "online", updated_capabilities: Optional[Dict[str, Any]] = None) -> bool:
     now = datetime.now(timezone.utc).isoformat()
     with _LOCK:
@@ -544,6 +553,18 @@ def list_tasks_for_device(device_id: str, limit: int = 25) -> List[Dict[str, Any
             WHERE device_id = ?
             ORDER BY created_at DESC LIMIT ?
         """, (device_id, limit)).fetchall()
+        return [_row_to_task(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def list_all_tasks(limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT * FROM device_tasks
+            ORDER BY created_at DESC LIMIT ?
+        """, (limit,)).fetchall()
         return [_row_to_task(r) for r in rows]
     finally:
         conn.close()

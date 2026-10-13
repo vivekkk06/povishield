@@ -725,11 +725,17 @@ def list_sessions(limit: int = 50) -> List[Dict[str, Any]]:
     """Loads all recorded sessions from disk, newest first."""
     ensure_sessions_dir()
     results = []
-    files = sorted(SESSIONS_DIR.glob("run-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    files = sorted(
+        [p for p in SESSIONS_DIR.glob("*.json") if not p.name.endswith("-profile.json")],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
     for p in files[:limit]:
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
+                if not data.get("started_at"):
+                    data["started_at"] = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat()
                 results.append(data)
         except Exception:
             continue
@@ -740,7 +746,12 @@ def get_session(session_id: str) -> Optional[Dict[str, Any]]:
     """Retrieves a single session by ID."""
     p = SESSIONS_DIR / f"{session_id}.json"
     if not p.is_file():
-        return None
+        alt_id = f"run-remote-{session_id.replace('task_', '')}"
+        alt_p = SESSIONS_DIR / f"{alt_id}.json"
+        if alt_p.is_file():
+            p = alt_p
+        else:
+            return None
     try:
         with p.open("r", encoding="utf-8") as f:
             return json.load(f)

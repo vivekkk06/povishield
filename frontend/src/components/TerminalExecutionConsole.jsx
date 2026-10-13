@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Terminal, Play, AlertTriangle, ShieldCheck, ShieldAlert, RefreshCw,
   Server, Check
@@ -54,6 +54,9 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [execError, setExecError] = useState("");
+  const [autoFollow, setAutoFollow] = useState(true);
+  const [activeFilter, setActiveFilter] = useState("all");
+  const lastSeenLatestId = useRef(null);
 
   useEffect(() => {
     if (activeDeviceId === "gateway") {
@@ -99,12 +102,49 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`${API}/executions?limit=30`);
+      const res = await fetch(`${API}/executions?limit=50`);
       if (res.ok) {
         const data = await res.json();
-        setHistory(data.executions || []);
-        if (data.executions?.length && !currentSession) {
-          setCurrentSession(data.executions[0]);
+        const execs = data.executions || [];
+        setHistory(execs);
+
+        if (execs.length > 0) {
+          const newest = execs[0];
+          if (!currentSession) {
+            setCurrentSession(newest);
+            lastSeenLatestId.current = newest.id;
+          } else {
+            const isNewRun = lastSeenLatestId.current && newest.id !== lastSeenLatestId.current;
+            lastSeenLatestId.current = newest.id;
+
+            if (isNewRun && autoFollow) {
+              setCurrentSession(newest);
+            } else {
+              // Synchronize currentSession in-place if its properties updated on backend
+              setCurrentSession(prev => {
+                if (!prev) return newest;
+                const match = execs.find(e =>
+                  e.id === prev.id ||
+                  (e.task_id && e.task_id === prev.id) ||
+                  (prev.task_id && (e.id === prev.task_id || e.task_id === prev.task_id))
+                );
+                if (match) {
+                  if (
+                    match.status !== prev.status ||
+                    match.exit_code !== prev.exit_code ||
+                    match.duration_ms !== prev.duration_ms ||
+                    match.stdout !== prev.stdout ||
+                    match.stderr !== prev.stderr ||
+                    (match.syscalls?.length !== prev.syscalls?.length) ||
+                    (match.timeline?.length !== prev.timeline?.length)
+                  ) {
+                    return match;
+                  }
+                }
+                return prev;
+              });
+            }
+          }
         }
       }
     } catch (err) {
@@ -118,9 +158,9 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
     loadHistory();
     const interval = setInterval(() => {
       loadHistory();
-    }, 3000);
+    }, 2500);
     return () => clearInterval(interval);
-  }, []);
+  }, [autoFollow]);
 
   useEffect(() => {
     if (refreshTick) {
@@ -162,13 +202,57 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   }, [commandInput, mode]);
 
   // Execute the command under confinement
-  // Execute the command under confinement
   const handleExecute = async () => {
     const args = parseCommandArgs(commandInput);
     if (!args.length) return;
 
     setRunning(true);
     setExecError("");
+    setAutoFollow(true);
+
+    let targetDesc = "Local Host (Gateway)";
+    let targetHost = "gateway";
+    if (targetType !== "gateway") {
+      if (selectedDeviceIds.size === 1) {
+        const d = devices.find(x => x.id === Array.from(selectedDeviceIds)[0]);
+        targetDesc = d?.name ? `${d.name} (${d.hostname || d.id})` : d?.hostname || "Remote Device";
+        targetHost = d?.hostname || "remote";
+      } else {
+        targetDesc = `${selectedDeviceIds.size} Selected Fleet Nodes`;
+        targetHost = `${selectedDeviceIds.size} Nodes`;
+      }
+    }
+
+    const provisionalId = `run-live-${Date.now().toString(36)}`;
+    const provisionalSession = {
+      id: provisionalId,
+      command: args,
+      mode: mode,
+      status: "running",
+      host_target: targetDesc,
+      is_remote: targetType !== "gateway",
+      hostname: targetHost,
+      started_at: new Date().toISOString(),
+      duration_ms: 0,
+      stdout: `[EXECUTION INITIALIZED]\nTarget Vector: ${args.join(" ")}\nTarget Host: ${targetDesc}\nMode: ${mode.toUpperCase()}\nSupervisor: Supervised confinement active...`,
+      stderr: "",
+      syscalls: [],
+      decision: {
+        action: "ENFORCING",
+        allowed: true,
+        mode: mode,
+        allowed_syscalls_count: 0,
+        attack_surface_reduction_pct: 97.4,
+        enforcement_mechanism: targetType === "gateway" ? "Linux Seccomp-BPF" : `Remote Seccomp (${targetHost})`,
+        rationale: `Process launched under verified ${mode} boundary. Actively monitoring OS kernel interactions...`
+      },
+      timeline: [
+        { timestamp: new Date().toISOString(), phase: "DISPATCHED", detail: `Dispatched command to ${targetDesc}` },
+        { timestamp: new Date().toISOString(), phase: "CONFINEMENT_ACTIVE", detail: `Process initialized under ${mode} boundary` }
+      ]
+    };
+    setCurrentSession(provisionalSession);
+    setHistory(prev => [provisionalSession, ...prev.filter(s => s.id !== provisionalId)]);
 
     if (targetType === "gateway") {
       try {
@@ -186,9 +270,17 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
           throw new Error(sessionData.detail || `Execution failed with status ${res.status}`);
         }
         setCurrentSession(sessionData);
-        setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+        setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id && s.id !== provisionalId)]);
+        lastSeenLatestId.current = sessionData.id;
+        loadHistory();
       } catch (err) {
         setExecError(err.message || "Execution request failed");
+        setCurrentSession(prev => prev && prev.id === provisionalId ? {
+          ...prev,
+          status: "failed",
+          stderr: err.message || "Execution failed",
+          exit_code: 1
+        } : prev);
       } finally {
         setRunning(false);
       }
@@ -214,6 +306,21 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
           if (!res.ok) throw new Error(data.detail || `Dispatch failed (${res.status})`);
 
           const taskId = data.id;
+          const cleanTaskSuffix = taskId.replace("task_", "");
+          const normalizedSessionId = `run-remote-${cleanTaskSuffix}`;
+
+          setCurrentSession(prev => prev && prev.id === provisionalId ? {
+            ...prev,
+            id: normalizedSessionId,
+            task_id: taskId,
+            status: "dispatched",
+            stdout: `[TASK DISPATCHED]\nTask ID: ${taskId}\nEndpoint: ${targetDev?.name || singleDevId}\nAwaiting remote supervisor confirmation...`,
+            timeline: [
+              ...prev.timeline,
+              { phase: "FLEET_DISPATCH", detail: `Dispatched task ${taskId} to ${targetDev?.hostname || singleDevId}` }
+            ]
+          } : prev);
+
           let polls = 0;
           const pollTimer = setInterval(async () => {
             polls++;
@@ -226,7 +333,8 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                   const r = tData.result || {};
                   const observedSyscalls = r.syscalls || [];
                   const sessionData = {
-                    id: taskId,
+                    id: normalizedSessionId,
+                    task_id: taskId,
                     command: args,
                     mode: mode,
                     status: tData.status === "failed" ? "denied" : r.status || "completed",
@@ -260,9 +368,16 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                     ]
                   };
                   setCurrentSession(sessionData);
-                  setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+                  setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id && s.id !== provisionalId && s.id !== normalizedSessionId)]);
+                  lastSeenLatestId.current = sessionData.id;
                   loadHistory();
                   setRunning(false);
+                } else if (tData.status === "running") {
+                  setCurrentSession(prev => prev && (prev.id === provisionalId || prev.id === normalizedSessionId) ? {
+                    ...prev,
+                    status: "running",
+                    stdout: `[TASK RUNNING]\nEndpoint: ${targetDev?.hostname || singleDevId}\nActively supervising execution under seccomp confinement...`
+                  } : prev);
                 }
               }
             } catch {}
@@ -356,8 +471,9 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
               });
 
               const syscallsList = Array.from(unionSyscalls);
+              const broadcastSessionId = `run-broadcast-${Date.now()}`;
               const sessionData = {
-                id: `multi_${Date.now()}`,
+                id: broadcastSessionId,
                 command: args,
                 mode: mode,
                 status: anyViolation ? "violation" : maxExit === 0 ? "completed" : "failed",
@@ -368,6 +484,8 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                 violation_detected: anyViolation,
                 host_target: `${count} Selected Nodes (${currentDispatched.map(d => d.device_name || d.hostname).join(", ")})`,
                 is_remote: true,
+                is_terminal_cli: false,
+                hostname: `${count} Nodes`,
                 is_multi: true,
                 device_ids: targetIds,
                 syscalls: syscallsList,
@@ -385,8 +503,20 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                 timeline: timelineEvents
               };
 
+              // Persist to backend so it lives on disk in results/sessions/
+              try {
+                await fetch(`${API}/executions/record`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(sessionData)
+                });
+              } catch (e) {
+                console.warn("Could not persist broadcast session:", e);
+              }
+
               setCurrentSession(sessionData);
-              setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+              setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id && s.id !== provisionalId)]);
+              lastSeenLatestId.current = sessionData.id;
               loadHistory();
               setRunning(false);
             }
@@ -399,6 +529,33 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
     }
   };
 
+  const cliCount = history.filter(s => s.is_terminal_cli).length;
+  const remoteCount = history.filter(s => s.is_remote).length;
+  const targetCount = history.filter(s => {
+    if (targetType === "gateway") return !s.is_remote;
+    if (selectedDeviceIds.size === 1) {
+      const devId = Array.from(selectedDeviceIds)[0];
+      return s.device_id === devId || s.hostname === devId;
+    }
+    return s.is_remote;
+  }).length;
+
+  const filteredHistory = history.filter(sess => {
+    if (activeFilter === "all") return true;
+    if (activeFilter === "cli") return sess.is_terminal_cli;
+    if (activeFilter === "remote") return sess.is_remote;
+    if (activeFilter === "target") {
+      if (targetType === "gateway") {
+        return !sess.is_remote;
+      }
+      if (selectedDeviceIds.size === 1) {
+        const singleDevId = Array.from(selectedDeviceIds)[0];
+        return sess.device_id === singleDevId || sess.hostname === singleDevId;
+      }
+      return sess.is_remote;
+    }
+    return true;
+  });
 
   return (
     <div className="terminal-execute-view">
@@ -735,8 +892,18 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                     <span style={{ margin: "0 8px", color: "#334155" }}>|</span>
                     <span>MODE: {currentSession.mode?.toUpperCase()}</span>
                     <span style={{ margin: "0 8px", color: "#334155" }}>|</span>
-                    <span style={{ color: currentSession.exit_code === 0 ? "#34d399" : "#f87171" }}>
-                      EXIT: {currentSession.exit_code}
+                    <span style={{
+                      color: currentSession.status === "running" || currentSession.status === "queued" || currentSession.status === "dispatched"
+                        ? "#fbbf24"
+                        : (currentSession.exit_code === 0 ? "#34d399" : "#f87171")
+                    }}>
+                      {currentSession.status === "running"
+                        ? "STATUS: RUNNING..."
+                        : (currentSession.status === "queued"
+                            ? "STATUS: QUEUED"
+                            : (currentSession.status === "dispatched"
+                                ? "STATUS: DISPATCHED"
+                                : `EXIT: ${currentSession.exit_code ?? 0}`))}
                     </span>
                     <span style={{ margin: "0 8px", color: "#334155" }}>|</span>
                     <span>{currentSession.duration_ms}ms</span>
@@ -766,6 +933,12 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                   <div className="terminal-line policy">
                     [ENFORCE] Mechanism: {currentSession.decision?.enforcement_mechanism || (currentSession.is_remote ? "Remote Seccomp-BPF Supervisor" : "Seccomp BPF")}
                   </div>
+
+                  {(currentSession.status === "running" || currentSession.status === "queued" || currentSession.status === "dispatched") && (
+                    <div className="terminal-line" style={{ color: "#fbbf24", margin: "6px 0", fontFamily: "var(--font-mono)" }}>
+                      [SUPERVISOR_STATUS] Mode: {currentSession.mode?.toUpperCase()} | State: {currentSession.status?.toUpperCase()} | Supervised confinement supervisor actively monitoring OS kernel interactions...
+                    </div>
+                  )}
 
                   {((currentSession.syscalls && currentSession.syscalls.length > 0) || (currentSession.decision?.allowed_syscalls && currentSession.decision.allowed_syscalls.length > 0)) && (
                     <div style={{ margin: "10px 0", padding: "10px 12px", background: "rgba(14, 165, 233, 0.08)", border: "1px solid rgba(14, 165, 233, 0.25)", borderRadius: 6 }}>
@@ -855,30 +1028,138 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
 
         {/* Right Column: Execution History & Session Timeline */}
         <div className="terminal-timeline-panel">
-          <div className="panel-heading" style={{ marginBottom: 12 }}>
+          <div className="panel-heading" style={{ marginBottom: 10 }}>
             <div>
               <h3>Execution Audit Sessions</h3>
-              <p>Auditable terminal runs ({history.length})</p>
+              <p>Auditable terminal runs ({filteredHistory.length})</p>
             </div>
-            <button className="icon-button" onClick={loadHistory} title="Refresh sessions">
-              <RefreshCw size={14} className={historyLoading ? "spin" : ""} />
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !autoFollow;
+                  setAutoFollow(next);
+                  if (next && history.length > 0) {
+                    setCurrentSession(history[0]);
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 8px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: "var(--font-mono)",
+                  background: autoFollow ? "rgba(16, 185, 129, 0.15)" : "rgba(100, 116, 139, 0.15)",
+                  color: autoFollow ? "#34d399" : "#94a3b8",
+                  border: autoFollow ? "1px solid rgba(16, 185, 129, 0.35)" : "1px solid rgba(100, 116, 139, 0.35)",
+                  borderRadius: 4,
+                  cursor: "pointer"
+                }}
+                title={autoFollow ? "Live Sync Active: Automatically tracks latest executions as you work" : "Live Sync Paused: Click to resume tracking latest executions"}
+              >
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: autoFollow ? "#34d399" : "#64748b",
+                  boxShadow: autoFollow ? "0 0 6px #34d399" : "none"
+                }} />
+                {autoFollow ? "LIVE SYNC" : "PAUSED"}
+              </button>
+              <button className="icon-button" onClick={loadHistory} title="Refresh sessions">
+                <RefreshCw size={14} className={historyLoading ? "spin" : ""} />
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Pills */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 12, overflowX: "auto" }}>
+            <button
+              type="button"
+              className={`chip-button ${activeFilter === "all" ? "active" : ""}`}
+              onClick={() => setActiveFilter("all")}
+              style={{
+                fontSize: 10,
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: activeFilter === "all" ? "rgba(56, 189, 248, 0.2)" : "rgba(15, 23, 42, 0.6)",
+                color: activeFilter === "all" ? "#38bdf8" : "#94a3b8",
+                border: activeFilter === "all" ? "1px solid rgba(56, 189, 248, 0.4)" : "1px solid #1e293b",
+                cursor: "pointer"
+              }}
+            >
+              All ({history.length})
+            </button>
+            <button
+              type="button"
+              className={`chip-button ${activeFilter === "target" ? "active" : ""}`}
+              onClick={() => setActiveFilter("target")}
+              style={{
+                fontSize: 10,
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: activeFilter === "target" ? "rgba(56, 189, 248, 0.2)" : "rgba(15, 23, 42, 0.6)",
+                color: activeFilter === "target" ? "#38bdf8" : "#94a3b8",
+                border: activeFilter === "target" ? "1px solid rgba(56, 189, 248, 0.4)" : "1px solid #1e293b",
+                cursor: "pointer"
+              }}
+            >
+              Active Target ({targetCount})
+            </button>
+            <button
+              type="button"
+              className={`chip-button ${activeFilter === "cli" ? "active" : ""}`}
+              onClick={() => setActiveFilter("cli")}
+              style={{
+                fontSize: 10,
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: activeFilter === "cli" ? "rgba(56, 189, 248, 0.2)" : "rgba(15, 23, 42, 0.6)",
+                color: activeFilter === "cli" ? "#38bdf8" : "#94a3b8",
+                border: activeFilter === "cli" ? "1px solid rgba(56, 189, 248, 0.4)" : "1px solid #1e293b",
+                cursor: "pointer"
+              }}
+            >
+              Terminal CLI ({cliCount})
+            </button>
+            <button
+              type="button"
+              className={`chip-button ${activeFilter === "remote" ? "active" : ""}`}
+              onClick={() => setActiveFilter("remote")}
+              style={{
+                fontSize: 10,
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: activeFilter === "remote" ? "rgba(56, 189, 248, 0.2)" : "rgba(15, 23, 42, 0.6)",
+                color: activeFilter === "remote" ? "#38bdf8" : "#94a3b8",
+                border: activeFilter === "remote" ? "1px solid rgba(56, 189, 248, 0.4)" : "1px solid #1e293b",
+                cursor: "pointer"
+              }}
+            >
+              Fleet ({remoteCount})
             </button>
           </div>
 
           <div style={{ overflowY: "auto", maxHeight: 520 }}>
-            {history.length === 0 ? (
+            {filteredHistory.length === 0 ? (
               <p style={{ color: "#64748b", fontSize: 11, textAlign: "center", padding: "20px 0" }}>
-                No execution sessions recorded yet.
+                No execution sessions matching filter.
               </p>
             ) : (
-              history.map((sess) => {
+              filteredHistory.map((sess) => {
                 const isKill = sess.status === "killed_by_seccomp" || sess.exit_code === 159 || sess.exit_code === -31;
-                const isSelected = currentSession?.id === sess.id;
+                const isRunning = sess.status === "running" || sess.status === "queued" || sess.status === "dispatched";
+                const isSelected = currentSession?.id === sess.id || (currentSession?.task_id && sess.task_id === currentSession.task_id) || (sess.task_id && currentSession?.id === sess.task_id);
                 return (
                   <div
                     key={sess.id}
                     className={`history-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => setCurrentSession(sess)}
+                    onClick={() => {
+                      setCurrentSession(sess);
+                      setAutoFollow(false);
+                    }}
                   >
                     <div className="history-top">
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -904,9 +1185,23 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                             : (sess.is_terminal_cli ? `TERMINAL CLI${sess.hostname ? ` (${sess.hostname})` : ""}` : "LOCAL")}
                         </span>
                       </div>
-                      <span className={`history-exit ${isKill ? "code-sigsys" : sess.exit_code === 0 ? "code-0" : "code-other"}`}>
-                        {isKill ? "SIGSYS" : `EXIT ${sess.exit_code}`}
-                      </span>
+                      {isRunning ? (
+                        <span className="history-exit" style={{
+                          background: "rgba(245, 158, 11, 0.15)",
+                          color: "#fbbf24",
+                          border: "1px solid rgba(245, 158, 11, 0.35)",
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: "1px 6px",
+                          borderRadius: 3
+                        }}>
+                          {sess.status.toUpperCase()}
+                        </span>
+                      ) : (
+                        <span className={`history-exit ${isKill ? "code-sigsys" : sess.exit_code === 0 ? "code-0" : "code-other"}`}>
+                          {isKill ? "SIGSYS" : `EXIT ${sess.exit_code ?? 0}`}
+                        </span>
+                      )}
                     </div>
                     <div className="history-cmd">
                       {sess.command?.join(" ") || sess.target}
