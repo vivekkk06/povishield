@@ -1741,7 +1741,7 @@ function App() {
 
                   <div className="ledger-controls">
                     <div className="ledger-target-select">
-                      <label style={{ fontSize: 10, color: "#8292a8", display: "block", marginBottom: 5 }}>Select Target Ledger</label>
+                      <label>Select Target Ledger</label>
                       <select value={selectedLedgerTarget} onChange={e => setSelectedLedgerTarget(e.target.value)}>
                         {ledgersList.map(l => (
                           <option key={l.target} value={l.target}>{l.target}.jsonl ({l.trial_count} trials)</option>
@@ -1750,7 +1750,7 @@ function App() {
                     </div>
 
                     <div className="ledger-filter-select">
-                      <label style={{ fontSize: 10, color: "#8292a8", display: "block", marginBottom: 5 }}>Filter Verdict</label>
+                      <label>Filter Verdict</label>
                       <select value={ledgerVerdictFilter} onChange={e => setLedgerVerdictFilter(e.target.value)}>
                         <option value="ALL">All Verdicts</option>
                         <option value="REQUIRED_FOR_TESTED_WORKLOADS">REQUIRED_FOR_TESTED_WORKLOADS / NECESSARY</option>
@@ -1759,7 +1759,7 @@ function App() {
                     </div>
 
                     <div className="ledger-search-input">
-                      <label style={{ fontSize: 10, color: "#8292a8", display: "block", marginBottom: 5 }}>Search Syscall</label>
+                      <label>Search Syscall</label>
                       <input
                         placeholder="e.g. read, write, openat"
                         value={ledgerSyscallFilter}
