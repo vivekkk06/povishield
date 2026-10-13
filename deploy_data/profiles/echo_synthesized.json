@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "command": "echo",
+  "count": 19,
+  "syscalls": [
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "futex",
+    "getrandom",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "newfstatat",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "set_robust_list",
+    "set_tid_address",
+    "write"
+  ]
+}

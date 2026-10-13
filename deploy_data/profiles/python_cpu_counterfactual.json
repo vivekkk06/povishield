@@ -1,0 +1,1052 @@
+{
+  "schema": 2,
+  "command": "python_cpu",
+  "arch": "x86_64",
+  "count": 36,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "fcntl",
+    "fstat",
+    "futex",
+    "getcwd",
+    "getdents64",
+    "getegid",
+    "geteuid",
+    "getgid",
+    "getrandom",
+    "gettid",
+    "getuid",
+    "ioctl",
+    "lseek",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "newfstatat",
+    "open",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "readlink",
+    "rseq",
+    "rt_sigaction",
+    "rt_sigprocmask",
+    "sched_getaffinity",
+    "set_robust_list",
+    "set_tid_address",
+    "write"
+  ],
+  "evidence": {
+    "access": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_access.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "arch_prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_arch_prctl.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "brk": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_brk.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "close": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_close.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "execve": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_execve.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "exit_group": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_exit_group.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "fcntl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_fcntl.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "fstat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_fstat.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "futex": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_futex.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "getcwd": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getcwd.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "getdents64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getdents64.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "getegid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getegid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "geteuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_geteuid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "getgid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getgid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "getrandom": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getrandom.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "gettid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_gettid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "getuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getuid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "ioctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_ioctl.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "lseek": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_lseek.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "mmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_mmap.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "mprotect": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_mprotect.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "munmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_munmap.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "newfstatat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_newfstatat.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "open": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_open.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "openat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_openat.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "pread64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_pread64.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "prlimit64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_prlimit64.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "read": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_read.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "readlink": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_readlink.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "rseq": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_rseq.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "rt_sigaction": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_rt_sigaction.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "rt_sigprocmask": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_rt_sigprocmask.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "sched_getaffinity": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_sched_getaffinity.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "set_robust_list": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_set_robust_list.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "set_tid_address": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_set_tid_address.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    },
+    "write": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "python3",
+        "-c",
+        "print(sum(i*i for i in range(100000)))"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_write.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+    }
+  },
+  "removable_for_tested_suite": [],
+  "ablation_summary": {
+    "schema": 2,
+    "target": "python_cpu",
+    "strategy": "minimize",
+    "baseline_count": 36,
+    "minimized_count": 36,
+    "removed_count": 0,
+    "removable_syscalls": [],
+    "final_syscalls": [
+      "access",
+      "arch_prctl",
+      "brk",
+      "close",
+      "execve",
+      "exit_group",
+      "fcntl",
+      "fstat",
+      "futex",
+      "getcwd",
+      "getdents64",
+      "getegid",
+      "geteuid",
+      "getgid",
+      "getrandom",
+      "gettid",
+      "getuid",
+      "ioctl",
+      "lseek",
+      "mmap",
+      "mprotect",
+      "munmap",
+      "newfstatat",
+      "open",
+      "openat",
+      "pread64",
+      "prlimit64",
+      "read",
+      "readlink",
+      "rseq",
+      "rt_sigaction",
+      "rt_sigprocmask",
+      "sched_getaffinity",
+      "set_robust_list",
+      "set_tid_address",
+      "write"
+    ],
+    "permission_tiers": {
+      "observed": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "close",
+        "execve",
+        "exit_group",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getcwd",
+        "getdents64",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getrandom",
+        "gettid",
+        "getuid",
+        "ioctl",
+        "lseek",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "newfstatat",
+        "open",
+        "openat",
+        "pread64",
+        "prlimit64",
+        "read",
+        "readlink",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "sched_getaffinity",
+        "set_robust_list",
+        "set_tid_address",
+        "write"
+      ],
+      "experimentally_necessary": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "close",
+        "execve",
+        "exit_group",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getcwd",
+        "getdents64",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getrandom",
+        "gettid",
+        "getuid",
+        "ioctl",
+        "lseek",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "newfstatat",
+        "open",
+        "openat",
+        "pread64",
+        "prlimit64",
+        "read",
+        "readlink",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "sched_getaffinity",
+        "set_robust_list",
+        "set_tid_address",
+        "write"
+      ],
+      "removable_for_tested_tasks": [],
+      "not_yet_validated": []
+    },
+    "evidence": {
+      "access": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_access.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "arch_prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_arch_prctl.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "brk": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_brk.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "close": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_close.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "execve": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_execve.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "exit_group": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_exit_group.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "fcntl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_fcntl.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "fstat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_fstat.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "futex": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_futex.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "getcwd": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getcwd.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "getdents64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getdents64.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "getegid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getegid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "geteuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_geteuid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "getgid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getgid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "getrandom": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getrandom.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "gettid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_gettid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "getuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_getuid.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "ioctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_ioctl.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "lseek": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_lseek.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "mmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_mmap.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "mprotect": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_mprotect.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "munmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_munmap.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "newfstatat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_newfstatat.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "open": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_open.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "openat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_openat.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "pread64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_pread64.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "prlimit64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_prlimit64.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "read": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_read.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "readlink": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_readlink.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "rseq": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_rseq.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "rt_sigaction": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_rt_sigaction.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "rt_sigprocmask": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_rt_sigprocmask.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "sched_getaffinity": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_sched_getaffinity.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "set_robust_list": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_set_robust_list.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "set_tid_address": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_set_tid_address.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      },
+      "write": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "python3",
+          "-c",
+          "print(sum(i*i for i in range(100000)))"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-python_cpu-nqkci4ob/test_without_write.json -- python3 -c 'print(sum(i*i for i in range(100000)))'"
+      }
+    },
+    "risk_before": 4.85,
+    "risk_after": 4.85,
+    "trials_recorded": 360,
+    "workloads_tested": 2,
+    "environment": {
+      "kernel": "7.2.8-200.fc44.x86_64",
+      "arch": "x86_64",
+      "os": "Linux",
+      "python": "3.14.7",
+      "git_commit": "c9f78e5",
+      "recorded_at": "2026-10-12T23:00:38.275623+00:00"
+    }
+  }
+}

@@ -1,0 +1,621 @@
+{
+  "schema": 2,
+  "command": "cat",
+  "arch": "x86_64",
+  "count": 20,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "fadvise64",
+    "fstat",
+    "getrandom",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "set_robust_list",
+    "set_tid_address",
+    "write"
+  ],
+  "experiment_type": "controlled_noisy_policy_minimized",
+  "injected_permissions": [
+    "chroot",
+    "socket",
+    "listen",
+    "connect",
+    "mount",
+    "kexec_load",
+    "bpf",
+    "ptrace",
+    "reboot",
+    "swapoff"
+  ],
+  "injected_removed": [
+    "bpf",
+    "chroot",
+    "connect",
+    "kexec_load",
+    "listen",
+    "mount",
+    "ptrace",
+    "reboot",
+    "socket",
+    "swapoff"
+  ],
+  "injected_removal_rate_pct": 100.0,
+  "evidence": {
+    "access": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_access.json -- cat /etc/hostname"
+    },
+    "arch_prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_arch_prctl.json -- cat /etc/hostname"
+    },
+    "brk": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_brk.json -- cat /etc/hostname"
+    },
+    "close": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_close.json -- cat /etc/hostname"
+    },
+    "execve": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_execve.json -- cat /etc/hostname"
+    },
+    "exit_group": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_exit_group.json -- cat /etc/hostname"
+    },
+    "fadvise64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_fadvise64.json -- cat /etc/hostname"
+    },
+    "fstat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_fstat.json -- cat /etc/hostname"
+    },
+    "getrandom": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_getrandom.json -- cat /etc/hostname"
+    },
+    "mmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_mmap.json -- cat /etc/hostname"
+    },
+    "mprotect": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_mprotect.json -- cat /etc/hostname"
+    },
+    "munmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_munmap.json -- cat /etc/hostname"
+    },
+    "openat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_openat.json -- cat /etc/hostname"
+    },
+    "pread64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_pread64.json -- cat /etc/hostname"
+    },
+    "prlimit64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_prlimit64.json -- cat /etc/hostname"
+    },
+    "read": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_read.json -- cat /etc/hostname"
+    },
+    "rseq": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_rseq.json -- cat /etc/hostname"
+    },
+    "set_robust_list": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_set_robust_list.json -- cat /etc/hostname"
+    },
+    "set_tid_address": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_set_tid_address.json -- cat /etc/hostname"
+    },
+    "write": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "cat",
+        "/etc/hostname"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_write.json -- cat /etc/hostname"
+    }
+  },
+  "ablation_summary": {
+    "schema": 2,
+    "target": "noisy_cat",
+    "strategy": "minimize",
+    "baseline_count": 30,
+    "minimized_count": 20,
+    "removed_count": 10,
+    "removable_syscalls": [
+      "bpf",
+      "chroot",
+      "connect",
+      "kexec_load",
+      "listen",
+      "mount",
+      "ptrace",
+      "reboot",
+      "socket",
+      "swapoff"
+    ],
+    "final_syscalls": [
+      "access",
+      "arch_prctl",
+      "brk",
+      "close",
+      "execve",
+      "exit_group",
+      "fadvise64",
+      "fstat",
+      "getrandom",
+      "mmap",
+      "mprotect",
+      "munmap",
+      "openat",
+      "pread64",
+      "prlimit64",
+      "read",
+      "rseq",
+      "set_robust_list",
+      "set_tid_address",
+      "write"
+    ],
+    "permission_tiers": {
+      "observed": [
+        "access",
+        "arch_prctl",
+        "bpf",
+        "brk",
+        "chroot",
+        "close",
+        "connect",
+        "execve",
+        "exit_group",
+        "fadvise64",
+        "fstat",
+        "getrandom",
+        "kexec_load",
+        "listen",
+        "mmap",
+        "mount",
+        "mprotect",
+        "munmap",
+        "openat",
+        "pread64",
+        "prlimit64",
+        "ptrace",
+        "read",
+        "reboot",
+        "rseq",
+        "set_robust_list",
+        "set_tid_address",
+        "socket",
+        "swapoff",
+        "write"
+      ],
+      "experimentally_necessary": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "close",
+        "execve",
+        "exit_group",
+        "fadvise64",
+        "fstat",
+        "getrandom",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "openat",
+        "pread64",
+        "prlimit64",
+        "read",
+        "rseq",
+        "set_robust_list",
+        "set_tid_address",
+        "write"
+      ],
+      "removable_for_tested_tasks": [
+        "bpf",
+        "chroot",
+        "connect",
+        "kexec_load",
+        "listen",
+        "mount",
+        "ptrace",
+        "reboot",
+        "socket",
+        "swapoff"
+      ],
+      "not_yet_validated": []
+    },
+    "evidence": {
+      "access": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_access.json -- cat /etc/hostname"
+      },
+      "arch_prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_arch_prctl.json -- cat /etc/hostname"
+      },
+      "brk": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_brk.json -- cat /etc/hostname"
+      },
+      "close": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_close.json -- cat /etc/hostname"
+      },
+      "execve": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_execve.json -- cat /etc/hostname"
+      },
+      "exit_group": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_exit_group.json -- cat /etc/hostname"
+      },
+      "fadvise64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_fadvise64.json -- cat /etc/hostname"
+      },
+      "fstat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_fstat.json -- cat /etc/hostname"
+      },
+      "getrandom": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_getrandom.json -- cat /etc/hostname"
+      },
+      "mmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_mmap.json -- cat /etc/hostname"
+      },
+      "mprotect": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_mprotect.json -- cat /etc/hostname"
+      },
+      "munmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_munmap.json -- cat /etc/hostname"
+      },
+      "openat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_openat.json -- cat /etc/hostname"
+      },
+      "pread64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_pread64.json -- cat /etc/hostname"
+      },
+      "prlimit64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_prlimit64.json -- cat /etc/hostname"
+      },
+      "read": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_read.json -- cat /etc/hostname"
+      },
+      "rseq": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_rseq.json -- cat /etc/hostname"
+      },
+      "set_robust_list": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_set_robust_list.json -- cat /etc/hostname"
+      },
+      "set_tid_address": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_set_tid_address.json -- cat /etc/hostname"
+      },
+      "write": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "cat",
+          "/etc/hostname"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_cat-2b_qp5fy/test_without_write.json -- cat /etc/hostname"
+      }
+    },
+    "risk_before": 10.62,
+    "risk_after": 3.01,
+    "trials_recorded": 160,
+    "workloads_tested": 2,
+    "environment": {
+      "kernel": "7.2.8-200.fc44.x86_64",
+      "arch": "x86_64",
+      "os": "Linux",
+      "python": "3.14.7",
+      "git_commit": "c9f78e5",
+      "recorded_at": "2026-10-12T23:00:46.463258+00:00"
+    }
+  }
+}

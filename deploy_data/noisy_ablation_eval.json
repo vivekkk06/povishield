@@ -1,0 +1,411 @@
+{
+  "timestamp": "2026-10-12T23:01:59Z",
+  "experiment_type": "controlled_synthetic_noisy_policy",
+  "environment": {
+    "kernel": "7.2.8-200.fc44.x86_64",
+    "arch": "x86_64",
+    "os": "Linux",
+    "python": "3.14.7",
+    "git_commit": "c9f78e5",
+    "recorded_at": "2026-10-12T23:01:59.835797+00:00"
+  },
+  "total_targets_evaluated": 9,
+  "injected_permissions_catalog": [
+    {
+      "syscall": "mount",
+      "rationale": "Filesystem mounting (privilege escalation & filesystem alteration)"
+    },
+    {
+      "syscall": "ptrace",
+      "rationale": "Process tracing & memory inspection (code injection)"
+    },
+    {
+      "syscall": "socket",
+      "rationale": "Network socket creation (unauthorized network egress/ingress)"
+    },
+    {
+      "syscall": "connect",
+      "rationale": "Network connection establishment (C2 communication)"
+    },
+    {
+      "syscall": "listen",
+      "rationale": "Network socket listening (unauthorized local network exposure)"
+    },
+    {
+      "syscall": "chroot",
+      "rationale": "Root directory alteration (filesystem boundary breakout)"
+    },
+    {
+      "syscall": "reboot",
+      "rationale": "System reboot / power management (denial of service)"
+    },
+    {
+      "syscall": "kexec_load",
+      "rationale": "Loading replacement kernel image (ring-0 code execution)"
+    },
+    {
+      "syscall": "bpf",
+      "rationale": "BPF map/program loading (unauthorized kernel tracing / eBPF manipulation)"
+    },
+    {
+      "syscall": "swapoff",
+      "rationale": "Swap space deactivation (memory exhaustion / DOS)"
+    }
+  ],
+  "aggregate": {
+    "avg_noisy_baseline_syscalls": 45.78,
+    "avg_minimized_syscalls": 35.78,
+    "total_injected_permissions_removed": 90,
+    "total_injected_permissions_tested": 90,
+    "overall_injected_removal_rate_pct": 100.0,
+    "avg_required_permission_retention_rate_pct": 100.0,
+    "avg_evidence_completeness_pct": 100.0,
+    "avg_heldout_compatibility_pct": 100.0,
+    "total_false_kills": 0,
+    "total_ablation_time_seconds": 68.11
+  },
+  "targets": [
+    {
+      "target": "ls",
+      "ground_truth_syscalls": 32,
+      "noisy_baseline": {
+        "allowed_syscalls": 42,
+        "injected_permissions_count": 10,
+        "risk_score": 12.88,
+        "attack_surface_reduction_pct": 89.09
+      },
+      "minimized": {
+        "allowed_syscalls": 32,
+        "risk_score": 5.27,
+        "attack_surface_reduction_pct": 91.69,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 32,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 32,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 4.83,
+        "trials_run": 42
+      }
+    },
+    {
+      "target": "cat",
+      "ground_truth_syscalls": 20,
+      "noisy_baseline": {
+        "allowed_syscalls": 30,
+        "injected_permissions_count": 10,
+        "risk_score": 10.62,
+        "attack_surface_reduction_pct": 92.21
+      },
+      "minimized": {
+        "allowed_syscalls": 20,
+        "risk_score": 3.01,
+        "attack_surface_reduction_pct": 94.81,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 20,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 20,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 2.603,
+        "trials_run": 30
+      }
+    },
+    {
+      "target": "grep",
+      "ground_truth_syscalls": 23,
+      "noisy_baseline": {
+        "allowed_syscalls": 33,
+        "injected_permissions_count": 10,
+        "risk_score": 10.87,
+        "attack_surface_reduction_pct": 91.43
+      },
+      "minimized": {
+        "allowed_syscalls": 23,
+        "risk_score": 3.26,
+        "attack_surface_reduction_pct": 94.03,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 23,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 23,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 3.114,
+        "trials_run": 33
+      }
+    },
+    {
+      "target": "gzip",
+      "ground_truth_syscalls": 41,
+      "noisy_baseline": {
+        "allowed_syscalls": 51,
+        "injected_permissions_count": 10,
+        "risk_score": 13.63,
+        "attack_surface_reduction_pct": 86.75
+      },
+      "minimized": {
+        "allowed_syscalls": 41,
+        "risk_score": 6.02,
+        "attack_surface_reduction_pct": 89.35,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 41,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 41,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 6.098,
+        "trials_run": 51
+      }
+    },
+    {
+      "target": "sort",
+      "ground_truth_syscalls": 45,
+      "noisy_baseline": {
+        "allowed_syscalls": 55,
+        "injected_permissions_count": 10,
+        "risk_score": 14.21,
+        "attack_surface_reduction_pct": 85.71
+      },
+      "minimized": {
+        "allowed_syscalls": 45,
+        "risk_score": 6.61,
+        "attack_surface_reduction_pct": 88.31,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 45,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 45,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 6.286,
+        "trials_run": 55
+      }
+    },
+    {
+      "target": "python3",
+      "ground_truth_syscalls": 36,
+      "noisy_baseline": {
+        "allowed_syscalls": 46,
+        "injected_permissions_count": 10,
+        "risk_score": 12.46,
+        "attack_surface_reduction_pct": 88.05
+      },
+      "minimized": {
+        "allowed_syscalls": 36,
+        "risk_score": 4.85,
+        "attack_surface_reduction_pct": 90.65,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 36,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 36,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 5.741,
+        "trials_run": 46
+      }
+    },
+    {
+      "target": "gzip_big",
+      "ground_truth_syscalls": 41,
+      "noisy_baseline": {
+        "allowed_syscalls": 51,
+        "injected_permissions_count": 10,
+        "risk_score": 13.63,
+        "attack_surface_reduction_pct": 86.75
+      },
+      "minimized": {
+        "allowed_syscalls": 41,
+        "risk_score": 6.02,
+        "attack_surface_reduction_pct": 89.35,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 41,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 41,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 6.605,
+        "trials_run": 51
+      }
+    },
+    {
+      "target": "sort_big",
+      "ground_truth_syscalls": 48,
+      "noisy_baseline": {
+        "allowed_syscalls": 58,
+        "injected_permissions_count": 10,
+        "risk_score": 15.22,
+        "attack_surface_reduction_pct": 84.94
+      },
+      "minimized": {
+        "allowed_syscalls": 48,
+        "risk_score": 7.61,
+        "attack_surface_reduction_pct": 87.53,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 48,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 48,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 27.631,
+        "trials_run": 58
+      }
+    },
+    {
+      "target": "python_cpu",
+      "ground_truth_syscalls": 36,
+      "noisy_baseline": {
+        "allowed_syscalls": 46,
+        "injected_permissions_count": 10,
+        "risk_score": 12.46,
+        "attack_surface_reduction_pct": 88.05
+      },
+      "minimized": {
+        "allowed_syscalls": 36,
+        "risk_score": 4.85,
+        "attack_surface_reduction_pct": 90.65,
+        "total_syscalls_removed": 10,
+        "injected_removed_count": 10,
+        "injected_removal_rate_pct": 100.0,
+        "injected_removed_list": [
+          "bpf",
+          "chroot",
+          "connect",
+          "kexec_load",
+          "listen",
+          "mount",
+          "ptrace",
+          "reboot",
+          "socket",
+          "swapoff"
+        ],
+        "required_retained_count": 36,
+        "required_retention_rate_pct": 100.0,
+        "evidence_backed_syscalls": 36,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 5.204,
+        "trials_run": 46
+      }
+    }
+  ]
+}

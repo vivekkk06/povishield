@@ -1,0 +1,1388 @@
+{
+  "schema": 2,
+  "command": "sort_big",
+  "arch": "x86_64",
+  "count": 48,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "clone",
+    "close",
+    "dup2",
+    "execve",
+    "exit_group",
+    "fadvise64",
+    "fcntl",
+    "fstat",
+    "futex",
+    "getegid",
+    "geteuid",
+    "getgid",
+    "getpgrp",
+    "getpid",
+    "getppid",
+    "getrandom",
+    "getresgid",
+    "getresuid",
+    "gettid",
+    "getuid",
+    "ioctl",
+    "lseek",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "newfstatat",
+    "openat",
+    "pipe2",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "rt_sigaction",
+    "rt_sigprocmask",
+    "rt_sigreturn",
+    "sched_getaffinity",
+    "sched_getscheduler",
+    "set_robust_list",
+    "set_tid_address",
+    "sysinfo",
+    "tgkill",
+    "uname",
+    "unlink",
+    "wait4",
+    "write"
+  ],
+  "evidence": {
+    "access": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_access.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "arch_prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_arch_prctl.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "brk": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_brk.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "clone": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_clone.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "close": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_close.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "dup2": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_dup2.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "execve": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_execve.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "exit_group": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_exit_group.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "fadvise64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_fadvise64.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "fcntl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_fcntl.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "fstat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_fstat.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "futex": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_futex.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getegid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getegid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "geteuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_geteuid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getgid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getgid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getpgrp": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getpgrp.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getpid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getpid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getppid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getppid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getrandom": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getrandom.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getresgid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getresgid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getresuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getresuid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "gettid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_gettid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "getuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getuid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "ioctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_ioctl.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "lseek": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_lseek.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "mmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_mmap.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "mprotect": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_mprotect.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "munmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_munmap.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "newfstatat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_newfstatat.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "openat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_openat.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "pipe2": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_pipe2.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "pread64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_pread64.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "prlimit64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_prlimit64.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "read": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_read.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "rseq": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rseq.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "rt_sigaction": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rt_sigaction.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "rt_sigprocmask": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rt_sigprocmask.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "rt_sigreturn": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rt_sigreturn.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "sched_getaffinity": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_sched_getaffinity.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "sched_getscheduler": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_sched_getscheduler.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "set_robust_list": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_set_robust_list.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "set_tid_address": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_set_tid_address.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "sysinfo": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_sysinfo.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "tgkill": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_tgkill.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "uname": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_uname.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "unlink": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 200000 | sort -R | sort -n | tail -1"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_unlink.json -- bash -c 'set -o pipefail; seq 1 200000 | sort -R | sort -n | tail -1'"
+    },
+    "wait4": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_wait4.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    },
+    "write": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "bash",
+        "-c",
+        "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_write.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+    }
+  },
+  "removable_for_tested_suite": [],
+  "ablation_summary": {
+    "schema": 2,
+    "target": "sort_big",
+    "strategy": "minimize",
+    "baseline_count": 48,
+    "minimized_count": 48,
+    "removed_count": 0,
+    "removable_syscalls": [],
+    "final_syscalls": [
+      "access",
+      "arch_prctl",
+      "brk",
+      "clone",
+      "close",
+      "dup2",
+      "execve",
+      "exit_group",
+      "fadvise64",
+      "fcntl",
+      "fstat",
+      "futex",
+      "getegid",
+      "geteuid",
+      "getgid",
+      "getpgrp",
+      "getpid",
+      "getppid",
+      "getrandom",
+      "getresgid",
+      "getresuid",
+      "gettid",
+      "getuid",
+      "ioctl",
+      "lseek",
+      "mmap",
+      "mprotect",
+      "munmap",
+      "newfstatat",
+      "openat",
+      "pipe2",
+      "pread64",
+      "prlimit64",
+      "read",
+      "rseq",
+      "rt_sigaction",
+      "rt_sigprocmask",
+      "rt_sigreturn",
+      "sched_getaffinity",
+      "sched_getscheduler",
+      "set_robust_list",
+      "set_tid_address",
+      "sysinfo",
+      "tgkill",
+      "uname",
+      "unlink",
+      "wait4",
+      "write"
+    ],
+    "permission_tiers": {
+      "observed": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "clone",
+        "close",
+        "dup2",
+        "execve",
+        "exit_group",
+        "fadvise64",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getresgid",
+        "getresuid",
+        "gettid",
+        "getuid",
+        "ioctl",
+        "lseek",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "newfstatat",
+        "openat",
+        "pipe2",
+        "pread64",
+        "prlimit64",
+        "read",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "rt_sigreturn",
+        "sched_getaffinity",
+        "sched_getscheduler",
+        "set_robust_list",
+        "set_tid_address",
+        "sysinfo",
+        "tgkill",
+        "uname",
+        "unlink",
+        "wait4",
+        "write"
+      ],
+      "experimentally_necessary": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "clone",
+        "close",
+        "dup2",
+        "execve",
+        "exit_group",
+        "fadvise64",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getresgid",
+        "getresuid",
+        "gettid",
+        "getuid",
+        "ioctl",
+        "lseek",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "newfstatat",
+        "openat",
+        "pipe2",
+        "pread64",
+        "prlimit64",
+        "read",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "rt_sigreturn",
+        "sched_getaffinity",
+        "sched_getscheduler",
+        "set_robust_list",
+        "set_tid_address",
+        "sysinfo",
+        "tgkill",
+        "uname",
+        "unlink",
+        "wait4",
+        "write"
+      ],
+      "removable_for_tested_tasks": [],
+      "not_yet_validated": []
+    },
+    "evidence": {
+      "access": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_access.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "arch_prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_arch_prctl.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "brk": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_brk.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "clone": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_clone.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "close": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_close.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "dup2": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_dup2.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "execve": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_execve.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "exit_group": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_exit_group.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "fadvise64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_fadvise64.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "fcntl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_fcntl.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "fstat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_fstat.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "futex": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_futex.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getegid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getegid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "geteuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_geteuid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getgid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getgid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getpgrp": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getpgrp.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getpid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getpid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getppid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getppid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getrandom": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getrandom.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getresgid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getresgid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getresuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getresuid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "gettid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_gettid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "getuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_getuid.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "ioctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_ioctl.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "lseek": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_lseek.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "mmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_mmap.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "mprotect": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_mprotect.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "munmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_munmap.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "newfstatat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_newfstatat.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "openat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_openat.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "pipe2": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_pipe2.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "pread64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_pread64.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "prlimit64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_prlimit64.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "read": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_read.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "rseq": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rseq.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "rt_sigaction": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rt_sigaction.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "rt_sigprocmask": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rt_sigprocmask.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "rt_sigreturn": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_rt_sigreturn.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "sched_getaffinity": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_sched_getaffinity.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "sched_getscheduler": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_sched_getscheduler.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "set_robust_list": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_set_robust_list.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "set_tid_address": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_set_tid_address.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "sysinfo": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_sysinfo.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "tgkill": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_tgkill.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "uname": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_uname.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "unlink": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 200000 | sort -R | sort -n | tail -1"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_unlink.json -- bash -c 'set -o pipefail; seq 1 200000 | sort -R | sort -n | tail -1'"
+      },
+      "wait4": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_wait4.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      },
+      "write": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "bash",
+          "-c",
+          "set -o pipefail; seq 1 20000 | sort -rn | head -1"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-sort_big-_84yc5xw/test_without_write.json -- bash -c 'set -o pipefail; seq 1 20000 | sort -rn | head -1'"
+      }
+    },
+    "risk_before": 7.61,
+    "risk_after": 7.61,
+    "trials_recorded": 494,
+    "workloads_tested": 2,
+    "environment": {
+      "kernel": "7.2.8-200.fc44.x86_64",
+      "arch": "x86_64",
+      "os": "Linux",
+      "python": "3.14.7",
+      "git_commit": "c9f78e5",
+      "recorded_at": "2026-10-12T23:00:16.090230+00:00"
+    }
+  }
+}

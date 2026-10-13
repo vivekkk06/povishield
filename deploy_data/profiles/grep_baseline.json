@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "command": "grep",
+  "arch": "x86_64",
+  "count": 23,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "fstat",
+    "futex",
+    "getrandom",
+    "lseek",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "rt_sigaction",
+    "set_robust_list",
+    "set_tid_address",
+    "sigaltstack",
+    "write"
+  ]
+}

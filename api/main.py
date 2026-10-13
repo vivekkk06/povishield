@@ -23,7 +23,7 @@ db.init_db()
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-RESULTS = ROOT / "results"
+RESULTS = (ROOT / os.environ.get("POVISHIELD_RESULTS_DIR", "results")).resolve()
 EVENTS_FILE = RESULTS / "syscall-events.jsonl"
 
 from analysis.runner import (

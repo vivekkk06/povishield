@@ -1,0 +1,152 @@
+{
+  "bare": {
+    "status": "VALID",
+    "blocked": 0,
+    "total": 8,
+    "control_ok": true,
+    "counts": {
+      "ESCAPED": 8,
+      "BLOCKED_SIGSYS": 0,
+      "KILLED_BY_LIMIT": 0,
+      "DENIED": 0,
+      "NO_ESCAPE_MARKER": 0,
+      "TIMEOUT": 0,
+      "ERROR": 0
+    },
+    "tests": {
+      "esc_chroot": "ESCAPED",
+      "esc_hostfs": "ESCAPED",
+      "esc_mount": "ESCAPED",
+      "esc_ptrace": "ESCAPED",
+      "esc_rawsock": "ESCAPED",
+      "esc_unshare": "ESCAPED",
+      "limit_mem": "ESCAPED",
+      "limit_pids": "ESCAPED"
+    }
+  },
+  "seccomp": {
+    "status": "VALID",
+    "blocked": 6,
+    "total": 8,
+    "control_ok": true,
+    "counts": {
+      "ESCAPED": 2,
+      "BLOCKED_SIGSYS": 6,
+      "KILLED_BY_LIMIT": 0,
+      "DENIED": 0,
+      "NO_ESCAPE_MARKER": 0,
+      "TIMEOUT": 0,
+      "ERROR": 0
+    },
+    "tests": {
+      "esc_chroot": "BLOCKED_SIGSYS",
+      "esc_hostfs": "ESCAPED",
+      "esc_mount": "BLOCKED_SIGSYS",
+      "esc_ptrace": "BLOCKED_SIGSYS",
+      "esc_rawsock": "BLOCKED_SIGSYS",
+      "esc_unshare": "BLOCKED_SIGSYS",
+      "limit_mem": "ESCAPED",
+      "limit_pids": "BLOCKED_SIGSYS"
+    }
+  },
+  "namespaces": {
+    "status": "VALID",
+    "blocked": 0,
+    "total": 8,
+    "control_ok": true,
+    "counts": {
+      "ESCAPED": 8,
+      "BLOCKED_SIGSYS": 0,
+      "KILLED_BY_LIMIT": 0,
+      "DENIED": 0,
+      "NO_ESCAPE_MARKER": 0,
+      "TIMEOUT": 0,
+      "ERROR": 0
+    },
+    "tests": {
+      "esc_chroot": "ESCAPED",
+      "esc_hostfs": "ESCAPED",
+      "esc_mount": "ESCAPED",
+      "esc_ptrace": "ESCAPED",
+      "esc_rawsock": "ESCAPED",
+      "esc_unshare": "ESCAPED",
+      "limit_mem": "ESCAPED",
+      "limit_pids": "ESCAPED"
+    }
+  },
+  "full": {
+    "status": "VALID",
+    "blocked": 7,
+    "total": 8,
+    "control_ok": true,
+    "counts": {
+      "ESCAPED": 1,
+      "BLOCKED_SIGSYS": 6,
+      "KILLED_BY_LIMIT": 1,
+      "DENIED": 0,
+      "NO_ESCAPE_MARKER": 0,
+      "TIMEOUT": 0,
+      "ERROR": 0
+    },
+    "tests": {
+      "esc_chroot": "BLOCKED_SIGSYS",
+      "esc_hostfs": "ESCAPED",
+      "esc_mount": "BLOCKED_SIGSYS",
+      "esc_ptrace": "BLOCKED_SIGSYS",
+      "esc_rawsock": "BLOCKED_SIGSYS",
+      "esc_unshare": "BLOCKED_SIGSYS",
+      "limit_mem": "KILLED_BY_LIMIT",
+      "limit_pids": "BLOCKED_SIGSYS"
+    }
+  },
+  "full+rootfs": {
+    "status": "VALID",
+    "blocked": 8,
+    "total": 8,
+    "control_ok": true,
+    "counts": {
+      "ESCAPED": 0,
+      "BLOCKED_SIGSYS": 6,
+      "KILLED_BY_LIMIT": 1,
+      "DENIED": 1,
+      "NO_ESCAPE_MARKER": 0,
+      "TIMEOUT": 0,
+      "ERROR": 0
+    },
+    "tests": {
+      "esc_chroot": "BLOCKED_SIGSYS",
+      "esc_hostfs": "DENIED",
+      "esc_mount": "BLOCKED_SIGSYS",
+      "esc_ptrace": "BLOCKED_SIGSYS",
+      "esc_rawsock": "BLOCKED_SIGSYS",
+      "esc_unshare": "BLOCKED_SIGSYS",
+      "limit_mem": "KILLED_BY_LIMIT",
+      "limit_pids": "BLOCKED_SIGSYS"
+    }
+  },
+  "rootfs-only": {
+    "status": "VALID",
+    "blocked": 8,
+    "total": 8,
+    "control_ok": true,
+    "counts": {
+      "ESCAPED": 0,
+      "BLOCKED_SIGSYS": 0,
+      "KILLED_BY_LIMIT": 1,
+      "DENIED": 7,
+      "NO_ESCAPE_MARKER": 0,
+      "TIMEOUT": 0,
+      "ERROR": 0
+    },
+    "tests": {
+      "esc_chroot": "DENIED",
+      "esc_hostfs": "DENIED",
+      "esc_mount": "DENIED",
+      "esc_ptrace": "DENIED",
+      "esc_rawsock": "DENIED",
+      "esc_unshare": "DENIED",
+      "limit_mem": "KILLED_BY_LIMIT",
+      "limit_pids": "DENIED"
+    }
+  }
+}

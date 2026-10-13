@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "command": "build/vuln_viewer demo/data missing.txt ",
+  "arch": "x86_64",
+  "count": 21,
+  "syscalls": [
+    "read",
+    "write",
+    "close",
+    "fstat",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "brk",
+    "pread64",
+    "access",
+    "dup",
+    "execve",
+    "fcntl",
+    "arch_prctl",
+    "set_tid_address",
+    "exit_group",
+    "openat",
+    "set_robust_list",
+    "prlimit64",
+    "getrandom",
+    "rseq"
+  ]
+}

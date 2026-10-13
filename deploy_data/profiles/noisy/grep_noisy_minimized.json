@@ -1,0 +1,791 @@
+{
+  "schema": 2,
+  "command": "grep",
+  "arch": "x86_64",
+  "count": 23,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "fstat",
+    "futex",
+    "getrandom",
+    "lseek",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "rt_sigaction",
+    "set_robust_list",
+    "set_tid_address",
+    "sigaltstack",
+    "write"
+  ],
+  "experiment_type": "controlled_noisy_policy_minimized",
+  "injected_permissions": [
+    "chroot",
+    "socket",
+    "listen",
+    "connect",
+    "mount",
+    "kexec_load",
+    "bpf",
+    "ptrace",
+    "reboot",
+    "swapoff"
+  ],
+  "injected_removed": [
+    "bpf",
+    "chroot",
+    "connect",
+    "kexec_load",
+    "listen",
+    "mount",
+    "ptrace",
+    "reboot",
+    "socket",
+    "swapoff"
+  ],
+  "injected_removal_rate_pct": 100.0,
+  "evidence": {
+    "access": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_access.json -- grep -r root /etc/passwd"
+    },
+    "arch_prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_arch_prctl.json -- grep -r root /etc/passwd"
+    },
+    "brk": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_brk.json -- grep -r root /etc/passwd"
+    },
+    "close": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_close.json -- grep -r root /etc/passwd"
+    },
+    "execve": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_execve.json -- grep -r root /etc/passwd"
+    },
+    "exit_group": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_exit_group.json -- grep -r root /etc/passwd"
+    },
+    "fstat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_fstat.json -- grep -r root /etc/passwd"
+    },
+    "futex": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_futex.json -- grep -r root /etc/passwd"
+    },
+    "getrandom": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_getrandom.json -- grep -r root /etc/passwd"
+    },
+    "lseek": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_lseek.json -- grep -r root /etc/passwd"
+    },
+    "mmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_mmap.json -- grep -r root /etc/passwd"
+    },
+    "mprotect": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_mprotect.json -- grep -r root /etc/passwd"
+    },
+    "munmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_munmap.json -- grep -r root /etc/passwd"
+    },
+    "openat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_openat.json -- grep -r root /etc/passwd"
+    },
+    "pread64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_pread64.json -- grep -r root /etc/passwd"
+    },
+    "prlimit64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_prlimit64.json -- grep -r root /etc/passwd"
+    },
+    "read": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_read.json -- grep -r root /etc/passwd"
+    },
+    "rseq": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_rseq.json -- grep -r root /etc/passwd"
+    },
+    "rt_sigaction": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_rt_sigaction.json -- grep -r root /etc/passwd"
+    },
+    "set_robust_list": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_set_robust_list.json -- grep -r root /etc/passwd"
+    },
+    "set_tid_address": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_set_tid_address.json -- grep -r root /etc/passwd"
+    },
+    "sigaltstack": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_sigaltstack.json -- grep -r root /etc/passwd"
+    },
+    "write": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "grep",
+        "-r",
+        "root",
+        "/etc/passwd"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_write.json -- grep -r root /etc/passwd"
+    }
+  },
+  "ablation_summary": {
+    "schema": 2,
+    "target": "noisy_grep",
+    "strategy": "minimize",
+    "baseline_count": 33,
+    "minimized_count": 23,
+    "removed_count": 10,
+    "removable_syscalls": [
+      "bpf",
+      "chroot",
+      "connect",
+      "kexec_load",
+      "listen",
+      "mount",
+      "ptrace",
+      "reboot",
+      "socket",
+      "swapoff"
+    ],
+    "final_syscalls": [
+      "access",
+      "arch_prctl",
+      "brk",
+      "close",
+      "execve",
+      "exit_group",
+      "fstat",
+      "futex",
+      "getrandom",
+      "lseek",
+      "mmap",
+      "mprotect",
+      "munmap",
+      "openat",
+      "pread64",
+      "prlimit64",
+      "read",
+      "rseq",
+      "rt_sigaction",
+      "set_robust_list",
+      "set_tid_address",
+      "sigaltstack",
+      "write"
+    ],
+    "permission_tiers": {
+      "observed": [
+        "access",
+        "arch_prctl",
+        "bpf",
+        "brk",
+        "chroot",
+        "close",
+        "connect",
+        "execve",
+        "exit_group",
+        "fstat",
+        "futex",
+        "getrandom",
+        "kexec_load",
+        "listen",
+        "lseek",
+        "mmap",
+        "mount",
+        "mprotect",
+        "munmap",
+        "openat",
+        "pread64",
+        "prlimit64",
+        "ptrace",
+        "read",
+        "reboot",
+        "rseq",
+        "rt_sigaction",
+        "set_robust_list",
+        "set_tid_address",
+        "sigaltstack",
+        "socket",
+        "swapoff",
+        "write"
+      ],
+      "experimentally_necessary": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "close",
+        "execve",
+        "exit_group",
+        "fstat",
+        "futex",
+        "getrandom",
+        "lseek",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "openat",
+        "pread64",
+        "prlimit64",
+        "read",
+        "rseq",
+        "rt_sigaction",
+        "set_robust_list",
+        "set_tid_address",
+        "sigaltstack",
+        "write"
+      ],
+      "removable_for_tested_tasks": [
+        "bpf",
+        "chroot",
+        "connect",
+        "kexec_load",
+        "listen",
+        "mount",
+        "ptrace",
+        "reboot",
+        "socket",
+        "swapoff"
+      ],
+      "not_yet_validated": []
+    },
+    "evidence": {
+      "access": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_access.json -- grep -r root /etc/passwd"
+      },
+      "arch_prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_arch_prctl.json -- grep -r root /etc/passwd"
+      },
+      "brk": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_brk.json -- grep -r root /etc/passwd"
+      },
+      "close": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_close.json -- grep -r root /etc/passwd"
+      },
+      "execve": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_execve.json -- grep -r root /etc/passwd"
+      },
+      "exit_group": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_exit_group.json -- grep -r root /etc/passwd"
+      },
+      "fstat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_fstat.json -- grep -r root /etc/passwd"
+      },
+      "futex": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_futex.json -- grep -r root /etc/passwd"
+      },
+      "getrandom": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_getrandom.json -- grep -r root /etc/passwd"
+      },
+      "lseek": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_lseek.json -- grep -r root /etc/passwd"
+      },
+      "mmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_mmap.json -- grep -r root /etc/passwd"
+      },
+      "mprotect": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_mprotect.json -- grep -r root /etc/passwd"
+      },
+      "munmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_munmap.json -- grep -r root /etc/passwd"
+      },
+      "openat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_openat.json -- grep -r root /etc/passwd"
+      },
+      "pread64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_pread64.json -- grep -r root /etc/passwd"
+      },
+      "prlimit64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_prlimit64.json -- grep -r root /etc/passwd"
+      },
+      "read": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_read.json -- grep -r root /etc/passwd"
+      },
+      "rseq": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_rseq.json -- grep -r root /etc/passwd"
+      },
+      "rt_sigaction": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_rt_sigaction.json -- grep -r root /etc/passwd"
+      },
+      "set_robust_list": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_set_robust_list.json -- grep -r root /etc/passwd"
+      },
+      "set_tid_address": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_set_tid_address.json -- grep -r root /etc/passwd"
+      },
+      "sigaltstack": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_sigaltstack.json -- grep -r root /etc/passwd"
+      },
+      "write": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "grep",
+          "-r",
+          "root",
+          "/etc/passwd"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_grep-01grl5kx/test_without_write.json -- grep -r root /etc/passwd"
+      }
+    },
+    "risk_before": 10.87,
+    "risk_after": 3.26,
+    "trials_recorded": 172,
+    "workloads_tested": 2,
+    "environment": {
+      "kernel": "7.2.8-200.fc44.x86_64",
+      "arch": "x86_64",
+      "os": "Linux",
+      "python": "3.14.7",
+      "git_commit": "c9f78e5",
+      "recorded_at": "2026-10-12T23:00:49.593453+00:00"
+    }
+  }
+}

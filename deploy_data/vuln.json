@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "command": "build/vuln_viewer demo/data notes.txt ",
+  "arch": "x86_64",
+  "count": 19,
+  "syscalls": [
+    "read",
+    "write",
+    "close",
+    "fstat",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "brk",
+    "pread64",
+    "access",
+    "execve",
+    "arch_prctl",
+    "set_tid_address",
+    "exit_group",
+    "openat",
+    "set_robust_list",
+    "prlimit64",
+    "getrandom",
+    "rseq"
+  ]
+}

@@ -1,0 +1,230 @@
+{
+  "timestamp": "2026-10-12T23:00:38Z",
+  "environment": {
+    "kernel": "7.2.8-200.fc44.x86_64",
+    "arch": "x86_64",
+    "os": "Linux",
+    "python": "3.14.7",
+    "git_commit": "c9f78e5",
+    "recorded_at": "2026-10-12T23:00:38.756068+00:00"
+  },
+  "total_targets_evaluated": 9,
+  "aggregate": {
+    "avg_baseline_syscalls": 35.78,
+    "avg_counterfactual_syscalls": 35.78,
+    "total_unnecessary_syscalls_removed": 0,
+    "avg_evidence_completeness_pct": 100.0,
+    "avg_baseline_compat_pct": 100.0,
+    "avg_counterfactual_compat_pct": 100.0,
+    "total_ablation_time_seconds": 50.89
+  },
+  "targets": [
+    {
+      "target": "ls",
+      "baseline": {
+        "allowed_syscalls": 32,
+        "risk_score": 5.27,
+        "attack_surface_reduction_pct": 91.69,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 32,
+        "risk_score": 5.27,
+        "attack_surface_reduction_pct": 91.69,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 32,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 4.256,
+        "trials_run": 32
+      }
+    },
+    {
+      "target": "cat",
+      "baseline": {
+        "allowed_syscalls": 20,
+        "risk_score": 3.01,
+        "attack_surface_reduction_pct": 94.81,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 20,
+        "risk_score": 3.01,
+        "attack_surface_reduction_pct": 94.81,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 20,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 2.655,
+        "trials_run": 20
+      }
+    },
+    {
+      "target": "grep",
+      "baseline": {
+        "allowed_syscalls": 23,
+        "risk_score": 3.26,
+        "attack_surface_reduction_pct": 94.03,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 23,
+        "risk_score": 3.26,
+        "attack_surface_reduction_pct": 94.03,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 23,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 3.158,
+        "trials_run": 23
+      }
+    },
+    {
+      "target": "gzip",
+      "baseline": {
+        "allowed_syscalls": 41,
+        "risk_score": 6.02,
+        "attack_surface_reduction_pct": 89.35,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 41,
+        "risk_score": 6.02,
+        "attack_surface_reduction_pct": 89.35,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 41,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 6.328,
+        "trials_run": 41
+      }
+    },
+    {
+      "target": "sort",
+      "baseline": {
+        "allowed_syscalls": 45,
+        "risk_score": 6.61,
+        "attack_surface_reduction_pct": 88.31,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 45,
+        "risk_score": 6.61,
+        "attack_surface_reduction_pct": 88.31,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 45,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 6.262,
+        "trials_run": 45
+      }
+    },
+    {
+      "target": "python3",
+      "baseline": {
+        "allowed_syscalls": 36,
+        "risk_score": 4.85,
+        "attack_surface_reduction_pct": 90.65,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 36,
+        "risk_score": 4.85,
+        "attack_surface_reduction_pct": 90.65,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 36,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 5.398,
+        "trials_run": 36
+      }
+    },
+    {
+      "target": "gzip_big",
+      "baseline": {
+        "allowed_syscalls": 41,
+        "risk_score": 6.02,
+        "attack_surface_reduction_pct": 89.35,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 41,
+        "risk_score": 6.02,
+        "attack_surface_reduction_pct": 89.35,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 41,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 6.11,
+        "trials_run": 41
+      }
+    },
+    {
+      "target": "sort_big",
+      "baseline": {
+        "allowed_syscalls": 48,
+        "risk_score": 7.61,
+        "attack_surface_reduction_pct": 87.53,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 48,
+        "risk_score": 7.61,
+        "attack_surface_reduction_pct": 87.53,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 48,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 12.262,
+        "trials_run": 48
+      }
+    },
+    {
+      "target": "python_cpu",
+      "baseline": {
+        "allowed_syscalls": 36,
+        "risk_score": 4.85,
+        "attack_surface_reduction_pct": 90.65,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0
+      },
+      "counterfactual": {
+        "allowed_syscalls": 36,
+        "risk_score": 4.85,
+        "attack_surface_reduction_pct": 90.65,
+        "syscalls_removed": 0,
+        "removed_list": [],
+        "evidence_backed_syscalls": 36,
+        "evidence_completeness_pct": 100.0,
+        "heldout_compat_pct": 100.0,
+        "false_kills": 0,
+        "ablation_search_seconds": 4.458,
+        "trials_run": 36
+      }
+    }
+  ]
+}

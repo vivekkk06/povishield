@@ -1,0 +1,273 @@
+{
+  "env": {
+    "kernel": "7.2.8-200.fc44.x86_64",
+    "machine": "x86_64",
+    "cpus": 8,
+    "cpu_model": "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz",
+    "cpu_governor": "powersave",
+    "python": "3.14.7",
+    "libseccomp": "2.6.1",
+    "git_commit": "fce0e2e",
+    "runs_per_measurement": 30,
+    "warmup_runs": 3,
+    "loadavg_start": [
+      3.48,
+      2.23,
+      1.42
+    ],
+    "cpu_idle_pct_start": 50.8,
+    "loadavg_end": [
+      2.5,
+      2.74,
+      2.04
+    ]
+  },
+  "aggregate": {
+    "targets": 9,
+    "avg_attack_surface_reduction_pct": 90.71,
+    "avg_risk_after": 5.28,
+    "avg_heldout_coverage_pct": 100.0,
+    "avg_compat_pct": 100.0,
+    "total_false_kills": 0,
+    "overhead_targets": 5,
+    "avg_median_overhead_pct": 4.47,
+    "max_median_overhead_pct": 8.11,
+    "invalid_timing_targets": []
+  },
+  "targets": [
+    {
+      "target": "ls",
+      "allowed_syscalls": 32,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 91.69,
+      "risk_before": 100.0,
+      "risk_after": 5.27,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": true,
+        "bad_runs": 0,
+        "native_ms_median": 1.49,
+        "sandboxed_ms_median": 2.17,
+        "added_ms": 0.68,
+        "p95_ms": 3.16,
+        "median": 45.32,
+        "ci95": [
+          21.45,
+          61.25
+        ]
+      }
+    },
+    {
+      "target": "cat",
+      "allowed_syscalls": 20,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 94.81,
+      "risk_before": 100.0,
+      "risk_after": 3.01,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": true,
+        "bad_runs": 0,
+        "native_ms_median": 0.61,
+        "sandboxed_ms_median": 1.23,
+        "added_ms": 0.62,
+        "p95_ms": 2.38,
+        "median": 101.66,
+        "ci95": [
+          68.29,
+          117.88
+        ]
+      }
+    },
+    {
+      "target": "grep",
+      "allowed_syscalls": 23,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 94.03,
+      "risk_before": 100.0,
+      "risk_after": 3.26,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": true,
+        "bad_runs": 0,
+        "native_ms_median": 1.24,
+        "sandboxed_ms_median": 1.81,
+        "added_ms": 0.57,
+        "p95_ms": 2.19,
+        "median": 46.11,
+        "ci95": [
+          29.8,
+          73.08
+        ]
+      }
+    },
+    {
+      "target": "gzip",
+      "allowed_syscalls": 41,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 89.35,
+      "risk_before": 100.0,
+      "risk_after": 6.02,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": true,
+        "bad_runs": 0,
+        "native_ms_median": 4.02,
+        "sandboxed_ms_median": 4.7,
+        "added_ms": 0.67,
+        "p95_ms": 6.58,
+        "median": 16.7,
+        "ci95": [
+          9.41,
+          23.62
+        ]
+      }
+    },
+    {
+      "target": "sort",
+      "allowed_syscalls": 45,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 88.31,
+      "risk_before": 100.0,
+      "risk_after": 6.61,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": false,
+        "bad_runs": 0,
+        "native_ms_median": 21.9,
+        "sandboxed_ms_median": 23.68,
+        "added_ms": 1.78,
+        "p95_ms": 37.37,
+        "median": 8.11,
+        "ci95": [
+          0.92,
+          14.59
+        ]
+      }
+    },
+    {
+      "target": "python3",
+      "allowed_syscalls": 36,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 90.65,
+      "risk_before": 100.0,
+      "risk_after": 4.85,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": false,
+        "bad_runs": 0,
+        "native_ms_median": 21.5,
+        "sandboxed_ms_median": 22.26,
+        "added_ms": 0.76,
+        "p95_ms": 33.22,
+        "median": 3.53,
+        "ci95": [
+          -5.17,
+          14.32
+        ]
+      }
+    },
+    {
+      "target": "gzip_big",
+      "allowed_syscalls": 41,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 89.35,
+      "risk_before": 100.0,
+      "risk_after": 6.02,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": false,
+        "bad_runs": 0,
+        "native_ms_median": 115.3,
+        "sandboxed_ms_median": 124.35,
+        "added_ms": 9.06,
+        "p95_ms": 167.93,
+        "median": 7.86,
+        "ci95": [
+          0.03,
+          15.68
+        ]
+      }
+    },
+    {
+      "target": "sort_big",
+      "allowed_syscalls": 48,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 87.53,
+      "risk_before": 100.0,
+      "risk_after": 7.61,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": false,
+        "bad_runs": 0,
+        "native_ms_median": 6212.23,
+        "sandboxed_ms_median": 6457.13,
+        "added_ms": 244.9,
+        "p95_ms": 7742.21,
+        "median": 3.94,
+        "ci95": [
+          -2.39,
+          10.32
+        ]
+      }
+    },
+    {
+      "target": "python_cpu",
+      "allowed_syscalls": 36,
+      "total_syscalls": 385,
+      "attack_surface_reduction_pct": 90.65,
+      "risk_before": 100.0,
+      "risk_after": 4.85,
+      "heldout_coverage_pct": 100.0,
+      "missing_in_policy": [],
+      "compat_pct": 100.0,
+      "false_kills": 0,
+      "overhead_pct": {
+        "valid": true,
+        "short_workload": false,
+        "bad_runs": 0,
+        "native_ms_median": 154.92,
+        "sandboxed_ms_median": 153.26,
+        "added_ms": -1.66,
+        "p95_ms": 245.06,
+        "median": -1.07,
+        "ci95": [
+          -9.15,
+          20.4
+        ]
+      }
+    }
+  ]
+}

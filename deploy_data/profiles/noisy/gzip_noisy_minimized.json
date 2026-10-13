@@ -1,0 +1,1249 @@
+{
+  "schema": 2,
+  "command": "gzip",
+  "arch": "x86_64",
+  "count": 41,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "clone",
+    "close",
+    "dup2",
+    "execve",
+    "exit_group",
+    "fadvise64",
+    "fcntl",
+    "fstat",
+    "futex",
+    "getegid",
+    "geteuid",
+    "getgid",
+    "getpgrp",
+    "getpid",
+    "getppid",
+    "getrandom",
+    "getresgid",
+    "getresuid",
+    "getuid",
+    "ioctl",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "newfstatat",
+    "openat",
+    "pipe2",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "rt_sigaction",
+    "rt_sigprocmask",
+    "rt_sigreturn",
+    "set_robust_list",
+    "set_tid_address",
+    "uname",
+    "wait4",
+    "write"
+  ],
+  "experiment_type": "controlled_noisy_policy_minimized",
+  "injected_permissions": [
+    "chroot",
+    "socket",
+    "listen",
+    "connect",
+    "mount",
+    "kexec_load",
+    "bpf",
+    "ptrace",
+    "reboot",
+    "swapoff"
+  ],
+  "injected_removed": [
+    "bpf",
+    "chroot",
+    "connect",
+    "kexec_load",
+    "listen",
+    "mount",
+    "ptrace",
+    "reboot",
+    "socket",
+    "swapoff"
+  ],
+  "injected_removal_rate_pct": 100.0,
+  "evidence": {
+    "access": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_access.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "arch_prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_arch_prctl.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "brk": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_brk.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "clone": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_clone.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "close": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_close.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "dup2": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_dup2.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "execve": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_execve.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "exit_group": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_exit_group.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "fadvise64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "seq 1 500 | gzip -9 -c | wc -c"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_fadvise64.json -- sh -c 'seq 1 500 | gzip -9 -c | wc -c'"
+    },
+    "fcntl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_fcntl.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "fstat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_fstat.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "futex": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_futex.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getegid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getegid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "geteuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_geteuid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getgid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getgid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getpgrp": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getpgrp.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getpid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getpid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getppid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getppid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getrandom": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getrandom.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getresgid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getresgid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getresuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getresuid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "getuid": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getuid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "ioctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_ioctl.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "mmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_mmap.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "mprotect": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_mprotect.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "munmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_munmap.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "newfstatat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_newfstatat.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "openat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_openat.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "pipe2": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_pipe2.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "pread64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_pread64.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "prlimit64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_prlimit64.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "read": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_read.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "rseq": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rseq.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "rt_sigaction": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rt_sigaction.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "rt_sigprocmask": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rt_sigprocmask.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "rt_sigreturn": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rt_sigreturn.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "set_robust_list": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_set_robust_list.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "set_tid_address": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_set_tid_address.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "uname": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_uname.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "wait4": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_wait4.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    },
+    "write": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "sh",
+        "-c",
+        "echo hello | gzip -c | gzip -dc"
+      ],
+      "exit_code": 159,
+      "signal": "SIGSYS",
+      "output_diverged": true,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_write.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+    }
+  },
+  "ablation_summary": {
+    "schema": 2,
+    "target": "noisy_gzip",
+    "strategy": "minimize",
+    "baseline_count": 51,
+    "minimized_count": 41,
+    "removed_count": 10,
+    "removable_syscalls": [
+      "bpf",
+      "chroot",
+      "connect",
+      "kexec_load",
+      "listen",
+      "mount",
+      "ptrace",
+      "reboot",
+      "socket",
+      "swapoff"
+    ],
+    "final_syscalls": [
+      "access",
+      "arch_prctl",
+      "brk",
+      "clone",
+      "close",
+      "dup2",
+      "execve",
+      "exit_group",
+      "fadvise64",
+      "fcntl",
+      "fstat",
+      "futex",
+      "getegid",
+      "geteuid",
+      "getgid",
+      "getpgrp",
+      "getpid",
+      "getppid",
+      "getrandom",
+      "getresgid",
+      "getresuid",
+      "getuid",
+      "ioctl",
+      "mmap",
+      "mprotect",
+      "munmap",
+      "newfstatat",
+      "openat",
+      "pipe2",
+      "pread64",
+      "prlimit64",
+      "read",
+      "rseq",
+      "rt_sigaction",
+      "rt_sigprocmask",
+      "rt_sigreturn",
+      "set_robust_list",
+      "set_tid_address",
+      "uname",
+      "wait4",
+      "write"
+    ],
+    "permission_tiers": {
+      "observed": [
+        "access",
+        "arch_prctl",
+        "bpf",
+        "brk",
+        "chroot",
+        "clone",
+        "close",
+        "connect",
+        "dup2",
+        "execve",
+        "exit_group",
+        "fadvise64",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getresgid",
+        "getresuid",
+        "getuid",
+        "ioctl",
+        "kexec_load",
+        "listen",
+        "mmap",
+        "mount",
+        "mprotect",
+        "munmap",
+        "newfstatat",
+        "openat",
+        "pipe2",
+        "pread64",
+        "prlimit64",
+        "ptrace",
+        "read",
+        "reboot",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "rt_sigreturn",
+        "set_robust_list",
+        "set_tid_address",
+        "socket",
+        "swapoff",
+        "uname",
+        "wait4",
+        "write"
+      ],
+      "experimentally_necessary": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "clone",
+        "close",
+        "dup2",
+        "execve",
+        "exit_group",
+        "fadvise64",
+        "fcntl",
+        "fstat",
+        "futex",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getresgid",
+        "getresuid",
+        "getuid",
+        "ioctl",
+        "mmap",
+        "mprotect",
+        "munmap",
+        "newfstatat",
+        "openat",
+        "pipe2",
+        "pread64",
+        "prlimit64",
+        "read",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigprocmask",
+        "rt_sigreturn",
+        "set_robust_list",
+        "set_tid_address",
+        "uname",
+        "wait4",
+        "write"
+      ],
+      "removable_for_tested_tasks": [
+        "bpf",
+        "chroot",
+        "connect",
+        "kexec_load",
+        "listen",
+        "mount",
+        "ptrace",
+        "reboot",
+        "socket",
+        "swapoff"
+      ],
+      "not_yet_validated": []
+    },
+    "evidence": {
+      "access": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_access.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "arch_prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_arch_prctl.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "brk": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_brk.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "clone": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_clone.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "close": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_close.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "dup2": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_dup2.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "execve": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_execve.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "exit_group": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_exit_group.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "fadvise64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "seq 1 500 | gzip -9 -c | wc -c"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_fadvise64.json -- sh -c 'seq 1 500 | gzip -9 -c | wc -c'"
+      },
+      "fcntl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_fcntl.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "fstat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_fstat.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "futex": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_futex.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getegid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getegid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "geteuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_geteuid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getgid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getgid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getpgrp": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getpgrp.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getpid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getpid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getppid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getppid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getrandom": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getrandom.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getresgid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getresgid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getresuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getresuid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "getuid": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_getuid.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "ioctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_ioctl.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "mmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_mmap.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "mprotect": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_mprotect.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "munmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_munmap.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "newfstatat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_newfstatat.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "openat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_openat.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "pipe2": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_pipe2.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "pread64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_pread64.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "prlimit64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_prlimit64.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "read": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_read.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "rseq": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rseq.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "rt_sigaction": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rt_sigaction.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "rt_sigprocmask": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rt_sigprocmask.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "rt_sigreturn": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_rt_sigreturn.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "set_robust_list": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_set_robust_list.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "set_tid_address": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_set_tid_address.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "uname": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_uname.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "wait4": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_wait4.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      },
+      "write": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "sh",
+          "-c",
+          "echo hello | gzip -c | gzip -dc"
+        ],
+        "exit_code": 159,
+        "signal": "SIGSYS",
+        "output_diverged": true,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_gzip-qfxt4a9o/test_without_write.json -- sh -c 'echo hello | gzip -c | gzip -dc'"
+      }
+    },
+    "risk_before": 13.63,
+    "risk_after": 6.02,
+    "trials_recorded": 248,
+    "workloads_tested": 2,
+    "environment": {
+      "kernel": "7.2.8-200.fc44.x86_64",
+      "arch": "x86_64",
+      "os": "Linux",
+      "python": "3.14.7",
+      "git_commit": "c9f78e5",
+      "recorded_at": "2026-10-12T23:00:55.715768+00:00"
+    }
+  }
+}

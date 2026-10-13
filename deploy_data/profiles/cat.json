@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "command": "cat",
+  "arch": "x86_64",
+  "count": 20,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "fadvise64",
+    "fstat",
+    "getrandom",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "set_robust_list",
+    "set_tid_address",
+    "write"
+  ]
+}

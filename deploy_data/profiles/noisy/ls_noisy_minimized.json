@@ -1,0 +1,997 @@
+{
+  "schema": 2,
+  "command": "ls",
+  "arch": "x86_64",
+  "count": 32,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "execve",
+    "exit_group",
+    "fstat",
+    "futex",
+    "getdents64",
+    "getrandom",
+    "ioctl",
+    "lgetxattr",
+    "llistxattr",
+    "lseek",
+    "mmap",
+    "mprotect",
+    "mremap",
+    "munmap",
+    "newfstatat",
+    "openat",
+    "prctl",
+    "pread64",
+    "prlimit64",
+    "read",
+    "readlink",
+    "rseq",
+    "rt_sigprocmask",
+    "set_robust_list",
+    "set_tid_address",
+    "statfs",
+    "statx",
+    "write"
+  ],
+  "experiment_type": "controlled_noisy_policy_minimized",
+  "injected_permissions": [
+    "chroot",
+    "socket",
+    "listen",
+    "connect",
+    "mount",
+    "kexec_load",
+    "bpf",
+    "ptrace",
+    "reboot",
+    "swapoff"
+  ],
+  "injected_removed": [
+    "bpf",
+    "chroot",
+    "connect",
+    "kexec_load",
+    "listen",
+    "mount",
+    "ptrace",
+    "reboot",
+    "socket",
+    "swapoff"
+  ],
+  "injected_removal_rate_pct": 100.0,
+  "evidence": {
+    "access": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_access.json -- ls -la /usr"
+    },
+    "arch_prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_arch_prctl.json -- ls -la /usr"
+    },
+    "brk": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_brk.json -- ls -la /usr"
+    },
+    "close": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_close.json -- ls -la /usr"
+    },
+    "execve": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_execve.json -- ls -la /usr"
+    },
+    "exit_group": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_exit_group.json -- ls -la /usr"
+    },
+    "fstat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_fstat.json -- ls -la /usr"
+    },
+    "futex": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_futex.json -- ls -la /usr"
+    },
+    "getdents64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_getdents64.json -- ls -la /usr"
+    },
+    "getrandom": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_getrandom.json -- ls -la /usr"
+    },
+    "ioctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_ioctl.json -- ls -la /usr"
+    },
+    "lgetxattr": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_lgetxattr.json -- ls -la /usr"
+    },
+    "llistxattr": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_llistxattr.json -- ls -la /usr"
+    },
+    "lseek": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_lseek.json -- ls -la /usr"
+    },
+    "mmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_mmap.json -- ls -la /usr"
+    },
+    "mprotect": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_mprotect.json -- ls -la /usr"
+    },
+    "mremap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-l",
+        "/usr/lib64"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_mremap.json -- ls -l /usr/lib64"
+    },
+    "munmap": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_munmap.json -- ls -la /usr"
+    },
+    "newfstatat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_newfstatat.json -- ls -la /usr"
+    },
+    "openat": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_openat.json -- ls -la /usr"
+    },
+    "prctl": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_prctl.json -- ls -la /usr"
+    },
+    "pread64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_pread64.json -- ls -la /usr"
+    },
+    "prlimit64": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_prlimit64.json -- ls -la /usr"
+    },
+    "read": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_read.json -- ls -la /usr"
+    },
+    "readlink": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_readlink.json -- ls -la /usr"
+    },
+    "rseq": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_rseq.json -- ls -la /usr"
+    },
+    "rt_sigprocmask": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_rt_sigprocmask.json -- ls -la /usr"
+    },
+    "set_robust_list": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_set_robust_list.json -- ls -la /usr"
+    },
+    "set_tid_address": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_set_tid_address.json -- ls -la /usr"
+    },
+    "statfs": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_statfs.json -- ls -la /usr"
+    },
+    "statx": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_statx.json -- ls -la /usr"
+    },
+    "write": {
+      "classification": "experimentally_necessary",
+      "breaking_workload": [
+        "ls",
+        "-la",
+        "/usr"
+      ],
+      "exit_code": -31,
+      "signal": "SIGSYS",
+      "output_diverged": false,
+      "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_write.json -- ls -la /usr"
+    }
+  },
+  "ablation_summary": {
+    "schema": 2,
+    "target": "noisy_ls",
+    "strategy": "minimize",
+    "baseline_count": 42,
+    "minimized_count": 32,
+    "removed_count": 10,
+    "removable_syscalls": [
+      "bpf",
+      "chroot",
+      "connect",
+      "kexec_load",
+      "listen",
+      "mount",
+      "ptrace",
+      "reboot",
+      "socket",
+      "swapoff"
+    ],
+    "final_syscalls": [
+      "access",
+      "arch_prctl",
+      "brk",
+      "close",
+      "execve",
+      "exit_group",
+      "fstat",
+      "futex",
+      "getdents64",
+      "getrandom",
+      "ioctl",
+      "lgetxattr",
+      "llistxattr",
+      "lseek",
+      "mmap",
+      "mprotect",
+      "mremap",
+      "munmap",
+      "newfstatat",
+      "openat",
+      "prctl",
+      "pread64",
+      "prlimit64",
+      "read",
+      "readlink",
+      "rseq",
+      "rt_sigprocmask",
+      "set_robust_list",
+      "set_tid_address",
+      "statfs",
+      "statx",
+      "write"
+    ],
+    "permission_tiers": {
+      "observed": [
+        "access",
+        "arch_prctl",
+        "bpf",
+        "brk",
+        "chroot",
+        "close",
+        "connect",
+        "execve",
+        "exit_group",
+        "fstat",
+        "futex",
+        "getdents64",
+        "getrandom",
+        "ioctl",
+        "kexec_load",
+        "lgetxattr",
+        "listen",
+        "llistxattr",
+        "lseek",
+        "mmap",
+        "mount",
+        "mprotect",
+        "mremap",
+        "munmap",
+        "newfstatat",
+        "openat",
+        "prctl",
+        "pread64",
+        "prlimit64",
+        "ptrace",
+        "read",
+        "readlink",
+        "reboot",
+        "rseq",
+        "rt_sigprocmask",
+        "set_robust_list",
+        "set_tid_address",
+        "socket",
+        "statfs",
+        "statx",
+        "swapoff",
+        "write"
+      ],
+      "experimentally_necessary": [
+        "access",
+        "arch_prctl",
+        "brk",
+        "close",
+        "execve",
+        "exit_group",
+        "fstat",
+        "futex",
+        "getdents64",
+        "getrandom",
+        "ioctl",
+        "lgetxattr",
+        "llistxattr",
+        "lseek",
+        "mmap",
+        "mprotect",
+        "mremap",
+        "munmap",
+        "newfstatat",
+        "openat",
+        "prctl",
+        "pread64",
+        "prlimit64",
+        "read",
+        "readlink",
+        "rseq",
+        "rt_sigprocmask",
+        "set_robust_list",
+        "set_tid_address",
+        "statfs",
+        "statx",
+        "write"
+      ],
+      "removable_for_tested_tasks": [
+        "bpf",
+        "chroot",
+        "connect",
+        "kexec_load",
+        "listen",
+        "mount",
+        "ptrace",
+        "reboot",
+        "socket",
+        "swapoff"
+      ],
+      "not_yet_validated": []
+    },
+    "evidence": {
+      "access": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_access.json -- ls -la /usr"
+      },
+      "arch_prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_arch_prctl.json -- ls -la /usr"
+      },
+      "brk": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_brk.json -- ls -la /usr"
+      },
+      "close": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_close.json -- ls -la /usr"
+      },
+      "execve": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_execve.json -- ls -la /usr"
+      },
+      "exit_group": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_exit_group.json -- ls -la /usr"
+      },
+      "fstat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_fstat.json -- ls -la /usr"
+      },
+      "futex": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_futex.json -- ls -la /usr"
+      },
+      "getdents64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_getdents64.json -- ls -la /usr"
+      },
+      "getrandom": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_getrandom.json -- ls -la /usr"
+      },
+      "ioctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_ioctl.json -- ls -la /usr"
+      },
+      "lgetxattr": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_lgetxattr.json -- ls -la /usr"
+      },
+      "llistxattr": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_llistxattr.json -- ls -la /usr"
+      },
+      "lseek": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_lseek.json -- ls -la /usr"
+      },
+      "mmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_mmap.json -- ls -la /usr"
+      },
+      "mprotect": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_mprotect.json -- ls -la /usr"
+      },
+      "mremap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-l",
+          "/usr/lib64"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_mremap.json -- ls -l /usr/lib64"
+      },
+      "munmap": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_munmap.json -- ls -la /usr"
+      },
+      "newfstatat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_newfstatat.json -- ls -la /usr"
+      },
+      "openat": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_openat.json -- ls -la /usr"
+      },
+      "prctl": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_prctl.json -- ls -la /usr"
+      },
+      "pread64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_pread64.json -- ls -la /usr"
+      },
+      "prlimit64": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_prlimit64.json -- ls -la /usr"
+      },
+      "read": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_read.json -- ls -la /usr"
+      },
+      "readlink": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_readlink.json -- ls -la /usr"
+      },
+      "rseq": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_rseq.json -- ls -la /usr"
+      },
+      "rt_sigprocmask": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_rt_sigprocmask.json -- ls -la /usr"
+      },
+      "set_robust_list": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_set_robust_list.json -- ls -la /usr"
+      },
+      "set_tid_address": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_set_tid_address.json -- ls -la /usr"
+      },
+      "statfs": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_statfs.json -- ls -la /usr"
+      },
+      "statx": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_statx.json -- ls -la /usr"
+      },
+      "write": {
+        "classification": "experimentally_necessary",
+        "breaking_workload": [
+          "ls",
+          "-la",
+          "/usr"
+        ],
+        "exit_code": -31,
+        "signal": "SIGSYS",
+        "output_diverged": false,
+        "reproduce": "/home/vivekbadgujar/povishield/build/povishield enforce -p /tmp/ps-ablate-noisy_ls-660oas23/test_without_write.json -- ls -la /usr"
+      }
+    },
+    "risk_before": 12.88,
+    "risk_after": 5.27,
+    "trials_recorded": 296,
+    "workloads_tested": 4,
+    "environment": {
+      "kernel": "7.2.8-200.fc44.x86_64",
+      "arch": "x86_64",
+      "os": "Linux",
+      "python": "3.14.7",
+      "git_commit": "c9f78e5",
+      "recorded_at": "2026-10-12T23:00:43.826774+00:00"
+    }
+  }
+}

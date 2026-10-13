@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "command": "merged",
+  "arch": "x86_64",
+  "count": 21,
+  "syscalls": [
+    "access",
+    "arch_prctl",
+    "brk",
+    "close",
+    "dup",
+    "execve",
+    "exit_group",
+    "fcntl",
+    "fstat",
+    "getrandom",
+    "mmap",
+    "mprotect",
+    "munmap",
+    "openat",
+    "pread64",
+    "prlimit64",
+    "read",
+    "rseq",
+    "set_robust_list",
+    "set_tid_address",
+    "write"
+  ]
+}
