@@ -15,10 +15,17 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   const [showPairModal, setShowPairModal] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1: Privacy & Perms, 2: Code & Install
   const [pairingName, setPairingName] = useState("");
+  const [enrollmentMode, setEnrollmentMode] = useState("multi"); // "multi" or "single"
+  const [enrolledDevicesThisSession, setEnrolledDevicesThisSession] = useState([]);
   const [pairingData, setPairingData] = useState(null);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [waitingForPair, setWaitingForPair] = useState(false);
+
+  // Fleet Filter & Broadcast State
+  const [fleetFilter, setFleetFilter] = useState("all");
+  const [broadcastRunning, setBroadcastRunning] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState(null);
 
   // Remote Execution State
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Fleet Policy Execution'");
@@ -78,15 +85,19 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     }
   }, [selectedDevice?.id]);
 
-  // Generate Pairing Code
+  // Generate Pairing Code (supports unlimited multi-device or single-use)
   const handleGeneratePairing = async () => {
     setGeneratingCode(true);
     setError("");
+    setEnrolledDevicesThisSession([]);
     try {
       const res = await fetch(`${API}/pairing/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device_name_hint: pairingName || undefined })
+        body: JSON.stringify({
+          device_name_hint: pairingName || undefined,
+          max_uses: enrollmentMode === "multi" ? 0 : 1
+        })
       });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json();
@@ -100,27 +111,24 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     }
   };
 
-  // Poll while in wizard step 2 to detect when newly paired device connects
+  // Poll pairing code endpoint to live-detect all newly paired endpoints without closing modal
   useEffect(() => {
     if (!waitingForPair || !pairingData) return;
     const timer = setInterval(async () => {
       try {
-        const res = await fetch(`${API}/devices`);
+        const res = await fetch(`${API}/pairing/${pairingData.code}/devices`);
         if (res.ok) {
           const data = await res.json();
-          const devList = data.devices || [];
-          if (devList.length > devices.length) {
-            setDevices(devList);
-            setSelectedDevice(devList[0]);
-            setWaitingForPair(false);
-            setShowPairModal(false);
-            setWizardStep(1);
+          const enrolled = data.devices || [];
+          if (enrolled.length > 0) {
+            setEnrolledDevicesThisSession(enrolled);
+            fetchDevices();
           }
         }
       } catch {}
     }, 2000);
     return () => clearInterval(timer);
-  }, [waitingForPair, pairingData, devices.length]);
+  }, [waitingForPair, pairingData]);
 
   // Dispatch Remote Task
   const handleDispatchTask = async () => {
@@ -679,15 +687,59 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   </div>
                 </div>
 
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>
+                    Enrollment Key Type:
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div
+                      onClick={() => setEnrollmentMode("multi")}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        border: enrollmentMode === "multi" ? "1px solid #10b981" : "1px solid #1e293b",
+                        background: enrollmentMode === "multi" ? "#06281e" : "#050914",
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 12, color: enrollmentMode === "multi" ? "#34d399" : "#cbd5e1" }}>
+                        ⚡ Multi-Device Fleet (Recommended)
+                      </div>
+                      <p style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+                        Enroll any number of Linux endpoints, VMs, and servers with one command.
+                      </p>
+                    </div>
+                    <div
+                      onClick={() => setEnrollmentMode("single")}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        border: enrollmentMode === "single" ? "1px solid #38bdf8" : "1px solid #1e293b",
+                        background: enrollmentMode === "single" ? "#08243b" : "#050914",
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 12, color: enrollmentMode === "single" ? "#38bdf8" : "#cbd5e1" }}>
+                        🔒 Single-Use Device
+                      </div>
+                      <p style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+                        Restricted to exactly 1 machine; code self-expires upon first connection.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>
-                    Optional Device Nickname:
+                    Optional Fleet / Cluster Nickname:
                   </label>
                   <input
                     type="text"
                     value={pairingName}
                     onChange={(e) => setPairingName(e.target.value)}
-                    placeholder="e.g. Production-Ubuntu-01 or Fedora-Laptop"
+                    placeholder="e.g. Production-Cluster, AWS-Nodes, or Lab-VMs"
                     style={{
                       width: "100%", padding: "8px 12px", background: "#050914",
                       border: "1px solid #1e293b", borderRadius: 6, color: "#f1f5f9"
@@ -705,7 +757,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                     disabled={generatingCode}
                     style={{ display: "flex", alignItems: "center", gap: 6 }}
                   >
-                    {generatingCode ? "Generating..." : "Generate Pairing Code"} <ArrowRight size={14} />
+                    {generatingCode ? "Generating..." : "Generate Fleet Enrollment Code"} <ArrowRight size={14} />
                   </button>
                 </div>
               </div>
@@ -714,8 +766,8 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
             {wizardStep === 2 && pairingData && (
               <div>
                 <div style={{ textAlign: "center", padding: "16px 0 20px" }}>
-                  <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
-                    Single-Use Pairing Code (Valid for 10 minutes)
+                  <span style={{ fontSize: 11, color: "#38bdf8", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>
+                    {enrollmentMode === "multi" ? "⚡ Multi-Device Fleet Enrollment Key (Unlimited Endpoints)" : "🔒 Single-Use Device Key"} · Valid 10 Minutes
                   </span>
                   <div style={{
                     fontSize: 32, fontWeight: 800, fontFamily: "var(--font-mono)",
@@ -723,11 +775,43 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   }}>
                     {pairingData.code}
                   </div>
+                  <p style={{ fontSize: 11, color: "#94a3b8", maxWidth: 500, margin: "0 auto", lineHeight: 1.4 }}>
+                    {enrollmentMode === "multi"
+                      ? "Run the install command on ANY number of Linux workstations, servers, or cloud nodes. Every machine will link automatically to your fleet."
+                      : "Run the install command on your target Linux machine."}
+                  </p>
                 </div>
+
+                {/* Live Enrolled Devices Indicator */}
+                {enrolledDevicesThisSession.length > 0 && (
+                  <div style={{
+                    marginBottom: 16, padding: "12px 14px", background: "#051f15",
+                    border: "1px solid #059669", borderRadius: 8
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <strong style={{ fontSize: 12, color: "#34d399", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className="live-pulse-dot" style={{ width: 7, height: 7, background: "#10b981" }} />
+                        {enrolledDevicesThisSession.length} Endpoint(s) Successfully Enrolled in Fleet:
+                      </strong>
+                      <span style={{ fontSize: 10, color: "#6ee7b7", fontFamily: "var(--font-mono)" }}>LIVE FLEET SYNC</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 120, overflowY: "auto" }}>
+                      {enrolledDevicesThisSession.map(dev => (
+                        <div key={dev.id} style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          background: "#082e21", padding: "6px 10px", borderRadius: 6, fontSize: 11, fontFamily: "var(--font-mono)"
+                        }}>
+                          <span style={{ color: "#f1f5f9", fontWeight: 600 }}>💻 {dev.name || dev.hostname}</span>
+                          <span style={{ color: "#6ee7b7" }}>{dev.arch} · {dev.kernel_version?.slice(0, 18)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ marginBottom: 18 }}>
                   <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 6 }}>
-                    Option A: Run this on the target Linux terminal (One-liner install):
+                    Option A: Run this on target Linux machines (One-liner install):
                   </span>
                   <div style={{
                     position: "relative", background: "#050811", border: "1px solid #1e293b",
@@ -749,7 +833,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
                 <div style={{ marginBottom: 20 }}>
                   <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 6 }}>
-                    Option B: If you already have the repository cloned:
+                    Option B: If you already have the repository cloned on the host:
                   </span>
                   <div style={{
                     position: "relative", background: "#050811", border: "1px solid #1e293b",
@@ -771,23 +855,46 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
                 {waitingForPair && (
                   <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                    padding: "12px", background: "#071224", borderRadius: 8, border: "1px dashed #1e3a5f"
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "12px 16px", background: "#071224", borderRadius: 8, border: "1px dashed #1e3a5f"
                   }}>
-                    <RefreshCw size={16} className="spin" color="#38bdf8" />
-                    <span style={{ fontSize: 12, color: "#93c5fd" }}>
-                      Waiting for endpoint connection... (this window will close automatically when paired)
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <RefreshCw size={16} className="spin" color="#38bdf8" />
+                      <span style={{ fontSize: 12, color: "#93c5fd" }}>
+                        {enrollmentMode === "multi"
+                          ? `Listening for endpoint connections... (${enrolledDevicesThisSession.length} joined so far)`
+                          : "Waiting for endpoint connection..."}
+                      </span>
+                    </div>
+                    {enrolledDevicesThisSession.length > 0 && (
+                      <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700 }}>
+                        ✓ {enrolledDevicesThisSession.length} NODE(S) ACTIVE
+                      </span>
+                    )}
                   </div>
                 )}
 
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-                  <button
-                    className="secondary-button"
-                    onClick={() => { setShowPairModal(false); setWaitingForPair(false); }}
-                  >
-                    Done / Close
-                  </button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+                  <span style={{ fontSize: 11, color: "#64748b" }}>
+                    {enrollmentMode === "multi" ? "Keep this window open to paste into additional machines." : ""}
+                  </span>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {enrollmentMode === "multi" && (
+                      <button
+                        className="secondary-button"
+                        onClick={() => { copyText(pairingData.install_command); }}
+                        style={{ borderColor: "#1e3a5f", color: "#38bdf8" }}
+                      >
+                        <Copy size={14} /> Copy Command
+                      </button>
+                    )}
+                    <button
+                      className="primary-button"
+                      onClick={() => { setShowPairModal(false); setWaitingForPair(false); fetchDevices(); }}
+                    >
+                      Done & Manage Fleet ({devices.length})
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

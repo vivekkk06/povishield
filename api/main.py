@@ -90,7 +90,14 @@ class ExecutionRunRequest(BaseModel):
 
 class PairingGenerateRequest(BaseModel):
     device_name_hint: Optional[str] = None
-    expires_in_seconds: int = Field(default=600, ge=60, le=3600)
+    expires_in_seconds: int = Field(default=600, ge=60, le=86400)
+    max_uses: int = Field(default=0, ge=0, le=1000)  # 0 = unlimited multi-device fleet enrollment
+
+
+class DeviceBroadcastTaskRequest(BaseModel):
+    command: list[str] = Field(min_length=1, max_length=16)
+    mode: str = Field(default="enforce")
+    target_device_ids: Optional[list[str]] = None
 
 
 class AgentPairRequest(BaseModel):
@@ -1054,7 +1061,8 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
     code_record = db.create_pairing_code(
         user_id=user["id"],
         expires_in_seconds=payload.expires_in_seconds,
-        device_name_hint=payload.device_name_hint
+        device_name_hint=payload.device_name_hint,
+        max_uses=payload.max_uses
     )
     # Determine the public URL of the server (Render / custom domain / fallback)
     server_base = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("POVISHIELD_SERVER_URL") or os.environ.get("POVISHIELD_PUBLIC_URL")
@@ -1071,6 +1079,27 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
         "server_url": server_base,
         "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base} --start",
         "cli_command": f"./povishield agent pair --code {code_record['code']} --server {server_base}"
+    }
+
+
+@app.get("/api/pairing/{code}/devices")
+@app.get("/pairing/{code}/devices")
+def get_pairing_code_devices(code: str, request: Request):
+    user = get_current_user(request)
+    code_record = db.get_pairing_code(code)
+    if not code_record:
+        raise HTTPException(status_code=404, detail="Pairing code not found")
+    if code_record["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this pairing code")
+    enrolled_devices = db.get_devices_for_pairing_code(code)
+    return {
+        "code": code,
+        "use_count": code_record.get("use_count", len(enrolled_devices)),
+        "max_uses": code_record.get("max_uses", 0),
+        "is_consumed": bool(code_record.get("is_consumed")),
+        "is_multi_device": bool(code_record.get("max_uses", 0) == 0 or code_record.get("max_uses", 0) > 1),
+        "devices": enrolled_devices,
+        "count": len(enrolled_devices)
     }
 
 
@@ -1135,6 +1164,62 @@ def create_device_task(device_id: str, payload: DeviceTaskCreateRequest, request
         task_id=task_id
     )
     return task
+
+
+@app.post("/api/devices/broadcast")
+@app.post("/devices/broadcast")
+def broadcast_device_task(payload: DeviceBroadcastTaskRequest, request: Request):
+    """Dispatches a command task across multiple online devices in the fleet simultaneously."""
+    user = get_current_user(request)
+    all_devices = db.list_devices_for_user(user["id"])
+
+    if payload.target_device_ids:
+        targets = [d for d in all_devices if d["id"] in payload.target_device_ids and d["status"] != "revoked"]
+    else:
+        # All non-revoked devices that have active heartbeat or are online
+        targets = [d for d in all_devices if d["status"] != "revoked" and d.get("is_live", True)]
+        if not targets:
+            targets = [d for d in all_devices if d["status"] != "revoked"]
+
+    if not targets:
+        raise HTTPException(status_code=400, detail="No active devices available in fleet to receive broadcast task")
+
+    if any(not isinstance(arg, str) or not arg or len(arg) > 512 for arg in payload.command):
+        raise HTTPException(status_code=400, detail="command must be an array of short strings")
+
+    exe_name = Path(payload.command[0]).name
+    if exe_name in DENIED_EXECUTABLES:
+        raise HTTPException(status_code=400, detail=f"Refusing shell/interpreter or high-risk command: {exe_name}")
+
+    dispatched = []
+    for dev in targets:
+        task_id = f"task_{uuid.uuid4().hex[:10]}"
+        task = db.create_task(
+            device_id=dev["id"],
+            user_id=user["id"],
+            task_id=task_id,
+            command=payload.command,
+            mode=payload.mode
+        )
+        db.record_device_event(
+            device_id=dev["id"],
+            event_type="broadcast_task_queued",
+            payload={"task_id": task_id, "command": payload.command, "mode": payload.mode},
+            task_id=task_id
+        )
+        dispatched.append({
+            "device_id": dev["id"],
+            "device_name": dev["name"],
+            "hostname": dev["hostname"],
+            "task_id": task_id,
+            "status": "queued"
+        })
+
+    return {
+        "status": "broadcast_queued",
+        "task_count": len(dispatched),
+        "dispatched": dispatched
+    }
 
 
 @app.get("/api/devices/{device_id}/tasks/{task_id}")

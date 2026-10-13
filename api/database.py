@@ -57,7 +57,19 @@ def init_db() -> None:
                         is_consumed INTEGER NOT NULL DEFAULT 0,
                         consumed_by_device_id TEXT,
                         device_name_hint TEXT,
+                        max_uses INTEGER NOT NULL DEFAULT 0,
+                        use_count INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    );
+                """)
+
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS pairing_code_uses (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        code TEXT NOT NULL,
+                        device_id TEXT NOT NULL,
+                        paired_at TEXT NOT NULL,
+                        FOREIGN KEY (code) REFERENCES pairing_codes(code) ON DELETE CASCADE
                     );
                 """)
 
@@ -123,6 +135,17 @@ def init_db() -> None:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON device_tasks(device_id, status);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_events_device ON device_events(device_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_rate_ip_time ON pairing_rate_limits(ip_address, attempt_time);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_pairing_uses_code ON pairing_code_uses(code);")
+
+                # Schema migrations for existing databases to support multi-device fleet enrollment
+                for col_stmt in [
+                    "ALTER TABLE pairing_codes ADD COLUMN max_uses INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE pairing_codes ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0"
+                ]:
+                    try:
+                        conn.execute(col_stmt)
+                    except sqlite3.OperationalError:
+                        pass
 
                 # Default user for single-operator / local console workflow
                 now = datetime.now(timezone.utc).isoformat()
@@ -170,7 +193,16 @@ def get_user(user_id: str) -> Optional[Dict[str, Any]]:
 
 # --- Pairing Codes ---
 
-def create_pairing_code(user_id: str, expires_in_seconds: int = 600, device_name_hint: Optional[str] = None) -> Dict[str, Any]:
+def create_pairing_code(
+    user_id: str,
+    expires_in_seconds: int = 600,
+    device_name_hint: Optional[str] = None,
+    max_uses: int = 0
+) -> Dict[str, Any]:
+    """Generates a secure pairing code.
+    max_uses=0 allows unlimited multi-device enrollment until expires_at.
+    max_uses=1 enforces single-use pairing.
+    """
     import secrets
     # 8-char uppercase/digits secure pairing code format e.g. PVS-7X8K
     code_suffix = secrets.token_hex(3).upper()
@@ -183,16 +215,22 @@ def create_pairing_code(user_id: str, expires_in_seconds: int = 600, device_name
         try:
             with conn:
                 conn.execute("""
-                    INSERT INTO pairing_codes (code, user_id, created_at, expires_at, is_consumed, device_name_hint)
-                    VALUES (?, ?, ?, ?, 0, ?)
-                """, (code, user_id, now_dt.isoformat(), expires_dt.isoformat(), device_name_hint))
+                    INSERT INTO pairing_codes (
+                        code, user_id, created_at, expires_at, is_consumed,
+                        device_name_hint, max_uses, use_count
+                    )
+                    VALUES (?, ?, ?, ?, 0, ?, ?, 0)
+                """, (code, user_id, now_dt.isoformat(), expires_dt.isoformat(), device_name_hint, max_uses))
             return {
                 "code": code,
                 "user_id": user_id,
                 "created_at": now_dt.isoformat(),
                 "expires_at": expires_dt.isoformat(),
                 "expires_in_seconds": expires_in_seconds,
-                "device_name_hint": device_name_hint
+                "device_name_hint": device_name_hint,
+                "max_uses": max_uses,
+                "use_count": 0,
+                "is_multi_device": (max_uses == 0 or max_uses > 1)
             }
         finally:
             conn.close()
@@ -208,20 +246,68 @@ def get_pairing_code(code: str) -> Optional[Dict[str, Any]]:
 
 
 def consume_pairing_code(code: str, device_id: str) -> bool:
-    """Atomically consumes pairing code. Returns True if successfully claimed, False if expired/consumed/invalid."""
+    """Atomically records device pairing for the code.
+    If max_uses > 0 and use_count reaches max_uses, marks is_consumed = 1.
+    If max_uses == 0, allows unlimited multi-device enrollment until expires_at.
+    Returns True if successfully claimed, False if expired, exhausted, or invalid.
+    """
     now_str = datetime.now(timezone.utc).isoformat()
     with _LOCK:
         conn = get_connection()
         try:
             with conn:
-                cur = conn.execute("""
+                row = conn.execute("""
+                    SELECT is_consumed, expires_at, max_uses, use_count
+                    FROM pairing_codes
+                    WHERE code = ?
+                """, (code,)).fetchone()
+                if not row:
+                    return False
+                if row["is_consumed"] == 1 or row["expires_at"] <= now_str:
+                    return False
+
+                current_uses = row["use_count"] or 0
+                max_u = row["max_uses"] or 0
+                new_use_count = current_uses + 1
+                should_consume = 1 if (max_u > 0 and new_use_count >= max_u) else 0
+
+                conn.execute("""
                     UPDATE pairing_codes
-                    SET is_consumed = 1, consumed_by_device_id = ?
-                    WHERE code = ? AND is_consumed = 0 AND expires_at > ?
-                """, (device_id, code, now_str))
-                return cur.rowcount > 0
+                    SET use_count = ?,
+                        is_consumed = ?,
+                        consumed_by_device_id = ?
+                    WHERE code = ?
+                """, (new_use_count, should_consume, device_id, code))
+
+                try:
+                    conn.execute("""
+                        INSERT INTO pairing_code_uses (code, device_id, paired_at)
+                        VALUES (?, ?, ?)
+                    """, (code, device_id, now_str))
+                except sqlite3.OperationalError:
+                    pass
+
+                return True
         finally:
             conn.close()
+
+
+def get_devices_for_pairing_code(code: str) -> List[Dict[str, Any]]:
+    """Returns all devices enrolled using a specific pairing code."""
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT d.*, u.paired_at as enrollment_time
+            FROM pairing_code_uses u
+            JOIN devices d ON u.device_id = d.id
+            WHERE u.code = ?
+            ORDER BY u.paired_at DESC
+        """, (code,)).fetchall()
+        return [_row_to_device(r) for r in rows]
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
 
 
 # --- Device Management ---
@@ -243,6 +329,14 @@ def create_device(
         conn = get_connection()
         try:
             with conn:
+                # Disambiguate name if another device already shares this exact name for this user
+                existing = conn.execute(
+                    "SELECT id FROM devices WHERE user_id = ? AND name = ?",
+                    (user_id, name)
+                ).fetchall()
+                if existing:
+                    name = f"{name} ({arch} · {device_id[-4:]})"
+
                 conn.execute("""
                     INSERT INTO devices (
                         id, user_id, name, hostname, os_info, kernel_version, arch,

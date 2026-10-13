@@ -135,6 +135,41 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
       } finally {
         setRunning(false);
       }
+    } else if (execTarget === "broadcast") {
+      // Broadcast across all online fleet nodes
+      try {
+        const res = await fetch(`${API}/devices/broadcast`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: args, mode: mode })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Broadcast failed (${res.status})`);
+
+        const count = data.task_count || 0;
+        const sessionData = {
+          id: `bcast_${Date.now()}`,
+          command: args,
+          mode: mode,
+          status: "broadcast_queued",
+          exit_code: 0,
+          duration_ms: 120,
+          stdout: `[FLEET BROADCAST SUCCESS] Task dispatched simultaneously to ${count} active endpoint(s):\n` +
+            data.dispatched.map(d => `  • ${d.device_name || d.hostname} (${d.device_id}) -> Task ID: ${d.task_id} [${d.status.toUpperCase()}]`).join("\n"),
+          stderr: "",
+          host_target: `All Online Devices (${count} Nodes)`,
+          timeline: [
+            { phase: "FLEET_BROADCAST", detail: `Dispatched command to ${count} online endpoints in fleet` },
+            { phase: "STATUS", detail: "Queued for remote kernel enforcement on endpoints" }
+          ]
+        };
+        setCurrentSession(sessionData);
+        setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+      } catch (err) {
+        setExecError(err.message || "Broadcast execution request failed");
+      } finally {
+        setRunning(false);
+      }
     } else {
       // Remote Fleet Endpoint Dispatch
       const targetDev = devices.find(d => d.id === execTarget);
@@ -241,9 +276,14 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                 }}
               >
                 <option value="gateway">🌐 Local Server Gateway</option>
+                {devices.filter(d => d.status !== "revoked" && d.is_live).length > 0 && (
+                  <option value="broadcast" style={{ color: "#38bdf8", fontWeight: 700 }}>
+                    ⚡ All Online Devices (Fleet Broadcast · {devices.filter(d => d.status !== "revoked" && d.is_live).length} nodes)
+                  </option>
+                )}
                 {devices.map(d => (
                   <option key={d.id} value={d.id}>
-                    💻 {d.name || d.hostname} ({d.is_live ? "Online" : "Offline"})
+                    💻 {d.name || d.hostname} ({d.is_live ? "Online" : d.status === "revoked" ? "Revoked" : "Offline"})
                   </option>
                 ))}
               </select>

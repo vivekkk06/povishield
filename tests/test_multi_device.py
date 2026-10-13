@@ -26,6 +26,7 @@ try:
         AgentHeartbeatRequest,
         AgentPairRequest,
         AgentTaskResultRequest,
+        DeviceBroadcastTaskRequest,
         DeviceTaskCreateRequest,
         PairingGenerateRequest,
         agent_disconnect_endpoint,
@@ -33,6 +34,7 @@ try:
         agent_heartbeat_endpoint,
         agent_pair_endpoint,
         agent_task_result_endpoint,
+        broadcast_device_task,
         create_device_task,
         delete_device_endpoint,
         generate_pairing_code,
@@ -106,9 +108,9 @@ class TestMultiDeviceFleet(unittest.TestCase):
         self.assertIn("cli_command", data)
 
     def test_03_pairing_code_single_use(self):
-        """Pairing code is atomically consumed and cannot be reused."""
+        """Pairing code is atomically consumed and cannot be reused when max_uses=1."""
         req = make_req(host="127.0.0.1")
-        gen = generate_pairing_code(PairingGenerateRequest(), req)
+        gen = generate_pairing_code(PairingGenerateRequest(max_uses=1), req)
         code = gen["code"]
 
         payload = AgentPairRequest(
@@ -128,11 +130,74 @@ class TestMultiDeviceFleet(unittest.TestCase):
         self.assertTrue(data1["device_id"].startswith("dev_"))
         self.assertTrue(data1["token"].startswith("pvs_agent_"))
 
-        # 2nd pair with same code: fails (already consumed)
+        # 2nd pair with same single-use code: fails (already consumed)
         with self.assertRaises(HTTPException) as ctx:
             agent_pair_endpoint(payload, req)
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("already been consumed", ctx.exception.detail)
+
+    def test_03b_multi_device_fleet_enrollment(self):
+        """Multi-device fleet enrollment: same key pairs multiple arbitrary machines."""
+        req = make_req(host="127.0.0.1")
+        # Default max_uses=0 allows arbitrary multiple devices to enroll
+        gen = generate_pairing_code(PairingGenerateRequest(max_uses=0), req)
+        code = gen["code"]
+
+        # Enroll Device 1 (Ubuntu workstation)
+        p1 = AgentPairRequest(
+            pairing_code=code,
+            name="Ubuntu-Workstation",
+            hostname="workstation-01",
+            os_info="Linux 6.8",
+            kernel_version="6.8.0",
+            arch="x86_64",
+            capabilities={"seccomp_bpf": True, "native_sandbox": True},
+            permissions={"allow_execution": True, "share_output": True}
+        )
+        d1 = agent_pair_endpoint(p1, req)
+        self.assertEqual(d1["status"], "paired")
+        self.assertTrue(d1["device_id"].startswith("dev_"))
+
+        # Enroll Device 2 (Cloud Server) using the SAME enrollment code
+        p2 = AgentPairRequest(
+            pairing_code=code,
+            name="Cloud-Server",
+            hostname="srv-cloud-02",
+            os_info="Linux 6.11",
+            kernel_version="6.11.0",
+            arch="x86_64",
+            capabilities={"seccomp_bpf": True, "native_sandbox": True},
+            permissions={"allow_execution": True, "share_output": True}
+        )
+        d2 = agent_pair_endpoint(p2, req)
+        self.assertEqual(d2["status"], "paired")
+        self.assertTrue(d2["device_id"].startswith("dev_"))
+        self.assertNotEqual(d1["device_id"], d2["device_id"])
+        self.assertNotEqual(d1["token"], d2["token"])
+
+        # Enroll Device 3 (Raspberry Pi ARM64 IoT node) using the SAME enrollment code
+        p3 = AgentPairRequest(
+            pairing_code=code,
+            name="Edge-ARM-Node",
+            hostname="rpi-edge-03",
+            os_info="Linux 6.6",
+            kernel_version="6.6.0",
+            arch="aarch64",
+            capabilities={"seccomp_bpf": True, "native_sandbox": False},
+            permissions={"allow_execution": True, "share_output": True}
+        )
+        d3 = agent_pair_endpoint(p3, req)
+        self.assertEqual(d3["status"], "paired")
+        self.assertNotEqual(d1["device_id"], d3["device_id"])
+        self.assertNotEqual(d2["device_id"], d3["device_id"])
+
+        # Verify all 3 devices enrolled in user fleet
+        devices_res = list_devices(req)
+        fleet_ids = [dev["id"] for dev in devices_res["devices"]]
+        self.assertIn(d1["device_id"], fleet_ids)
+        self.assertIn(d2["device_id"], fleet_ids)
+        self.assertIn(d3["device_id"], fleet_ids)
+        self.assertGreaterEqual(devices_res["count"], 3)
 
     def test_04_pairing_code_expiration(self):
         """Expired pairing codes fail closed."""
@@ -363,6 +428,27 @@ class TestMultiDeviceFleet(unittest.TestCase):
         self.assertIn("PoViShield Remote Linux Agent Installer", inst)
         agent_code = get_agent_script()
         self.assertIn("probe_local_security", agent_code)
+
+    def test_12_broadcast_task_to_fleet(self):
+        """Broadcast task dispatches command simultaneously across multiple devices."""
+        req = make_req(host="127.0.0.1")
+        gen = generate_pairing_code(PairingGenerateRequest(), req)
+        agent_pair_endpoint(AgentPairRequest(
+            pairing_code=gen["code"],
+            name="Broadcast-Target-01",
+            hostname="bcast-box",
+            os_info="Linux",
+            kernel_version="6.0",
+            arch="x86_64"
+        ), req)
+
+        b_res = broadcast_device_task(DeviceBroadcastTaskRequest(
+            command=["/usr/bin/echo", "Fleet Broadcast Verified"],
+            mode="enforce"
+        ), req)
+        self.assertEqual(b_res["status"], "broadcast_queued")
+        self.assertGreaterEqual(b_res["task_count"], 1)
+        self.assertTrue(len(b_res["dispatched"]) >= 1)
 
 
 if __name__ == "__main__":
