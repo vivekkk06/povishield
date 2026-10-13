@@ -57,6 +57,8 @@ try:
         grant_approval_endpoint,
         deny_approval_endpoint,
         agent_overview_endpoint,
+        download_povishield_cli,
+        download_agent_bundle,
     )
     HAS_FASTAPI = True
 except ImportError:
@@ -663,6 +665,37 @@ class TestMultiDeviceFleet(unittest.TestCase):
         self.assertGreaterEqual(len(overview["tasks"]), 1)
         self.assertGreaterEqual(len(overview["pending_approvals"]), 1)
         self.assertEqual(overview["tasks"][0]["command"], ["/usr/bin/echo", "remote worker task"])
+
+    @unittest.skipUnless(HAS_FASTAPI, "FastAPI required for endpoint unit testing")
+    def test_cli_and_agent_downloads(self):
+        """Verify downloading standalone ./povishield script and agent bundle archive."""
+        # 1. Test downloading ./povishield script
+        res_cli = download_povishield_cli()
+        self.assertEqual(res_cli.media_type, "text/x-shellscript")
+        self.assertIn('filename="povishield"', res_cli.headers.get("Content-Disposition", ""))
+        self.assertIn(b"resolve_agent()", res_cli.body)
+        self.assertIn(b"monitor", res_cli.body)
+
+        # 2. Test downloading povishield-agent.tar.gz bundle
+        res_tar = download_agent_bundle()
+        self.assertEqual(res_tar.media_type, "application/gzip")
+        self.assertIn('filename="povishield-agent.tar.gz"', res_tar.headers.get("Content-Disposition", ""))
+
+        import io
+        import tarfile
+        with tarfile.open(fileobj=io.BytesIO(res_tar.body), mode="r:gz") as tar:
+            names = tar.getnames()
+            self.assertIn("povishield", names)
+            self.assertIn("README.txt", names)
+            self.assertTrue(any(n.startswith("agent/") for n in names))
+
+        # 3. Test pairing code generator includes download commands
+        user_req = make_req({"x-povishield-user": "operator"})
+        code_resp = generate_pairing_code(PairingGenerateRequest(device_name_hint="CLI Download Test"), user_req)
+        self.assertIn("download_url", code_resp)
+        self.assertIn("bundle_url", code_resp)
+        self.assertIn("watch_command", code_resp)
+        self.assertEqual(code_resp["watch_command"], "./povishield watch")
 
 
 if __name__ == "__main__":

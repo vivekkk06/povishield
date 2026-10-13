@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Server, ShieldCheck, ShieldAlert, Terminal, Plus, RefreshCw,
   Copy, Check, Trash2, Lock, AlertTriangle, Cpu, Activity,
-  Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink
+  Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink, Download
 } from "lucide-react";
 
 export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDeviceId, refreshTick }) {
@@ -13,8 +13,9 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState(new Set());
 
-  // Pairing Wizard Modal State
+  // Pairing Wizard & Download Modal State
   const [showPairModal, setShowPairModal] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1: Privacy & Perms, 2: Code & Install
   const [pairingName, setPairingName] = useState("");
   const [enrollmentMode, setEnrollmentMode] = useState("multi"); // "multi" or "single"
@@ -439,6 +440,14 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               <p>Linux endpoints reporting telemetry</p>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                className="secondary-button"
+                onClick={() => setShowDownloadModal(true)}
+                title="Download ./povishield CLI & Agent"
+                style={{ padding: "6px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 5, borderColor: "#0284c7", color: "#38bdf8" }}
+              >
+                <Download size={13} /> Download CLI
+              </button>
               <button
                 className="secondary-button"
                 onClick={handleRefreshFleet}
@@ -1588,6 +1597,48 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   </div>
                 </div>
 
+                <div style={{ marginBottom: 20 }}>
+                  <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 6 }}>
+                    Option C: Download <code>./povishield</code> on another PC directly:
+                  </span>
+                  <div style={{
+                    background: "#050811", border: "1px solid #1e293b", borderRadius: 8, padding: 14
+                  }}>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                      <a
+                        href={`${API.replace(/\/api$/, '')}/download/povishield`}
+                        download="povishield"
+                        className="primary-button"
+                        style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 14px" }}
+                      >
+                        <Download size={14} /> Download ./povishield Script
+                      </a>
+                      <a
+                        href={`${API.replace(/\/api$/, '')}/download/povishield-agent.tar.gz`}
+                        download="povishield-agent.tar.gz"
+                        className="secondary-button"
+                        style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 14px", borderColor: "#334155" }}
+                      >
+                        <Download size={14} /> Download Agent Bundle (.tar.gz)
+                      </a>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 6, fontFamily: "var(--font-mono)" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#090d16", padding: "6px 10px", borderRadius: 4 }}>
+                        <span>1. Make executable: <strong style={{ color: "#f1f5f9" }}>chmod +x povishield</strong></span>
+                        <button className="icon-button" onClick={() => copyText("chmod +x povishield")} title="Copy"><Copy size={13} /></button>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#090d16", padding: "6px 10px", borderRadius: 4 }}>
+                        <span style={{ wordBreak: "break-all" }}>2. Connect: <strong style={{ color: "#38bdf8" }}>./povishield connect --server {pairingData.server_url} --code {pairingData.code}</strong></span>
+                        <button className="icon-button" onClick={() => copyText(`./povishield connect --server ${pairingData.server_url} --code ${pairingData.code}`)} title="Copy"><Copy size={13} /></button>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#090d16", padding: "6px 10px", borderRadius: 4 }}>
+                        <span>3. Live Watch: <strong style={{ color: "#34d399" }}>./povishield watch</strong></span>
+                        <button className="icon-button" onClick={() => copyText("./povishield watch")} title="Copy"><Copy size={13} /></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {waitingForPair && (
                   <div style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1633,6 +1684,108 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* --- STANDALONE DOWNLOAD & WATCH MODAL --- */}
+      {showDownloadModal && (
+        <div className="modal-backdrop" style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)",
+          backdropFilter: "blur(6px)", zIndex: 9999, display: "grid", placeItems: "center", padding: 20
+        }}>
+          <div className="modal-card" style={{
+            background: "#090d16", border: "1px solid #1e293b", borderRadius: 12,
+            maxWidth: 620, width: "100%", padding: 28, boxShadow: "0 20px 40px rgba(0,0,0,0.6)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Download size={20} style={{ color: "#38bdf8" }} />
+                <h3 style={{ fontSize: 18, color: "#f1f5f9" }}>Download PoViShield CLI & Remote Watch Tool</h3>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setShowDownloadModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, marginBottom: 18 }}>
+              Execute <code>./povishield watch</code> on any other computer, laptop, or server to live stream executions, security approvals, and kernel syscalls.
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+              <a
+                href={`${API.replace(/\/api$/, '')}/download/povishield`}
+                download="povishield"
+                className="primary-button"
+                style={{
+                  textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 8, padding: "12px 16px", fontSize: 13, textAlign: "center"
+                }}
+              >
+                <Download size={16} /> Download ./povishield
+              </a>
+              <a
+                href={`${API.replace(/\/api$/, '')}/download/povishield-agent.tar.gz`}
+                download="povishield-agent.tar.gz"
+                className="secondary-button"
+                style={{
+                  textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 8, padding: "12px 16px", fontSize: 13, textAlign: "center", borderColor: "#334155"
+                }}
+              >
+                <Download size={16} /> Full Bundle (.tar.gz)
+              </a>
+            </div>
+
+            <div style={{
+              background: "#050811", border: "1px solid #1e293b", borderRadius: 8, padding: 16, marginBottom: 20
+            }}>
+              <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 10 }}>
+                Step-by-Step Setup on the Other PC:
+              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 12, fontFamily: "var(--font-mono)" }}>
+                <div>
+                  <div style={{ color: "#64748b", marginBottom: 4 }}>1. Download via Terminal (or use button above):</div>
+                  <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#38bdf8", wordBreak: "break-all" }}>
+                    curl -sSL {typeof window !== "undefined" ? window.location.origin : ""}/download/povishield -o povishield && chmod +x povishield
+                    <button className="icon-button" onClick={() => copyText(`curl -sSL ${window.location.origin}/download/povishield -o povishield && chmod +x povishield`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#64748b", marginBottom: 4 }}>2. Connect & enroll this machine to PoViShield:</div>
+                  <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#cbd5e1", wordBreak: "break-all" }}>
+                    ./povishield connect {typeof window !== "undefined" ? window.location.origin : ""}
+                    <button className="icon-button" onClick={() => copyText(`./povishield connect ${window.location.origin}`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#64748b", marginBottom: 4 }}>3. Launch live cybersecurity watch stream:</div>
+                  <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#34d399", fontWeight: 700 }}>
+                    ./povishield watch
+                    <button className="icon-button" onClick={() => copyText("./povishield watch")} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                className="secondary-button"
+                onClick={() => { setShowDownloadModal(false); setWizardStep(1); setShowPairModal(true); }}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <Plus size={14} /> Get Pairing Code
+              </button>
+              <button
+                className="primary-button"
+                onClick={() => setShowDownloadModal(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

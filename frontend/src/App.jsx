@@ -4,7 +4,7 @@ import {
   FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, ChevronLeft, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
-  Check, Copy, Terminal, Server, X
+  Check, Copy, Terminal, Server, X, Download
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -753,6 +753,15 @@ function App() {
               </>
             )}
 
+            <a
+              href={`${API.replace(/\/api$/, '')}/download/povishield`}
+              download="povishield"
+              className="secondary-button"
+              style={{ padding: "6px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5, textDecoration: "none", borderColor: "#0284c7", color: "#38bdf8" }}
+              title="Download ./povishield executable for any remote Linux PC"
+            >
+              <Download size={13} /> Download CLI
+            </a>
             <button
               className="primary-button"
               style={{ padding: "6px 14px", fontSize: 11 }}

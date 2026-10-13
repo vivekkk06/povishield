@@ -71,18 +71,55 @@ fi
 CMD="$1"
 shift
 
+resolve_agent() {
+    if [ -f "${SCRIPT_DIR}/agent/povishield_agent.py" ]; then
+        PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m agent.povishield_agent "$@"
+    elif [ -f "${HOME}/.povishield/povishield_agent.py" ]; then
+        exec python3 "${HOME}/.povishield/povishield_agent.py" "$@"
+    else
+        INSTALL_DIR="${HOME}/.povishield"
+        mkdir -p "$INSTALL_DIR"
+        SERVER_URL="${POVI_SERVER_URL:-http://localhost:8000}"
+        if [ -f "${INSTALL_DIR}/agent.json" ]; then
+            SAVED_URL=$(grep -o '"server_url": *"[^"]*"' "${INSTALL_DIR}/agent.json" | head -n1 | cut -d'"' -f4 || true)
+            if [ -n "$SAVED_URL" ]; then
+                SERVER_URL="$SAVED_URL"
+            fi
+        fi
+        for arg in "$@"; do
+            if [[ "$arg" == http://* || "$arg" == https://* ]]; then
+                SERVER_URL="$arg"
+                break
+            fi
+        done
+        SERVER_URL="${SERVER_URL%/}"
+        echo "[SETUP] Downloading PoViShield remote agent core from ${SERVER_URL}..." >&2
+        if curl -sSL --retry 2 "${SERVER_URL}/api/agent/script" -o "$INSTALL_DIR/povishield_agent.py" 2>/dev/null && [ -s "$INSTALL_DIR/povishield_agent.py" ]; then
+            exec python3 "$INSTALL_DIR/povishield_agent.py" "$@"
+        else
+            echo "[ERROR] Could not find or download agent/povishield_agent.py." >&2
+            echo "To link this PC, run: ./povishield connect <SERVER_URL> --code <PAIRING_CODE>" >&2
+            exit 1
+        fi
+    fi
+}
+
 case "$CMD" in
     connect)
-        exec python3 -m agent.povishield_agent connect "$@"
+        resolve_agent connect "$@"
         ;;
-    monitor|watch|logs)
-        exec python3 -m agent.povishield_agent "$CMD" "$@"
+    monitor|watch|logs|probe|pair|start|status|stop)
+        resolve_agent "$CMD" "$@"
         ;;
     agent)
-        exec python3 -m agent.povishield_agent "$@"
+        resolve_agent "$@"
         ;;
     run|evaluate|list)
-        exec python3 -m analysis.runner "$CMD" "$@"
+        if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
+            exec python3 -m analysis.runner "$CMD" "$@"
+        else
+            resolve_agent "$CMD" "$@"
+        fi
         ;;
     learn|enforce|info)
         if [ ! -x "$BIN" ]; then

@@ -14,7 +14,7 @@ import sys
 import socket
 
 from fastapi import FastAPI, HTTPException, Request, Header
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response, FileResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 import api.database as db
@@ -1447,6 +1447,82 @@ def get_agent_script():
     return agent_path.read_text(encoding="utf-8")
 
 
+@app.get("/povishield")
+@app.get("/download/povishield")
+@app.get("/api/download/povishield")
+def download_povishield_cli():
+    cli_path = ROOT / "povishield"
+    if not cli_path.is_file():
+        raise HTTPException(status_code=404, detail="PoViShield CLI script not found")
+    content = cli_path.read_text(encoding="utf-8")
+    return Response(
+        content=content,
+        media_type="text/x-shellscript",
+        headers={
+            "Content-Disposition": 'attachment; filename="povishield"',
+            "Content-Type": "text/x-shellscript; charset=utf-8"
+        }
+    )
+
+
+@app.get("/download/povishield-agent.tar.gz")
+@app.get("/api/download/povishield-agent.tar.gz")
+def download_agent_bundle():
+    import io
+    import tarfile
+    cli_path = ROOT / "povishield"
+    agent_dir = ROOT / "agent"
+
+    if not cli_path.is_file() or not agent_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Agent bundle components missing")
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        # Add povishield executable with executable mode
+        info_cli = tar.gettarinfo(str(cli_path), arcname="povishield")
+        info_cli.mode = 0o755
+        with cli_path.open("rb") as f:
+            tar.addfile(info_cli, f)
+
+        # Add agent directory
+        for item in agent_dir.rglob("*"):
+            if item.is_file() and not item.name.endswith(".pyc") and "__pycache__" not in str(item):
+                rel = item.relative_to(agent_dir)
+                info = tar.gettarinfo(str(item), arcname=f"agent/{rel}")
+                info.mode = 0o644
+                with item.open("rb") as f:
+                    tar.addfile(info, f)
+
+        # Add README.txt
+        quickstart = (
+            "PoViShield Remote Fleet Agent & Watch Tool\n"
+            "==========================================\n\n"
+            "Quickstart Guide for Remote Linux Endpoints:\n\n"
+            "1. Make executable:\n"
+            "   chmod +x povishield\n\n"
+            "2. Connect this PC to your PoViShield server:\n"
+            "   ./povishield connect --server <SERVER_URL> --code <PAIRING_CODE>\n\n"
+            "3. Live Stream Executions & Kernel Syscalls:\n"
+            "   ./povishield watch\n\n"
+            "4. Check Agent Status:\n"
+            "   ./povishield status\n"
+        ).encode("utf-8")
+        readme_info = tarfile.TarInfo(name="README.txt")
+        readme_info.size = len(quickstart)
+        readme_info.mtime = int(time.time())
+        readme_info.mode = 0o644
+        tar.addfile(readme_info, io.BytesIO(quickstart))
+
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/gzip",
+        headers={
+            "Content-Disposition": 'attachment; filename="povishield-agent.tar.gz"'
+        }
+    )
+
+
 @app.post("/api/pairing/generate")
 @app.post("/pairing/generate")
 def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
@@ -1472,7 +1548,11 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
         "server_url": server_base,
         "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base} --start",
         "cli_command": f"./povishield connect --server {server_base} --code {code_record['code']}",
-        "sudo_command": f"sudo ./povishield connect --server {server_base} --code {code_record['code']}"
+        "sudo_command": f"sudo ./povishield connect --server {server_base} --code {code_record['code']}",
+        "watch_command": "./povishield watch",
+        "download_url": f"{server_base}/download/povishield",
+        "bundle_url": f"{server_base}/download/povishield-agent.tar.gz",
+        "curl_download_command": f"curl -sSL {server_base}/download/povishield -o povishield && chmod +x povishield",
     }
 
 
