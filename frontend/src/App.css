@@ -977,6 +977,173 @@ tbody tr:last-child td { border-bottom: 0; }
 .category-tag.privileged { background: #330f14; color: #f87171; border: 1px solid #691d27; }
 .category-tag.system { background: #111827; color: #94a3b8; border: 1px solid #1f2937; }
 
+/* Phase Tags */
+.phase-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.phase-entry { background: #0c2d48; color: #38bdf8; border: 1px solid #1e4976; }
+.phase-exit { background: #064e3b; color: #34d399; border: 1px solid #059669; }
+
+/* Live Process Monitor Styling */
+.trace-status {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: #08101e;
+  border: 1px solid #1a273b;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.trace-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  margin-top: 5px;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+.trace-status strong {
+  display: block;
+  color: #f1f5f9;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+.trace-status p {
+  margin: 0;
+  color: #8292a8;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.monitor-command-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin: 12px 0 6px;
+  letter-spacing: 0.3px;
+}
+
+.monitor-command-input {
+  display: block;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  background: #050914;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  color: #34d399;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.monitor-command-input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.monitor-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.monitor-session-id {
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: #38bdf8;
+  background: #0c2d48;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #1e4976;
+}
+
+.monitor-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: #94a3b8;
+  background: #0c1424;
+  border: 1px solid #1e293b;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.monitor-state-live {
+  color: #34d399;
+  background: #064e3b;
+  border-color: #059669;
+}
+.monitor-state span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.monitor-state-live span {
+  animation: livePulse 1.5s infinite ease-in-out;
+}
+
+.footnote {
+  font-size: 11px;
+  color: #64748b;
+  margin: 6px 0 12px;
+  line-height: 1.4;
+}
+
+/* Activity Summary Grid */
+.activity-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+.activity-summary > div {
+  background: #08101e;
+  border: 1px solid #1a273b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.activity-summary span {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+}
+.activity-summary strong {
+  font-size: 15px;
+  color: #34d399;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  word-break: break-all;
+}
+.activity-summary .source-value {
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
 /* Filter strips */
 .filter-strip {
   display: flex;

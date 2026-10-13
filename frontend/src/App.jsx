@@ -957,7 +957,46 @@ function App() {
                         <p>This observes syscall activity; it is not a sandbox or filesystem confinement. Runs as the current non-root user, with a 30-second runtime cap and a 10 MiB event-file cap.</p>
                       </div>
                     </div>
-                    <label className="monitor-command-label" htmlFor="monitor-command">Command as a JSON argv array (no shell)</label>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                      <label className="monitor-command-label" htmlFor="monitor-command" style={{ margin: 0 }}>
+                        Command as a JSON argv array (no shell):
+                      </label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: "#64748b", fontFamily: "var(--font-mono)" }}>Presets:</span>
+                        <button
+                          type="button"
+                          className="quick-chip"
+                          onClick={() => setMonitorCommand('["/usr/bin/sleep", "5"]')}
+                          style={{ padding: "2px 8px", fontSize: 11 }}
+                        >
+                          Sleep 5s
+                        </button>
+                        <button
+                          type="button"
+                          className="quick-chip"
+                          onClick={() => setMonitorCommand('["/usr/bin/echo", "Live tracing test"]')}
+                          style={{ padding: "2px 8px", fontSize: 11 }}
+                        >
+                          Echo
+                        </button>
+                        <button
+                          type="button"
+                          className="quick-chip"
+                          onClick={() => setMonitorCommand('["/usr/bin/cat", "/dev/null"]')}
+                          style={{ padding: "2px 8px", fontSize: 11 }}
+                        >
+                          Cat /dev/null
+                        </button>
+                        <button
+                          type="button"
+                          className="quick-chip"
+                          onClick={() => setMonitorCommand('["/usr/bin/date"]')}
+                          style={{ padding: "2px 8px", fontSize: 11 }}
+                        >
+                          Date
+                        </button>
+                      </div>
+                    </div>
                     <textarea id="monitor-command" className="monitor-command-input" value={monitorCommand}
                       onChange={event => setMonitorCommand(event.target.value)} spellCheck="false"
                       disabled={monitorSession?.status === "running" || monitorBusy} rows={2} />
