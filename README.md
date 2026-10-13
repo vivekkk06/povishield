@@ -223,6 +223,38 @@ sudo systemctl enable --now povishield-agent.service
 ### D. Container & Cloud Sandboxing Caveat
 If deploying the agent or runner inside Docker or Kubernetes containers, ensure the container runtime allows seccomp filter installation (`--security-opt seccomp=unconfined` or custom profiles permitting `PR_SET_NO_NEW_PRIVS` and `SCMP_ACT_KILL_PROCESS`). Standard unprivileged cloud containers with default Docker seccomp profiles may block nested seccomp initialization.
 
+### E. Deploying on Render (Backend) & Vercel (Frontend)
+
+PoViShield is pre-configured with `render.yaml`, `Procfile`, and `vercel.json` for zero-friction cloud deployment:
+
+#### 1. Deploy the Backend on Render
+1. Connect your repository to [Render](https://render.com) as a **Web Service**.
+2. Render automatically detects `render.yaml` / `Procfile`, or set:
+   - **Environment:** `Python 3`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
+3. Add Environment Variables:
+   - `POVISHIELD_ALLOW_REMOTE`: `1`
+   - `POVISHIELD_TOTAL_SYSCALLS`: `385`
+4. Once deployed, copy your Render URL: `https://<your-backend>.onrender.com`.
+
+#### 2. Deploy the Frontend on Vercel
+1. Import your repository into [Vercel](https://vercel.com).
+2. Set **Root Directory** to `frontend` (or leave root; `vercel.json` configures the build automatically).
+3. Set Environment Variable:
+   - `VITE_API_URL`: `https://<your-backend>.onrender.com/api`
+   *(If not set during build, you can also paste your Render backend URL directly into the dashboard UI on first launch!)*
+4. Click **Deploy**.
+
+#### 3. Connect Any Linux Machine to Your Cloud Fleet
+1. Open your Vercel deployment and navigate to **Fleet / Devices**.
+2. Click **Pair New Linux Endpoint** and enter a device nickname.
+3. Copy the generated one-liner and paste it into any Linux terminal:
+   ```bash
+   curl -sSL https://<your-backend>.onrender.com/install.sh | bash -s -- --code PV-PAIR-XXXX --server https://<your-backend>.onrender.com --start
+   ```
+4. The endpoint agent installs, probes local kernel capabilities, and connects outbound. The dashboard immediately reflects live status and allows remote policy-gated task execution!
+
 ---
 
 ## 7. Security Architecture & Assurance

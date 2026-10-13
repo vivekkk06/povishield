@@ -105,6 +105,21 @@ class DeviceTaskCreateRequest(BaseModel):
 # Host is checked against DNS rebinding, Origin against cross-site requests. Keep TRUSTED_ORIGINS in sync with
 # the CORS allow_origins list below; override with POVISHIELD_ALLOWED_ORIGINS="http://a:1,http://b:2".
 TRUSTED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+# Dynamically register cloud deployment hosts (Render / custom domains)
+for _env_k in ("RENDER_EXTERNAL_URL", "POVISHIELD_SERVER_URL", "POVISHIELD_PUBLIC_URL"):
+    _val = os.environ.get(_env_k)
+    if _val:
+        try:
+            from urllib.parse import urlparse
+            _h = urlparse(_val).hostname
+            if _h:
+                TRUSTED_HOSTS.add(_h)
+        except Exception:
+            pass
+for _ah in os.environ.get("POVISHIELD_ALLOWED_HOSTS", "").split(","):
+    if _ah.strip():
+        TRUSTED_HOSTS.add(_ah.strip())
+
 DEFAULT_ORIGINS = (
     "http://127.0.0.1:5173,http://localhost:5173,"
     "http://127.0.0.1:5174,http://localhost:5174,"
@@ -149,6 +164,8 @@ MAX_RUNNING_SESSIONS = 3
 def _is_allowed_origin(origin: Optional[str]) -> bool:
     if not origin or origin == "null":
         return False
+    if "*" in TRUSTED_ORIGINS:
+        return True
     if origin in TRUSTED_ORIGINS:
         return True
     try:
@@ -156,6 +173,13 @@ def _is_allowed_origin(origin: Optional[str]) -> bool:
         p = urlparse(origin)
         if p.scheme in ("http", "https"):
             if p.hostname in ("127.0.0.1", "localhost", "::1"):
+                return True
+            # Allow Vercel preview/production frontend deployments and Render endpoints
+            if p.hostname and (
+                p.hostname.endswith(".vercel.app")
+                or p.hostname.endswith(".onrender.com")
+                or p.hostname.endswith(".render.com")
+            ):
                 return True
             try:
                 ip = ipaddress.ip_address(p.hostname)
@@ -172,7 +196,10 @@ def _require_local_request(request: Request) -> None:
     def deny(detail: str):
         raise HTTPException(status_code=403, detail=detail)
 
-    if os.environ.get("POVISHIELD_ALLOW_REMOTE", "0").lower() in ("1", "true", "yes"):
+    if os.environ.get("POVISHIELD_ALLOW_REMOTE", "0").lower() in ("1", "true", "yes") or os.environ.get("RENDER") == "true":
+        origin = request.headers.get("origin")
+        if origin is not None and not _is_allowed_origin(origin):
+            deny("Untrusted Origin")
         return
 
     host = request.client.host if request.client else ""
@@ -184,7 +211,7 @@ def _require_local_request(request: Request) -> None:
         deny("Live monitoring is restricted to localhost")
     hdr = request.headers.get("host", "")
     name = (hdr.split("]")[0] + "]") if hdr.startswith("[") else hdr.rsplit(":", 1)[0]
-    if name not in TRUSTED_HOSTS:
+    if name not in TRUSTED_HOSTS and not (name.endswith(".onrender.com") or name.endswith(".render.com")):
         try:
             hip = ipaddress.ip_address(name)
             if not (hip.is_loopback or hip.is_private):
@@ -194,6 +221,7 @@ def _require_local_request(request: Request) -> None:
     origin = request.headers.get("origin")
     if origin is not None and not _is_allowed_origin(origin):
         deny("Untrusted Origin")
+
 
 
 def _session_payload(session: dict[str, Any]) -> dict[str, Any]:
@@ -276,8 +304,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=sorted(TRUSTED_ORIGINS),
-    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
+    allow_origins=["*"] if "*" in TRUSTED_ORIGINS else sorted(TRUSTED_ORIGINS),
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|([a-zA-Z0-9-]+\.)*vercel\.app|([a-zA-Z0-9-]+\.)*onrender\.com|([a-zA-Z0-9-]+\.)*render\.com)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PUT"],
     allow_headers=["*"],
@@ -907,9 +935,15 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
         expires_in_seconds=payload.expires_in_seconds,
         device_name_hint=payload.device_name_hint
     )
-    host_header = request.headers.get("host", "127.0.0.1:8000")
-    proto = request.headers.get("x-forwarded-proto", "http")
-    server_base = f"{proto}://{host_header}"
+    # Determine the public URL of the server (Render / custom domain / fallback)
+    server_base = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("POVISHIELD_SERVER_URL") or os.environ.get("POVISHIELD_PUBLIC_URL")
+    if not server_base:
+        host_header = request.headers.get("host", "127.0.0.1:8000")
+        proto = request.headers.get("x-forwarded-proto")
+        if not proto:
+            proto = "https" if (".onrender.com" in host_header or ".render.com" in host_header) else "http"
+        server_base = f"{proto}://{host_header}"
+    server_base = server_base.rstrip("/")
 
     return {
         **code_record,
@@ -917,6 +951,7 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
         "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base} --start",
         "cli_command": f"./povishield agent pair --code {code_record['code']} --server {server_base}"
     }
+
 
 
 @app.get("/api/devices")

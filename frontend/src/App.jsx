@@ -15,11 +15,33 @@ import TerminalBackground from "./components/TerminalBackground.jsx";
 import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx";
 import FleetDeviceConsole from "./components/FleetDeviceConsole.jsx";
 
-const API = import.meta.env.VITE_API_URL || (
-  typeof window !== "undefined" && (window.location.port === "5173" || window.location.port === "5174" || window.location.port === "5175" || window.location.port === "4173")
-    ? `${window.location.protocol}//${window.location.hostname}:8000/api`
-    : (typeof window !== "undefined" && window.location.protocol !== "file:" ? "/api" : "http://127.0.0.1:8000/api")
-);
+function getInitialApiUrl() {
+  if (typeof window !== "undefined") {
+    const custom = localStorage.getItem("povishield_custom_api_url");
+    if (custom && custom.trim()) {
+      let u = custom.trim().replace(/\/+$/, "");
+      if (!u.endsWith("/api")) u = `${u}/api`;
+      return u;
+    }
+  }
+  if (import.meta.env.VITE_API_URL) {
+    let u = import.meta.env.VITE_API_URL.trim().replace(/\/+$/, "");
+    return u;
+  }
+  if (typeof window !== "undefined") {
+    const port = window.location.port;
+    if (port === "5173" || port === "5174" || port === "5175" || port === "5176" || port === "5177" || port === "4173") {
+      return `${window.location.protocol}//${window.location.hostname}:8000/api`;
+    }
+    if (window.location.protocol !== "file:") {
+      return "/api";
+    }
+  }
+  return "http://127.0.0.1:8000/api";
+}
+
+const API = getInitialApiUrl();
+
 
 const navigationGroups = [
   {
@@ -104,12 +126,13 @@ async function getJSON(path) {
   if (!contentType.includes("application/json")) {
     const text = await response.text();
     if (text.trim().startsWith("<")) {
-      throw new Error(`Connected to web port, but received HTML instead of JSON. Ensure PoViShield API is running on port 8000.`);
+      throw new Error(`Connected to ${API}, but received HTML instead of JSON. If your backend is deployed on Render, connect your Render URL.`);
     }
     throw new Error(`API returned non-JSON response (${contentType})`);
   }
   return response.json();
 }
+
 
 function Metric({ icon: Icon, label, value, detail, progress, accent = "#10b981" }) {
   return (
@@ -659,14 +682,67 @@ function App() {
           </div>
 
           {error && (
-            <div className="notice" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <ShieldAlert size={19} />
-                <div><strong>API connection problem</strong><p>{error}</p></div>
+            <div className="notice" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, width: "100%" }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <ShieldAlert size={19} />
+                  <div><strong>API connection problem</strong><p>{error}</p></div>
+                </div>
+                <button className="secondary-button" onClick={loadData} style={{ whiteSpace: "nowrap" }}>
+                  <RefreshCw size={14} /> Retry Connection
+                </button>
               </div>
-              <button className="secondary-button" onClick={loadData} style={{ whiteSpace: "nowrap" }}>
-                <RefreshCw size={14} /> Retry Connection
-              </button>
+
+              {/* Remote Render + Vercel Connection Helper */}
+              <div style={{
+                background: "#050914", border: "1px solid #1e3a5f", borderRadius: 8, padding: 12, marginTop: 4, width: "100%"
+              }}>
+                <div style={{ fontSize: 12, color: "#38bdf8", fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Server size={14} /> Connecting frontend to a remote backend (Render / Custom URL)?
+                </div>
+                <p style={{ fontSize: 11, color: "#94a3b8", margin: "0 0 8px" }}>
+                  If your backend is deployed on Render, enter your Render URL below to connect this Vercel dashboard:
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    type="text"
+                    placeholder="https://your-backend.onrender.com"
+                    defaultValue={localStorage.getItem("povishield_custom_api_url")?.replace(/\/api$/, "") || ""}
+                    id="remote-backend-connect-input"
+                    style={{
+                      flex: 1, minWidth: 240, padding: "6px 12px", background: "#090f1d",
+                      border: "1px solid #263852", borderRadius: 6, color: "#f1f5f9", fontSize: 12, fontFamily: "var(--font-mono)"
+                    }}
+                  />
+                  <button
+                    className="primary-button"
+                    style={{ padding: "6px 14px", fontSize: 12 }}
+                    onClick={() => {
+                      const val = document.getElementById("remote-backend-connect-input")?.value?.trim();
+                      if (val) {
+                        let u = val.replace(/\/+$/, "");
+                        if (!u.endsWith("/api")) u = `${u}/api`;
+                        localStorage.setItem("povishield_custom_api_url", u);
+                        window.location.reload();
+                      }
+                    }}
+                  >
+                    Connect Backend
+                  </button>
+                  {localStorage.getItem("povishield_custom_api_url") && (
+                    <button
+                      className="secondary-button"
+                      style={{ padding: "6px 12px", fontSize: 12 }}
+                      onClick={() => {
+                        localStorage.removeItem("povishield_custom_api_url");
+                        window.location.reload();
+                      }}
+                    >
+                      Reset to Local
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -2433,6 +2509,42 @@ function App() {
                         <span>API Origin Host</span>
                         <strong style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{API}</strong>
                       </div>
+                      <div style={{ marginTop: 8, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+                        <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600, display: "block", marginBottom: 4 }}>
+                          Remote Backend URL (Render / Custom API)
+                        </span>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input
+                            type="text"
+                            placeholder="https://your-backend.onrender.com"
+                            defaultValue={localStorage.getItem("povishield_custom_api_url")?.replace(/\/api$/, "") || ""}
+                            id="settings-backend-url-input"
+                            style={{
+                              flex: 1, padding: "5px 8px", background: "#08101e", border: "1px solid #1e293b",
+                              borderRadius: 4, color: "#f1f5f9", fontSize: 11, fontFamily: "var(--font-mono)"
+                            }}
+                          />
+                          <button
+                            className="btn-filter"
+                            style={{ padding: "4px 10px", fontSize: 11 }}
+                            onClick={() => {
+                              const val = document.getElementById("settings-backend-url-input")?.value?.trim();
+                              if (val) {
+                                let u = val.replace(/\/+$/, "");
+                                if (!u.endsWith("/api")) u = `${u}/api`;
+                                localStorage.setItem("povishield_custom_api_url", u);
+                                window.location.reload();
+                              } else {
+                                localStorage.removeItem("povishield_custom_api_url");
+                                window.location.reload();
+                              }
+                            }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+
                       {activeDeviceId !== "gateway" && (
                         <button
                           className="btn-filter"

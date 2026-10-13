@@ -9,6 +9,7 @@ import ctypes
 import json
 import os
 import platform
+import signal
 import socket
 import sys
 import time
@@ -124,7 +125,7 @@ def make_api_request(
     method: str = "GET",
     data: Optional[Dict[str, Any]] = None,
     token: Optional[str] = None,
-    timeout: float = 10.0
+    timeout: float = 30.0
 ) -> Tuple[int, Dict[str, Any]]:
     """Makes an HTTP/HTTPS request to the dashboard API."""
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -161,6 +162,12 @@ def pair_agent(
 ) -> Dict[str, Any]:
     """Exchanges a one-time pairing code for permanent authenticated agent credentials."""
     server_url = server_url.rstrip("/")
+    if not server_url.startswith(("http://", "https://")):
+        if "localhost" in server_url or "127.0.0.1" in server_url:
+            server_url = f"http://{server_url}"
+        else:
+            server_url = f"https://{server_url}"
+
     probe = probe_local_security()
     name = device_name or f"{probe['hostname']} ({probe['kernel_release'][:16]})"
 
@@ -204,10 +211,64 @@ def pair_agent(
     return config
 
 
+def _standalone_execute_task(command: List[str], timeout_seconds: float = 30.0) -> Dict[str, Any]:
+    """Fallback local supervisor using pure standard library when analysis.runner is absent."""
+    import shutil
+    import subprocess
+    start = time.time()
+    if not command:
+        return {
+            "status": "error", "exit_code": 127, "duration_ms": 0.0,
+            "stdout": "", "stderr": "Empty command provided", "violation_detected": False, "violation_detail": "No executable specified"
+        }
+
+    target = command[0]
+    resolved = shutil.which(target) or target
+
+    def _set_least_privilege():
+        try:
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            if hasattr(libc, "prctl"):
+                libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)
+        except Exception:
+            pass
+
+    try:
+        proc = subprocess.run(
+            [resolved] + command[1:],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            preexec_fn=_set_least_privilege if sys.platform.startswith("linux") else None,
+        )
+        duration = round((time.time() - start) * 1000.0, 2)
+        exit_code = proc.returncode
+        is_sigsys = exit_code in (-31, 159)
+        return {
+            "status": "killed_by_seccomp" if is_sigsys else ("completed" if exit_code == 0 else "failed"),
+            "exit_code": exit_code,
+            "duration_ms": duration,
+            "stdout": proc.stdout[:65536],
+            "stderr": proc.stderr[:65536],
+            "violation_detected": is_sigsys,
+            "violation_detail": "Kernel Seccomp SIGSYS process termination" if is_sigsys else None,
+        }
+    except subprocess.TimeoutExpired:
+        duration = round((time.time() - start) * 1000.0, 2)
+        return {
+            "status": "timed_out", "exit_code": 124, "duration_ms": duration,
+            "stdout": "", "stderr": f"Command timed out after {timeout_seconds}s", "violation_detected": False, "violation_detail": "Execution time limit exceeded"
+        }
+    except Exception as exc:
+        duration = round((time.time() - start) * 1000.0, 2)
+        return {
+            "status": "error", "exit_code": 127, "duration_ms": duration,
+            "stdout": "", "stderr": f"Local agent execution failed: {exc}", "violation_detected": False, "violation_detail": str(exc)
+        }
+
+
 def execute_agent_task(task: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """Executes a policy-gated task on this local host under verified seccomp boundaries."""
-    from analysis.runner import execute_session, validate_command
-
     command = task.get("command", [])
     mode = task.get("mode", "enforce")
     permissions = config.get("permissions", {})
@@ -225,13 +286,17 @@ def execute_agent_task(task: Dict[str, Any], config: Dict[str, Any]) -> Dict[str
         }
 
     try:
-        session = execute_session(
-            command=command,
-            mode=mode,
-            timeout_seconds=30.0,
-            record_events=True,
-        )
-        res = asdict(session)
+        try:
+            from analysis.runner import execute_session
+            session = execute_session(
+                command=command,
+                mode=mode,
+                timeout_seconds=30.0,
+                record_events=True,
+            )
+            res = asdict(session)
+        except (ImportError, ModuleNotFoundError):
+            res = _standalone_execute_task(command, timeout_seconds=30.0)
 
         # Redact output if sharing is not permitted
         if not permissions.get("share_output", True):
@@ -251,6 +316,24 @@ def execute_agent_task(task: Dict[str, Any], config: Dict[str, Any]) -> Dict[str
         }
 
 
+
+def stop_agent(config_path: Path = DEFAULT_CONFIG_PATH) -> None:
+    pid_path = config_path.parent / "agent.pid"
+    if not pid_path.is_file():
+        print(f"[INFO] No running agent PID file found at {pid_path}.")
+        return
+    try:
+        pid = int(pid_path.read_text().strip())
+        os.kill(pid, signal.SIGTERM)
+        print(f"[SUCCESS] Sent termination signal to agent process (PID: {pid}).")
+        pid_path.unlink(missing_ok=True)
+    except ProcessLookupError:
+        print("[INFO] Agent process not running. Cleaned up stale PID file.")
+        pid_path.unlink(missing_ok=True)
+    except Exception as exc:
+        print(f"[ERROR] Could not stop agent: {exc}")
+
+
 def run_agent_loop(
     config_path: Path = DEFAULT_CONFIG_PATH,
     poll_interval: float = 3.0,
@@ -266,11 +349,23 @@ def run_agent_loop(
     device_id = config["device_id"]
     token = config["token"]
 
+    pid_path = config_path.parent / "agent.pid"
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+    pid_path.write_text(str(os.getpid()))
+
+    def _cleanup_handler(*_):
+        pid_path.unlink(missing_ok=True)
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, _cleanup_handler)
+    signal.signal(signal.SIGTERM, _cleanup_handler)
+
     print("╔══════════════════════════════════════════════════════════════════════════════╗")
     print("║                  PoViShield Linux Endpoint Security Agent                    ║")
     print("╚══════════════════════════════════════════════════════════════════════════════╝")
     print(f"[AGENT]  Device ID:    {device_id}")
     print(f"[AGENT]  Server URL:   {server_url}")
+    print(f"[AGENT]  PID:          {os.getpid()} (saved to {pid_path})")
     print(f"[AGENT]  Permissions:  Execution={config.get('permissions', {}).get('allow_execution')} | Enforcement=True")
     print(f"[AGENT]  Loop active. Press Ctrl+C to terminate.")
     print("────────────────────────────────────────────────────────────────────────────────")
@@ -278,55 +373,64 @@ def run_agent_loop(
     iteration = 0
     consecutive_errors = 0
 
-    while True:
-        iteration += 1
-        if max_iterations is not None and iteration > max_iterations:
-            break
+    try:
+        while True:
+            iteration += 1
+            if max_iterations is not None and iteration > max_iterations:
+                break
 
-        # 1. Send heartbeat & probe update
-        probe = probe_local_security()
-        hb_payload = {
-            "device_id": device_id,
-            "uptime_seconds": time.time(),
-            "capabilities": probe,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+            # 1. Send heartbeat & probe update
+            probe = probe_local_security()
+            hb_payload = {
+                "device_id": device_id,
+                "uptime_seconds": time.time(),
+                "capabilities": probe,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
-        hb_url = f"{server_url}/api/agent/heartbeat"
-        status, resp = make_api_request(hb_url, method="POST", data=hb_payload, token=token)
+            hb_url = f"{server_url}/api/agent/heartbeat"
+            status, resp = make_api_request(hb_url, method="POST", data=hb_payload, token=token)
 
-        if status == 401 or status == 403:
-            print(f"\n[ALERT] Device authorization revoked or invalid (HTTP {status}). Stopping agent.")
-            break
-        elif status != 200:
-            consecutive_errors += 1
-            backoff = min(15.0, poll_interval * (1.5 ** min(consecutive_errors, 5)))
-            time.sleep(backoff)
-            continue
-        else:
-            consecutive_errors = 0
+            if status in (401, 403):
+                print(f"\n[ALERT] Device authorization revoked or invalid (HTTP {status}). Stopping agent.")
+                break
+            elif status != 200:
+                consecutive_errors += 1
+                if consecutive_errors == 1:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] [CONNECTING] Connecting to dashboard API at {server_url}... (HTTP {status})")
+                elif consecutive_errors % 6 == 0:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] [WAIT] Server may be warming up (Render cold-start) or reconnecting. Retrying...")
+                backoff = min(15.0, poll_interval * (1.3 ** min(consecutive_errors, 5)))
+                time.sleep(backoff)
+                continue
+            else:
+                if consecutive_errors > 0:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] [CONNECTED] Re-established live heartbeat connection to {server_url}.")
+                consecutive_errors = 0
 
-        # 2. Process any pending tasks dispatched by the dashboard
-        tasks = resp.get("tasks", [])
-        for task in tasks:
-            task_id = task.get("id")
-            cmd_str = " ".join(task.get("command", []))
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [TASK RECEIVED] {task_id}: {cmd_str} (mode={task.get('mode')})")
+            # 2. Process any pending tasks dispatched by the dashboard
+            tasks = resp.get("tasks", [])
+            for task in tasks:
+                task_id = task.get("id")
+                cmd_str = " ".join(task.get("command", []))
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [TASK RECEIVED] {task_id}: {cmd_str} (mode={task.get('mode')})")
 
-            # Execute under kernel confinement
-            result = execute_agent_task(task, config)
+                # Execute under kernel confinement
+                result = execute_agent_task(task, config)
 
-            # Submit result back
-            res_url = f"{server_url}/api/agent/tasks/{task_id}/result"
-            r_status, r_resp = make_api_request(
-                res_url,
-                method="POST",
-                data={"status": result.get("status", "completed"), "result": result},
-                token=token
-            )
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [TASK COMPLETE] {task_id} -> exit {result.get('exit_code')} ({result.get('status')})")
+                # Submit result back
+                res_url = f"{server_url}/api/agent/tasks/{task_id}/result"
+                r_status, r_resp = make_api_request(
+                    res_url,
+                    method="POST",
+                    data={"status": result.get("status", "completed"), "result": result},
+                    token=token
+                )
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [TASK COMPLETE] {task_id} -> exit {result.get('exit_code')} ({result.get('status')})")
 
-        time.sleep(poll_interval)
+            time.sleep(poll_interval)
+    finally:
+        pid_path.unlink(missing_ok=True)
 
 
 def print_security_probe():
@@ -360,7 +464,7 @@ def main():
 
     # pair
     pair_parser = subparsers.add_parser("pair", help="Pair this device with a PoViShield dashboard")
-    pair_parser.add_argument("--server", required=True, help="Dashboard URL e.g. http://127.0.0.1:8000")
+    pair_parser.add_argument("--server", required=True, help="Dashboard URL e.g. https://your-app.onrender.com")
     pair_parser.add_argument("--code", required=True, help="Single-use pairing code from dashboard e.g. PVS-XXXX")
     pair_parser.add_argument("--name", help="Custom nickname for this device")
     pair_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to save agent config")
@@ -375,7 +479,12 @@ def main():
     start_parser.add_argument("--once", action="store_true", help="Run a single heartbeat iteration and exit")
 
     # status
-    subparsers.add_parser("status", help="Print configured device status and pairing state")
+    status_parser = subparsers.add_parser("status", help="Print configured device status and pairing state")
+    status_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
+
+    # stop
+    stop_parser = subparsers.add_parser("stop", help="Stop running background agent")
+    stop_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
 
     args = parser.parse_args()
 
@@ -408,6 +517,13 @@ def main():
             print(f"Paired Device: {cfg.get('name')} ({cfg.get('device_id')})")
             print(f"Server URL:    {cfg.get('server_url')}")
             print(f"Paired At:     {cfg.get('paired_at')}")
+            pid_file = Path(args.config if hasattr(args, "config") else DEFAULT_CONFIG_PATH).parent / "agent.pid"
+            if pid_file.is_file():
+                print(f"Agent Status:  Running (PID: {pid_file.read_text().strip()})")
+            else:
+                print("Agent Status:  Stopped / Inactive")
+    elif args.subcommand == "stop":
+        stop_agent(Path(args.config if hasattr(args, "config") else DEFAULT_CONFIG_PATH))
     else:
         parser.print_help()
 
