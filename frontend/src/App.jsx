@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ShieldCheck, LayoutDashboard, Activity, FileText,
   FlaskConical, Settings, ShieldAlert, Cpu,
-  LockKeyhole, Gauge, ChevronRight, Menu, RefreshCw, Play, Square,
+  LockKeyhole, Gauge, ChevronRight, ChevronLeft, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
   Check, Copy, Terminal, Server
 } from "lucide-react";
@@ -114,6 +114,25 @@ function Metric({ icon: Icon, label, value, detail, progress, accent = "#10b981"
 function App() {
   const [page, setPage] = useState("Overview");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem("povishield_sidebar_collapsed") === "true";
+  });
+  const [devices, setDevices] = useState([]);
+  const [activeDeviceId, setActiveDeviceId] = useState(() => {
+    return localStorage.getItem("povishield_active_device_id") || "gateway";
+  });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem("povishield_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
+
+  const activeDevice = activeDeviceId !== "gateway"
+    ? devices.find(d => d.id === activeDeviceId)
+    : null;
   const [overview, setOverview] = useState(null);
   const [policies, setPolicies] = useState(null);
   const [experiments, setExperiments] = useState(null);
@@ -211,6 +230,13 @@ function App() {
         // Approvals optional
       }
 
+      try {
+        const devRes = await getJSON("/devices");
+        setDevices(devRes.devices ?? []);
+      } catch {
+        // Devices optional
+      }
+
       // Initialize policy compare default filenames
       if (p?.items?.length) {
         const baseItem = p.items.find(i => i.name.includes("baseline") || i.name === "grep.json");
@@ -229,6 +255,17 @@ function App() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const pollDevices = async () => {
+      try {
+        const devRes = await getJSON("/devices");
+        setDevices(devRes.devices ?? []);
+      } catch {}
+    };
+    const timer = setInterval(pollDevices, 6000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function loadEvents() {
     setEventsLoading(true);
@@ -389,10 +426,19 @@ function App() {
   return (
     <div className="app-shell">
       <TerminalBackground />
-      <aside className={`sidebar ${menuOpen ? "sidebar-open" : ""}`}>
-        <div className="brand" onClick={() => setPage("Overview")} style={{ cursor: "pointer" }}>
-          <div className="brand-icon"><ShieldCheck size={26} /></div>
-          <div><h2 className="brand-title">PoViShield</h2><span>LINUX DEFENSE & FLEET</span></div>
+      <aside className={`sidebar ${sidebarCollapsed ? "collapsed" : ""} ${menuOpen ? "sidebar-open" : ""}`}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px 24px" }}>
+          <div className="brand" onClick={() => setPage("Overview")} style={{ cursor: "pointer", padding: 0 }}>
+            <div className="brand-icon"><ShieldCheck size={26} /></div>
+            <div><h2 className="brand-title">PoViShield</h2><span>LINUX DEFENSE & FLEET</span></div>
+          </div>
+          <button
+            className="sidebar-hide-btn"
+            onClick={toggleSidebar}
+            title="Hide side panel"
+          >
+            <ChevronLeft size={16} />
+          </button>
         </div>
 
         <nav style={{ overflowY: "auto", flex: 1, paddingRight: 4 }}>
@@ -442,10 +488,11 @@ function App() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className={`main-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <header className="topbar">
-          <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)}>
-            <Menu size={22} />
+          <button className="menu-button" onClick={toggleSidebar} title={sidebarCollapsed ? "Show side panel" : "Hide side panel"}>
+            <Menu size={16} />
+            <span style={{ fontSize: 11, fontFamily: "var(--font-mono)" }}>{sidebarCollapsed ? "Expand" : "Hide"}</span>
           </button>
           <div className="breadcrumb">
             <span style={{ color: "#10b981", fontWeight: 700, cursor: "pointer" }} onClick={() => setPage("Overview")}>PoViShield</span>
@@ -453,19 +500,67 @@ function App() {
             <span style={{ color: "#f1f5f9" }}>{page}</span>
           </div>
           <div className="top-actions">
-            <div className="telemetry-chip">
-              <span className="live-pulse-dot" />
-              <span>KERNEL:</span>
-              <strong>{overview?.environment?.kernel?.split("-")[0] || "7.2.8 x86_64"}</strong>
+            <div className="device-selector-wrapper" title="Active Inspected Target Node">
+              <Server size={14} style={{ color: activeDevice?.is_live ? "#34d399" : activeDevice ? "#f59e0b" : "#38bdf8" }} />
+              <select
+                value={activeDeviceId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "__pair__") {
+                    setPage("Fleet / Devices");
+                    return;
+                  }
+                  setActiveDeviceId(val);
+                  localStorage.setItem("povishield_active_device_id", val);
+                }}
+                className="device-select-dropdown"
+              >
+                <option value="gateway">🌐 Local Server Gateway</option>
+                {devices.map(d => (
+                  <option key={d.id} value={d.id}>
+                    💻 {d.name || d.hostname} ({d.is_live ? "Online" : d.status === "revoked" ? "Revoked" : "Offline"})
+                  </option>
+                ))}
+                <option value="__pair__">➕ Connect / Pair Another PC…</option>
+              </select>
             </div>
-            <div className="telemetry-chip">
-              <span>SECCOMP:</span>
-              <strong style={{ color: "#34d399" }}>BPF KILL ACTIVE</strong>
-            </div>
-            <div className="telemetry-chip">
-              <span>GATE:</span>
-              <strong style={{ color: "#38bdf8" }}>FAIL-CLOSED</strong>
-            </div>
+
+            {activeDevice ? (
+              <>
+                <div className="telemetry-chip">
+                  <span className="live-pulse-dot" style={{ background: activeDevice.is_live ? "#10b981" : "#64748b" }} />
+                  <span>NODE:</span>
+                  <strong>{activeDevice.hostname || activeDevice.name}</strong>
+                </div>
+                <div className="telemetry-chip">
+                  <span>KERNEL:</span>
+                  <strong>{activeDevice.kernel_version?.split("-")[0] || activeDevice.arch}</strong>
+                </div>
+                <div className="telemetry-chip">
+                  <span>SECCOMP:</span>
+                  <strong style={{ color: activeDevice.capabilities?.seccomp_bpf ? "#34d399" : "#f87171" }}>
+                    {activeDevice.capabilities?.seccomp_bpf ? "BPF KILL ACTIVE" : "BPF UNVERIFIED"}
+                  </strong>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="telemetry-chip">
+                  <span className="live-pulse-dot" />
+                  <span>KERNEL:</span>
+                  <strong>{overview?.environment?.kernel?.split("-")[0] || "7.2.8 x86_64"}</strong>
+                </div>
+                <div className="telemetry-chip">
+                  <span>SECCOMP:</span>
+                  <strong style={{ color: "#34d399" }}>BPF KILL ACTIVE</strong>
+                </div>
+                <div className="telemetry-chip">
+                  <span>GATE:</span>
+                  <strong style={{ color: "#38bdf8" }}>FAIL-CLOSED</strong>
+                </div>
+              </>
+            )}
+
             <button
               className="primary-button"
               style={{ padding: "6px 14px", fontSize: 11 }}
@@ -476,7 +571,7 @@ function App() {
             <button className="icon-button" onClick={loadData} title="Refresh workspace data">
               <RefreshCw size={17} />
             </button>
-            <div className="avatar" title="PoViShield Authenticated Operator">OP</div>
+            <div className="avatar" title="PoViShield Security Operator">PV</div>
           </div>
         </header>
 
@@ -519,6 +614,85 @@ function App() {
                       </p>
                     </div>
                   </div>
+
+                  {activeDevice && (
+                    <div className="panel" style={{ marginBottom: 20, border: "1px solid #10b981", background: "rgba(6, 26, 20, 0.7)" }}>
+                      <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span className="live-pulse-dot" style={{ background: activeDevice.is_live ? "#10b981" : "#64748b" }} />
+                            <h2 style={{ fontSize: 16, margin: 0, color: "#34d399" }}>
+                              Target Endpoint Node: {activeDevice.name || activeDevice.hostname}
+                            </h2>
+                            <span className="demo-badge" style={{
+                              background: activeDevice.is_live ? "#064e3b" : "#1e293b",
+                              color: activeDevice.is_live ? "#34d399" : "#94a3b8",
+                              border: activeDevice.is_live ? "1px solid #059669" : "1px solid #334155"
+                            }}>
+                              {activeDevice.is_live ? "LIVE ACTIVE NODE" : "DISCONNECTED / OFFLINE"}
+                            </span>
+                          </div>
+                          <p style={{ marginTop: 4, color: "#94a3b8" }}>
+                            Viewing telemetry and managing security confinement for host <code>{activeDevice.hostname}</code> ({activeDevice.os_info} · {activeDevice.arch})
+                          </p>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            className="primary-button"
+                            style={{ padding: "6px 14px", fontSize: 12 }}
+                            onClick={() => setPage("Terminal / Execute")}
+                          >
+                            <Terminal size={14} /> Execute on this Machine
+                          </button>
+                          <button
+                            className="secondary-button"
+                            style={{ padding: "6px 12px", fontSize: 12 }}
+                            onClick={() => setPage("Fleet / Devices")}
+                          >
+                            <Server size={14} /> Manage Fleet
+                          </button>
+                          <button
+                            className="secondary-button"
+                            style={{ padding: "6px 12px", fontSize: 12 }}
+                            onClick={() => {
+                              setActiveDeviceId("gateway");
+                              localStorage.setItem("povishield_active_device_id", "gateway");
+                            }}
+                          >
+                            Reset to Gateway
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginTop: 14 }}>
+                        <div className="eval-metric-box">
+                          <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Kernel Seccomp-BPF</span>
+                          <strong style={{ color: activeDevice.capabilities?.seccomp_bpf ? "#34d399" : "#f87171", fontSize: 13, fontFamily: "var(--font-mono)" }}>
+                            {activeDevice.capabilities?.seccomp_bpf ? "BPF KILL ACTIVE" : "UNAVAILABLE"}
+                          </strong>
+                        </div>
+                        <div className="eval-metric-box">
+                          <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>PR_SET_NO_NEW_PRIVS</span>
+                          <strong style={{ color: activeDevice.capabilities?.no_new_privs ? "#34d399" : "#f87171", fontSize: 13, fontFamily: "var(--font-mono)" }}>
+                            {activeDevice.capabilities?.no_new_privs ? "SUPPORTED" : "UNSUPPORTED"}
+                          </strong>
+                        </div>
+                        <div className="eval-metric-box">
+                          <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Cgroups v2 Resource Cap</span>
+                          <strong style={{ color: activeDevice.capabilities?.cgroups_v2 ? "#38bdf8" : "#94a3b8", fontSize: 13, fontFamily: "var(--font-mono)" }}>
+                            {activeDevice.capabilities?.cgroups_v2 ? "MOUNTED" : "ABSENT"}
+                          </strong>
+                        </div>
+                        <div className="eval-metric-box">
+                          <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Native Tracer Binary</span>
+                          <strong style={{ color: activeDevice.capabilities?.native_sandbox ? "#34d399" : "#94a3b8", fontSize: 13, fontFamily: "var(--font-mono)" }}>
+                            {activeDevice.capabilities?.native_sandbox ? "VERIFIED" : "NOT BUILT"}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Hero Quick Launch Cards */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 22 }}>
@@ -761,7 +935,13 @@ function App() {
               )}
 
               {page === "Terminal / Execute" && (
-                <TerminalExecutionConsole API={API} health={health} />
+                <TerminalExecutionConsole
+                  API={API}
+                  health={health}
+                  devices={devices}
+                  activeDeviceId={activeDeviceId}
+                  setActiveDeviceId={setActiveDeviceId}
+                />
               )}
 
               {page === "Activity Monitor" && (

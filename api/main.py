@@ -154,8 +154,15 @@ def _is_allowed_origin(origin: Optional[str]) -> bool:
     try:
         from urllib.parse import urlparse
         p = urlparse(origin)
-        if p.scheme in ("http", "https") and p.hostname in ("127.0.0.1", "localhost", "::1"):
-            return True
+        if p.scheme in ("http", "https"):
+            if p.hostname in ("127.0.0.1", "localhost", "::1"):
+                return True
+            try:
+                ip = ipaddress.ip_address(p.hostname)
+                if ip.is_loopback or ip.is_private:
+                    return True
+            except ValueError:
+                pass
     except Exception:
         pass
     return False
@@ -165,16 +172,25 @@ def _require_local_request(request: Request) -> None:
     def deny(detail: str):
         raise HTTPException(status_code=403, detail=detail)
 
+    if os.environ.get("POVISHIELD_ALLOW_REMOTE", "0").lower() in ("1", "true", "yes"):
+        return
+
     host = request.client.host if request.client else ""
     try:
-        if not ipaddress.ip_address(host).is_loopback:
+        ip = ipaddress.ip_address(host)
+        if not (ip.is_loopback or ip.is_private):
             deny("Live monitoring is restricted to localhost")
     except ValueError:
         deny("Live monitoring is restricted to localhost")
     hdr = request.headers.get("host", "")
     name = (hdr.split("]")[0] + "]") if hdr.startswith("[") else hdr.rsplit(":", 1)[0]
     if name not in TRUSTED_HOSTS:
-        deny("Untrusted Host header")
+        try:
+            hip = ipaddress.ip_address(name)
+            if not (hip.is_loopback or hip.is_private):
+                deny("Untrusted Host header")
+        except ValueError:
+            deny("Untrusted Host header")
     origin = request.headers.get("origin")
     if origin is not None and not _is_allowed_origin(origin):
         deny("Untrusted Origin")
@@ -261,9 +277,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=sorted(TRUSTED_ORIGINS),
-    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$",
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PUT"],
     allow_headers=["*"],
 )
 
@@ -898,7 +914,7 @@ def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
     return {
         **code_record,
         "server_url": server_base,
-        "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base}",
+        "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base} --start",
         "cli_command": f"./povishield agent pair --code {code_record['code']} --server {server_base}"
     }
 

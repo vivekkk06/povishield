@@ -5,10 +5,11 @@ set -euo pipefail
 SERVER=""
 CODE=""
 NAME=""
+START_AGENT="false"
 
 usage() {
     echo "PoViShield Agent Installer"
-    echo "Usage: $0 --server <URL> --code <PAIRING_CODE> [--name <DEVICE_NAME>]"
+    echo "Usage: $0 --server <URL> --code <PAIRING_CODE> [--name <DEVICE_NAME>] [--start]"
     exit 1
 }
 
@@ -25,6 +26,10 @@ while [[ $# -gt 0 ]]; do
         --name)
             NAME="$2"
             shift 2
+            ;;
+        --start)
+            START_AGENT="true"
+            shift 1
             ;;
         *)
             usage
@@ -62,6 +67,11 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd || echo ""
 if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/agent/povishield_agent.py" ]; then
     echo "[SETUP] Using local PoViShield installation at: $REPO_DIR"
     python3 "$REPO_DIR/agent/povishield_agent.py" pair --server "$SERVER" --code "$CODE" ${NAME:+--name "$NAME"}
+    if [ "$START_AGENT" = "true" ]; then
+        echo "[START] Starting PoViShield agent in background..."
+        nohup python3 "$REPO_DIR/agent/povishield_agent.py" start > /tmp/povishield_agent.log 2>&1 &
+        echo "[SUCCESS] Agent running in background (PID: $!). Telemetry streaming to dashboard."
+    fi
 else
     # Remote target host setup into ~/.povishield
     INSTALL_DIR="$HOME/.povishield"
@@ -69,10 +79,15 @@ else
     echo "[SETUP] Downloading PoViShield agent components to $INSTALL_DIR..."
     curl -sSL "${SERVER}/api/agent/script" -o "$INSTALL_DIR/povishield_agent.py"
     python3 "$INSTALL_DIR/povishield_agent.py" pair --server "$SERVER" --code "$CODE" ${NAME:+--name "$NAME"}
+    if [ "$START_AGENT" = "true" ]; then
+        echo "[START] Starting PoViShield agent in background..."
+        nohup python3 "$INSTALL_DIR/povishield_agent.py" start > "$INSTALL_DIR/agent.log" 2>&1 &
+        echo "[SUCCESS] Agent running in background (PID: $!). Telemetry streaming to dashboard."
+    fi
 fi
 
 echo "=========================================================================="
 echo "[SUCCESS] PoViShield Agent successfully installed and paired!"
-echo "To start the background monitoring loop:"
+echo "To manage or start the background monitoring loop manually:"
 echo "  povishield agent start"
 echo "=========================================================================="

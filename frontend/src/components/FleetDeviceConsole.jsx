@@ -184,6 +184,32 @@ export default function FleetDeviceConsole({ API }) {
     }
   };
 
+  // Delete Device
+  const handleDeleteDevice = async (devId) => {
+    if (!window.confirm("Are you sure you want to remove this device from the fleet? Its record will be erased.")) return;
+    try {
+      const res = await fetch(`${API}/devices/${devId}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchDevices();
+        if (selectedDevice?.id === devId) {
+          setSelectedDevice(null);
+        }
+      }
+    } catch (err) {
+      setError(err.message || "Failed to delete device");
+    }
+  };
+
+  // Run Security Audit
+  const handleRunSecurityAudit = async () => {
+    if (!selectedDevice || selectedDevice.status === "revoked") return;
+    setCommandInput("/usr/bin/id");
+    setExecMode("inspect");
+    setTimeout(() => {
+      handleDispatchTask();
+    }, 50);
+  };
+
   const copyText = (txt) => {
     navigator.clipboard.writeText(txt);
     setCopiedCmd(true);
@@ -352,7 +378,7 @@ export default function FleetDeviceConsole({ API }) {
                 <p style={{ marginTop: 4 }}>ID: <code>{selectedDevice.id}</code> · Host: <code>{selectedDevice.hostname}</code> · OS: {selectedDevice.os_info}</p>
               </div>
 
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   className="secondary-button"
                   onClick={() => loadDeviceDetails(selectedDevice.id)}
@@ -360,15 +386,42 @@ export default function FleetDeviceConsole({ API }) {
                 >
                   <RefreshCw size={14} /> Refresh
                 </button>
-                {selectedDevice.status !== "revoked" && (
+                <button
+                  className="primary-button"
+                  onClick={handleRunSecurityAudit}
+                  disabled={dispatchingTask || selectedDevice.status === "revoked"}
+                  style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                  title="Run immediate kernel diagnostic audit on this PC"
+                >
+                  <ShieldCheck size={14} /> Run Security Audit
+                </button>
+                {selectedDevice.status !== "revoked" ? (
                   <button
                     className="secondary-button"
                     onClick={() => handleRevokeDevice(selectedDevice.id)}
                     style={{ color: "#f87171", borderColor: "#7f1d1d" }}
+                    title="Permanently invalidate agent credentials"
                   >
-                    <Trash2 size={14} /> Revoke Authorization
+                    <Lock size={14} /> Revoke Authorization
+                  </button>
+                ) : (
+                  <button
+                    className="secondary-button"
+                    onClick={() => handleDeleteDevice(selectedDevice.id)}
+                    style={{ color: "#f87171", borderColor: "#7f1d1d" }}
+                    title="Delete device record"
+                  >
+                    <Trash2 size={14} /> Delete
                   </button>
                 )}
+                <button
+                  className="secondary-button"
+                  onClick={() => handleDeleteDevice(selectedDevice.id)}
+                  style={{ color: "#94a3b8" }}
+                  title="Remove device from fleet"
+                >
+                  <Trash2 size={14} /> Remove
+                </button>
               </div>
             </div>
 

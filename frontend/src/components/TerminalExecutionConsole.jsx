@@ -31,9 +31,10 @@ function parseCommandArgs(cmdStr) {
   });
 }
 
-export default function TerminalExecutionConsole({ API, health }) {
+export default function TerminalExecutionConsole({ API, health, devices = [], activeDeviceId = "gateway", setActiveDeviceId }) {
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Hello from PoViShield'");
   const [mode, setMode] = useState("enforce");
+  const [execTarget, setExecTarget] = useState(activeDeviceId || "gateway");
   const [decision, setDecision] = useState(null);
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [decisionError, setDecisionError] = useState("");
@@ -43,6 +44,10 @@ export default function TerminalExecutionConsole({ API, health }) {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [execError, setExecError] = useState("");
+
+  useEffect(() => {
+    if (activeDeviceId) setExecTarget(activeDeviceId);
+  }, [activeDeviceId]);
 
   // Load past execution history
   const loadHistory = async () => {
@@ -107,26 +112,86 @@ export default function TerminalExecutionConsole({ API, health }) {
 
     setRunning(true);
     setExecError("");
-    try {
-      const res = await fetch(`${API}/executions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          command: args,
-          mode: mode,
-          timeout_seconds: 30,
-        }),
-      });
-      const sessionData = await res.json();
-      if (!res.ok) {
-        throw new Error(sessionData.detail || `Execution failed with status ${res.status}`);
+
+    if (execTarget === "gateway") {
+      try {
+        const res = await fetch(`${API}/executions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            command: args,
+            mode: mode,
+            timeout_seconds: 30,
+          }),
+        });
+        const sessionData = await res.json();
+        if (!res.ok) {
+          throw new Error(sessionData.detail || `Execution failed with status ${res.status}`);
+        }
+        setCurrentSession(sessionData);
+        setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+      } catch (err) {
+        setExecError(err.message || "Execution request failed");
+      } finally {
+        setRunning(false);
       }
-      setCurrentSession(sessionData);
-      setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
-    } catch (err) {
-      setExecError(err.message || "Execution request failed");
-    } finally {
-      setRunning(false);
+    } else {
+      // Remote Fleet Endpoint Dispatch
+      const targetDev = devices.find(d => d.id === execTarget);
+      try {
+        const res = await fetch(`${API}/devices/${execTarget}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: args, mode: mode })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Dispatch failed (${res.status})`);
+
+        const taskId = data.id;
+        let polls = 0;
+        const pollTimer = setInterval(async () => {
+          polls++;
+          try {
+            const tr = await fetch(`${API}/devices/${execTarget}/tasks/${taskId}`);
+            if (tr.ok) {
+              const tData = await tr.json();
+              if (tData.status === "completed" || tData.status === "failed") {
+                clearInterval(pollTimer);
+                const r = tData.result || {};
+                const sessionData = {
+                  id: taskId,
+                  command: args,
+                  mode: mode,
+                  status: tData.status === "failed" ? "denied" : r.status || "completed",
+                  exit_code: r.exit_code ?? 0,
+                  duration_ms: r.duration_ms || 0,
+                  stdout: r.stdout || "",
+                  stderr: r.stderr || "",
+                  violation_detected: r.violation_detected,
+                  violation_detail: r.violation_detail,
+                  host_target: targetDev?.name || targetDev?.hostname || execTarget,
+                  timeline: [
+                    { phase: "FLEET_DISPATCH", detail: `Dispatched task ${taskId} to remote endpoint ${targetDev?.hostname || execTarget}` },
+                    { phase: "EXEC_CONFINED", detail: `Executed in mode ${mode} under remote seccomp boundary` },
+                    { phase: "COMPLETED", detail: `Remote execution finished with exit code ${r.exit_code}` }
+                  ]
+                };
+                setCurrentSession(sessionData);
+                setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+                setRunning(false);
+              }
+            }
+          } catch {}
+          if (polls > 25) {
+            clearInterval(pollTimer);
+            setExecError("Task timed out awaiting remote endpoint response");
+            setRunning(false);
+          }
+        }, 1000);
+      } catch (err) {
+        setExecError(err.message || "Remote execution request failed");
+        setRunning(false);
+      }
     }
   };
 
@@ -154,9 +219,48 @@ export default function TerminalExecutionConsole({ API, health }) {
       <div className="terminal-console-container">
         {/* Left Column: Command & Interactive Terminal */}
         <div className="terminal-command-deck">
+          {/* Target Node Selector Bar */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "8px 12px", background: "#060b16", border: "1px solid #142034", borderRadius: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", fontWeight: 700 }}>EXECUTION TARGET:</span>
+              <select
+                value={execTarget}
+                onChange={(e) => {
+                  setExecTarget(e.target.value);
+                  if (setActiveDeviceId) setActiveDeviceId(e.target.value);
+                }}
+                className="device-select-dropdown"
+                style={{
+                  padding: "4px 8px",
+                  background: "#091220",
+                  border: "1px solid #1e293b",
+                  borderRadius: 6,
+                  color: execTarget === "gateway" ? "#38bdf8" : "#34d399",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 12
+                }}
+              >
+                <option value="gateway">🌐 Local Server Gateway</option>
+                {devices.map(d => (
+                  <option key={d.id} value={d.id}>
+                    💻 {d.name || d.hostname} ({d.is_live ? "Online" : "Offline"})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {execTarget !== "gateway" && (
+              <span style={{ fontSize: 11, color: "#34d399", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", gap: 6 }}>
+                <span className="live-pulse-dot" style={{ width: 6, height: 6 }} />
+                REMOTE FLEET DISPATCH ACTIVE
+              </span>
+            )}
+          </div>
+
           {/* Input Bar */}
           <div className="terminal-input-bar">
-            <span className="terminal-prompt-icon">$ povishield run --</span>
+            <span className="terminal-prompt-icon">
+              {execTarget !== "gateway" ? `[${devices.find(d => d.id === execTarget)?.hostname || "remote"}]$ ` : "$ "}povishield run --
+            </span>
             <input
               type="text"
               className="terminal-text-input"
