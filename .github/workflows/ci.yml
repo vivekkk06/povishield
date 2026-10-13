@@ -27,12 +27,16 @@ jobs:
       - run: PS_RUNS=3 make eval
       - run: make docs && make resume-line
       - uses: actions/upload-artifact@v4
-        with: { name: results, path: "results/\ndocs/RESULTS.md" }
+        with:
+          name: results
+          path: |
+            results/
+            docs/RESULTS.md
   frontend:
-    if: ${{ hashFiles('frontend/package.json') != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with:
+          node-version: 22
       - run: cd frontend && npm ci && npm run build

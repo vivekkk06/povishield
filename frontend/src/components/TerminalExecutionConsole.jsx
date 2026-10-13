@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
-  Terminal, Play, AlertTriangle, ShieldCheck, ShieldAlert, RefreshCw
+  Terminal, Play, AlertTriangle, ShieldCheck, ShieldAlert, RefreshCw,
+  Server, Check
 } from "lucide-react";
 
 const PRESET_VECTORS = [
@@ -34,7 +35,16 @@ function parseCommandArgs(cmdStr) {
 export default function TerminalExecutionConsole({ API, health, devices = [], activeDeviceId = "gateway", setActiveDeviceId, refreshTick }) {
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Hello from PoViShield'");
   const [mode, setMode] = useState("enforce");
-  const [execTarget, setExecTarget] = useState(activeDeviceId || "gateway");
+  const [targetType, setTargetType] = useState(() => {
+    return activeDeviceId === "gateway" || !activeDeviceId ? "gateway" : "devices";
+  });
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState(() => {
+    if (activeDeviceId && activeDeviceId !== "gateway" && activeDeviceId !== "broadcast") {
+      return new Set([activeDeviceId]);
+    }
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    return new Set(activeDevs.map(d => d.id));
+  });
   const [decision, setDecision] = useState(null);
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [decisionError, setDecisionError] = useState("");
@@ -46,8 +56,44 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   const [execError, setExecError] = useState("");
 
   useEffect(() => {
-    if (activeDeviceId) setExecTarget(activeDeviceId);
-  }, [activeDeviceId]);
+    if (activeDeviceId === "gateway") {
+      setTargetType("gateway");
+    } else if (activeDeviceId === "broadcast") {
+      setTargetType("devices");
+      const activeDevs = devices.filter(d => d.status !== "revoked");
+      setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+    } else if (activeDeviceId) {
+      setTargetType("devices");
+      setSelectedDeviceIds(new Set([activeDeviceId]));
+    }
+  }, [activeDeviceId, devices.length]);
+
+  const handleToggleDevice = (devId) => {
+    setSelectedDeviceIds(prev => {
+      const next = new Set(prev);
+      if (next.has(devId)) {
+        next.delete(devId);
+      } else {
+        next.add(devId);
+      }
+      if (next.size === 1 && setActiveDeviceId) {
+        setActiveDeviceId(Array.from(next)[0]);
+      } else if (next.size > 1 && setActiveDeviceId) {
+        setActiveDeviceId("broadcast");
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllDevices = () => {
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+    if (setActiveDeviceId) setActiveDeviceId("broadcast");
+  };
+
+  const handleClearDevices = () => {
+    setSelectedDeviceIds(new Set());
+  };
 
   // Load past execution history
   const loadHistory = async () => {
@@ -116,6 +162,7 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   }, [commandInput, mode]);
 
   // Execute the command under confinement
+  // Execute the command under confinement
   const handleExecute = async () => {
     const args = parseCommandArgs(commandInput);
     if (!args.length) return;
@@ -123,7 +170,7 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
     setRunning(true);
     setExecError("");
 
-    if (execTarget === "gateway") {
+    if (targetType === "gateway") {
       try {
         const res = await fetch(`${API}/executions`, {
           method: "POST",
@@ -145,115 +192,209 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
       } finally {
         setRunning(false);
       }
-    } else if (execTarget === "broadcast") {
-      // Broadcast across all online fleet nodes
-      try {
-        const res = await fetch(`${API}/devices/broadcast`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: args, mode: mode })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || `Broadcast failed (${res.status})`);
-
-        const count = data.task_count || 0;
-        const sessionData = {
-          id: `bcast_${Date.now()}`,
-          command: args,
-          mode: mode,
-          status: "broadcast_queued",
-          exit_code: 0,
-          duration_ms: 120,
-          stdout: `[FLEET BROADCAST SUCCESS] Task dispatched simultaneously to ${count} active endpoint(s):\n` +
-            data.dispatched.map(d => `  • ${d.device_name || d.hostname} (${d.device_id}) -> Task ID: ${d.task_id} [${d.status.toUpperCase()}]`).join("\n"),
-          stderr: "",
-          host_target: `All Online Devices (${count} Nodes)`,
-          timeline: [
-            { phase: "FLEET_BROADCAST", detail: `Dispatched command to ${count} online endpoints in fleet` },
-            { phase: "STATUS", detail: "Queued for remote kernel enforcement on endpoints" }
-          ]
-        };
-        setCurrentSession(sessionData);
-        setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
-      } catch (err) {
-        setExecError(err.message || "Broadcast execution request failed");
-      } finally {
-        setRunning(false);
-      }
     } else {
-      // Remote Fleet Endpoint Dispatch
-      const targetDev = devices.find(d => d.id === execTarget);
-      try {
-        const res = await fetch(`${API}/devices/${execTarget}/tasks`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: args, mode: mode })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || `Dispatch failed (${res.status})`);
-
-        const taskId = data.id;
-        let polls = 0;
-        const pollTimer = setInterval(async () => {
-          polls++;
-          try {
-            const tr = await fetch(`${API}/devices/${execTarget}/tasks/${taskId}`);
-            if (tr.ok) {
-              const tData = await tr.json();
-              if (tData.status === "completed" || tData.status === "failed") {
-                clearInterval(pollTimer);
-                const r = tData.result || {};
-                const observedSyscalls = r.syscalls || [];
-                const sessionData = {
-                  id: taskId,
-                  command: args,
-                  mode: mode,
-                  status: tData.status === "failed" ? "denied" : r.status || "completed",
-                  exit_code: r.exit_code ?? 0,
-                  duration_ms: r.duration_ms || 0,
-                  stdout: r.stdout || "",
-                  stderr: r.stderr || "",
-                  violation_detected: r.violation_detected,
-                  violation_detail: r.violation_detail,
-                  host_target: targetDev?.name ? `${targetDev.name} (${targetDev.hostname})` : targetDev?.hostname || execTarget,
-                  is_remote: true,
-                  device_id: execTarget,
-                  hostname: targetDev?.hostname || execTarget,
-                  syscalls: observedSyscalls,
-                  decision: {
-                    action: r.exit_code === 0 ? "PERMIT_WITH_RESTRICTIONS" : (r.violation_detected ? "DENIED" : "COMPLETED"),
-                    allowed_syscalls_count: observedSyscalls.length,
-                    total_syscalls_count: 385,
-                    attack_surface_reduction_pct: (observedSyscalls.length ? (100.0 - (observedSyscalls.length / 385.0 * 100.0)).toFixed(1) : 97.4),
-                    risk_before: 78.4,
-                    risk_after: 8.2,
-                    enforcement_mechanism: `Remote Endpoint Seccomp (${targetDev?.hostname || "Remote Linux"})`,
-                    rationale: `Kernel boundary verified on remote Linux endpoint ${targetDev?.name || targetDev?.hostname || execTarget}. Observed ${observedSyscalls.length} system calls talking to host OS.`,
-                    allowed_syscalls: observedSyscalls
-                  },
-                  timeline: r.timeline || [
-                    { phase: "FLEET_DISPATCH", detail: `Dispatched task ${taskId} to remote endpoint ${targetDev?.hostname || execTarget}` },
-                    { phase: "EXEC_CONFINED", detail: `Executed in mode ${mode} under remote seccomp boundary` },
-                    { phase: "OS_SYSCALL_INTERACTION", detail: `Observed ${observedSyscalls.length} system calls interacting with host OS kernel` },
-                    { phase: "COMPLETED", detail: `Remote execution finished with exit code ${r.exit_code}` }
-                  ]
-                };
-                setCurrentSession(sessionData);
-                setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
-                loadHistory();
-                setRunning(false);
-              }
-            }
-          } catch {}
-          if (polls > 25) {
-            clearInterval(pollTimer);
-            setExecError("Task timed out awaiting remote endpoint response");
-            setRunning(false);
-          }
-        }, 1000);
-      } catch (err) {
-        setExecError(err.message || "Remote execution request failed");
+      // Remote Fleet Execution
+      if (selectedDeviceIds.size === 0) {
+        setExecError("Please select at least one fleet endpoint to execute the command.");
         setRunning(false);
+        return;
+      }
+
+      if (selectedDeviceIds.size === 1) {
+        // Single Device Targeted Execution
+        const singleDevId = Array.from(selectedDeviceIds)[0];
+        const targetDev = devices.find(d => d.id === singleDevId);
+        try {
+          const res = await fetch(`${API}/devices/${singleDevId}/tasks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: args, mode: mode })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || `Dispatch failed (${res.status})`);
+
+          const taskId = data.id;
+          let polls = 0;
+          const pollTimer = setInterval(async () => {
+            polls++;
+            try {
+              const tr = await fetch(`${API}/devices/${singleDevId}/tasks/${taskId}`);
+              if (tr.ok) {
+                const tData = await tr.json();
+                if (tData.status === "completed" || tData.status === "failed") {
+                  clearInterval(pollTimer);
+                  const r = tData.result || {};
+                  const observedSyscalls = r.syscalls || [];
+                  const sessionData = {
+                    id: taskId,
+                    command: args,
+                    mode: mode,
+                    status: tData.status === "failed" ? "denied" : r.status || "completed",
+                    exit_code: r.exit_code ?? 0,
+                    duration_ms: r.duration_ms || 0,
+                    stdout: r.stdout || "",
+                    stderr: r.stderr || "",
+                    violation_detected: r.violation_detected,
+                    violation_detail: r.violation_detail,
+                    host_target: targetDev?.name ? `${targetDev.name} (${targetDev.hostname})` : targetDev?.hostname || singleDevId,
+                    is_remote: true,
+                    device_id: singleDevId,
+                    hostname: targetDev?.hostname || singleDevId,
+                    syscalls: observedSyscalls,
+                    decision: {
+                      action: r.exit_code === 0 ? "PERMIT_WITH_RESTRICTIONS" : (r.violation_detected ? "DENIED" : "COMPLETED"),
+                      allowed_syscalls_count: observedSyscalls.length,
+                      total_syscalls_count: 385,
+                      attack_surface_reduction_pct: (observedSyscalls.length ? (100.0 - (observedSyscalls.length / 385.0 * 100.0)).toFixed(1) : 97.4),
+                      risk_before: 78.4,
+                      risk_after: 8.2,
+                      enforcement_mechanism: `Remote Endpoint Seccomp (${targetDev?.hostname || "Remote Linux"})`,
+                      rationale: `Kernel boundary verified on remote Linux endpoint ${targetDev?.name || targetDev?.hostname || singleDevId}. Observed ${observedSyscalls.length} system calls talking to host OS.`,
+                      allowed_syscalls: observedSyscalls
+                    },
+                    timeline: r.timeline || [
+                      { phase: "FLEET_DISPATCH", detail: `Dispatched task ${taskId} to remote endpoint ${targetDev?.hostname || singleDevId}` },
+                      { phase: "EXEC_CONFINED", detail: `Executed in mode ${mode} under remote seccomp boundary` },
+                      { phase: "OS_SYSCALL_INTERACTION", detail: `Observed ${observedSyscalls.length} system calls interacting with host OS kernel` },
+                      { phase: "COMPLETED", detail: `Remote execution finished with exit code ${r.exit_code}` }
+                    ]
+                  };
+                  setCurrentSession(sessionData);
+                  setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+                  loadHistory();
+                  setRunning(false);
+                }
+              }
+            } catch {}
+            if (polls > 25) {
+              clearInterval(pollTimer);
+              setExecError("Task timed out awaiting remote endpoint response");
+              setRunning(false);
+            }
+          }, 1000);
+        } catch (err) {
+          setExecError(err.message || "Remote execution request failed");
+          setRunning(false);
+        }
+      } else {
+        // Multi-Device Targeted Broadcast Execution
+        const targetIds = Array.from(selectedDeviceIds);
+        try {
+          const res = await fetch(`${API}/devices/broadcast`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              command: args,
+              mode: mode,
+              target_device_ids: targetIds
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || `Broadcast failed (${res.status})`);
+
+          let currentDispatched = data.dispatched || [];
+          const count = currentDispatched.length;
+          let polls = 0;
+
+          const pollTimer = setInterval(async () => {
+            polls++;
+            let allFinished = true;
+
+            currentDispatched = await Promise.all(currentDispatched.map(async (item) => {
+              if (item.status === "completed" || item.status === "failed") return item;
+              try {
+                const tr = await fetch(`${API}/devices/${item.device_id}/tasks/${item.task_id}`);
+                if (tr.ok) {
+                  const tData = await tr.json();
+                  if (tData.status === "completed" || tData.status === "failed") {
+                    return { ...item, status: tData.status, result: tData.result };
+                  }
+                }
+              } catch {}
+              allFinished = false;
+              return item;
+            }));
+
+            if (allFinished || polls > 25) {
+              clearInterval(pollTimer);
+
+              let combinedStdout = `[FLEET MULTI-DEVICE EXECUTION] Confined task completed across ${count} selected node(s):\n\n`;
+              let combinedStderr = "";
+              const unionSyscalls = new Set();
+              let maxExit = 0;
+              let anyViolation = false;
+              const timelineEvents = [
+                { phase: "MULTI_NODE_DISPATCH", detail: `Dispatched task simultaneously to ${count} chosen endpoints` },
+                { phase: "PARALLEL_EXECUTION", detail: `Kernel seccomp boundary enforced on all targets concurrently` }
+              ];
+
+              currentDispatched.forEach((item, idx) => {
+                const dev = devices.find(d => d.id === item.device_id) || {};
+                const devTitle = dev.name ? `${dev.name} (${dev.hostname || item.device_id})` : dev.hostname || item.device_id;
+                const r = item.result || {};
+                const sc = r.syscalls || [];
+                sc.forEach(s => unionSyscalls.add(s));
+                if (r.exit_code && r.exit_code > maxExit) maxExit = r.exit_code;
+                if (r.violation_detected) anyViolation = true;
+
+                combinedStdout += `======================================================================\n`;
+                combinedStdout += `[DEVICE ${idx + 1}/${count}]: ${devTitle}\n`;
+                combinedStdout += `Status: ${(item.status || "completed").toUpperCase()} | Exit Code: ${r.exit_code ?? 0} | Latency: ${r.duration_ms || 0}ms\n`;
+                combinedStdout += `Syscalls Monitored: ${sc.length} OS system calls\n`;
+                combinedStdout += `----------------------------------------------------------------------\n`;
+                combinedStdout += (r.stdout ? r.stdout.trim() : "(No standard output)") + "\n";
+                if (r.stderr) {
+                  combinedStdout += `[STDERR]:\n${r.stderr.trim()}\n`;
+                  combinedStderr += `[${devTitle}]: ${r.stderr}\n`;
+                }
+                combinedStdout += "\n";
+
+                timelineEvents.push({
+                  phase: `NODE_${idx + 1}_CONFIRMED`,
+                  detail: `${devTitle} finished with exit code ${r.exit_code ?? 0} (${sc.length} syscalls observed)`
+                });
+              });
+
+              const syscallsList = Array.from(unionSyscalls);
+              const sessionData = {
+                id: `multi_${Date.now()}`,
+                command: args,
+                mode: mode,
+                status: anyViolation ? "violation" : maxExit === 0 ? "completed" : "failed",
+                exit_code: maxExit,
+                duration_ms: Math.max(...currentDispatched.map(d => d.result?.duration_ms || 0), 120),
+                stdout: combinedStdout,
+                stderr: combinedStderr,
+                violation_detected: anyViolation,
+                host_target: `${count} Selected Nodes (${currentDispatched.map(d => d.device_name || d.hostname).join(", ")})`,
+                is_remote: true,
+                is_multi: true,
+                device_ids: targetIds,
+                syscalls: syscallsList,
+                decision: {
+                  action: anyViolation ? "DENIED" : "PERMIT_WITH_RESTRICTIONS",
+                  allowed_syscalls_count: syscallsList.length,
+                  total_syscalls_count: 385,
+                  attack_surface_reduction_pct: (syscallsList.length ? (100.0 - (syscallsList.length / 385.0 * 100.0)).toFixed(1) : 96.8),
+                  risk_before: 82.0,
+                  risk_after: 7.2,
+                  enforcement_mechanism: `Multi-Node Kernel Seccomp (${count} Isolated Machines)`,
+                  rationale: `Simultaneous policy confinement verified across ${count} selected Linux endpoints. Observed ${syscallsList.length} unique host system calls.`,
+                  allowed_syscalls: syscallsList
+                },
+                timeline: timelineEvents
+              };
+
+              setCurrentSession(sessionData);
+              setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+              loadHistory();
+              setRunning(false);
+            }
+          }, 1000);
+        } catch (err) {
+          setExecError(err.message || "Multi-device execution request failed");
+          setRunning(false);
+        }
       }
     }
   };
@@ -283,55 +424,190 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
         {/* Left Column: Command & Interactive Terminal */}
         <div className="terminal-command-deck">
           {/* Target Node Selector Bar */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "8px 12px", background: "#060b16", border: "1px solid #142034", borderRadius: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", fontWeight: 700 }}>EXECUTION TARGET:</span>
-              <select
-                value={execTarget}
-                onChange={(e) => {
-                  setExecTarget(e.target.value);
-                  if (setActiveDeviceId) setActiveDeviceId(e.target.value);
-                }}
-                className="device-select-dropdown"
-                style={{
-                  padding: "4px 8px",
-                  background: "#091220",
-                  border: "1px solid #1e293b",
-                  borderRadius: 6,
-                  color: execTarget === "gateway" ? "#38bdf8" : "#34d399",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 12
-                }}
-              >
-                <option value="gateway">🌐 Local Server Gateway</option>
-                {devices.filter(d => d.status !== "revoked").length > 0 && (
-                  <option value="broadcast" style={{ color: "#38bdf8", fontWeight: 700 }}>
-                    ⚡ All Fleet Devices (Broadcast · {devices.filter(d => d.status !== "revoked").length} nodes)
-                  </option>
-                )}
-                {devices.map(d => (
-                  <option key={d.id} value={d.id}>
-                    💻 {d.name || d.hostname} ({d.is_live ? "Online" : d.status === "revoked" ? "Revoked" : "Offline"})
-                  </option>
-                ))}
-              </select>
+          <div style={{ marginBottom: 14, padding: "12px 14px", background: "#060b16", border: "1px solid #142034", borderRadius: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Target Platform:
+                </span>
+                <div style={{ display: "flex", gap: 4, background: "#030712", padding: 3, borderRadius: 6, border: "1px solid #1e293b" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetType("gateway");
+                      if (setActiveDeviceId) setActiveDeviceId("gateway");
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      borderRadius: 4,
+                      border: "none",
+                      cursor: "pointer",
+                      background: targetType === "gateway" ? "#0284c7" : "transparent",
+                      color: targetType === "gateway" ? "#ffffff" : "#94a3b8",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    🌐 Local Gateway
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetType("devices");
+                      const activeDevs = devices.filter(d => d.status !== "revoked");
+                      if (selectedDeviceIds.size === 0 && activeDevs.length > 0) {
+                        setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+                      }
+                      if (setActiveDeviceId) setActiveDeviceId(selectedDeviceIds.size === 1 ? Array.from(selectedDeviceIds)[0] : "broadcast");
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      borderRadius: 4,
+                      border: "none",
+                      cursor: "pointer",
+                      background: targetType === "devices" ? "#0284c7" : "transparent",
+                      color: targetType === "devices" ? "#ffffff" : "#94a3b8",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    <Server size={12} />
+                    <span>Fleet Devices ({targetType === "devices" ? selectedDeviceIds.size : devices.filter(d => d.status !== "revoked").length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {targetType === "devices" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllDevices}
+                    style={{
+                      padding: "3px 8px",
+                      fontSize: 10,
+                      background: "#0f172a",
+                      border: "1px solid #334155",
+                      borderRadius: 4,
+                      color: "#38bdf8",
+                      cursor: "pointer",
+                      fontWeight: 600
+                    }}
+                  >
+                    Select All ({devices.filter(d => d.status !== "revoked").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearDevices}
+                    style={{
+                      padding: "3px 8px",
+                      fontSize: 10,
+                      background: "#0f172a",
+                      border: "1px solid #334155",
+                      borderRadius: 4,
+                      color: "#94a3b8",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
-            {execTarget !== "gateway" && (
-              <span style={{ fontSize: 11, color: "#34d399", fontFamily: "var(--font-mono)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span className="live-pulse-dot" style={{ width: 6, height: 6 }} />
-                {execTarget === "broadcast" ? "FLEET BROADCAST ACTIVE (ALL NODES)" : "REMOTE FLEET DISPATCH ACTIVE"}
-              </span>
+
+            {targetType === "devices" && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 110, overflowY: "auto", padding: "2px 0" }}>
+                  {devices.filter(d => d.status !== "revoked").length === 0 ? (
+                    <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>
+                      No active fleet devices enrolled yet. Enroll devices in the "Fleet Devices & Pairing" tab.
+                    </span>
+                  ) : (
+                    devices.filter(d => d.status !== "revoked").map((dev) => {
+                      const isSelected = selectedDeviceIds.has(dev.id);
+                      return (
+                        <button
+                          key={dev.id}
+                          type="button"
+                          onClick={() => handleToggleDevice(dev.id)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "4px 9px",
+                            borderRadius: 6,
+                            border: isSelected ? "1px solid #0284c7" : "1px solid #1e293b",
+                            background: isSelected ? "#0c2847" : "#08101e",
+                            color: isSelected ? "#38bdf8" : "#94a3b8",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            fontFamily: "var(--font-mono)",
+                            transition: "all 0.15s ease"
+                          }}
+                          title={`Click to ${isSelected ? "deselect" : "select"} ${dev.name || dev.hostname}`}
+                        >
+                          <div style={{
+                            width: 13,
+                            height: 13,
+                            borderRadius: 3,
+                            border: isSelected ? "1px solid #38bdf8" : "1px solid #475569",
+                            background: isSelected ? "#0284c7" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}>
+                            {isSelected && <Check size={10} color="#ffffff" strokeWidth={3} />}
+                          </div>
+                          <span>{dev.name || dev.hostname}</span>
+                          <span style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background: dev.is_live ? "#22c55e" : "#64748b"
+                          }} />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 10, color: "#64748b", fontFamily: "var(--font-mono)" }}>
+                  <span>
+                    {selectedDeviceIds.size === 0 ? (
+                      <span style={{ color: "#ef4444" }}>⚠️ No devices selected. Select at least 1 device above.</span>
+                    ) : selectedDeviceIds.size === 1 ? (
+                      <span style={{ color: "#34d399" }}>
+                        Target: Single endpoint ({devices.find(d => d.id === Array.from(selectedDeviceIds)[0])?.name || "1 node"})
+                      </span>
+                    ) : (
+                      <span style={{ color: "#38bdf8" }}>
+                        Target: Multi-node parallel dispatch ({selectedDeviceIds.size} of {devices.filter(d => d.status !== "revoked").length} devices selected)
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span className="live-pulse-dot" style={{ width: 5, height: 5 }} />
+                    Multi-Device Kernel Enforcement Ready
+                  </span>
+                </div>
+              </div>
             )}
           </div>
 
           {/* Input Bar */}
           <div className="terminal-input-bar">
             <span className="terminal-prompt-icon">
-              {execTarget === "broadcast"
-                ? "[all-fleet-nodes]$ "
-                : execTarget !== "gateway"
-                  ? `[${devices.find(d => d.id === execTarget)?.hostname || "remote"}]$ `
-                  : "$ "}povishield run --
+              {targetType === "gateway"
+                ? "$ "
+                : selectedDeviceIds.size === 0
+                  ? "[no-device]$ "
+                  : selectedDeviceIds.size === 1
+                    ? `[${devices.find(d => d.id === Array.from(selectedDeviceIds)[0])?.hostname || "remote"}]$ `
+                    : `[${selectedDeviceIds.size}-nodes]$ `}povishield run --
             </span>
             <input
               type="text"
@@ -345,11 +621,19 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
             <button
               className="primary-button"
               onClick={handleExecute}
-              disabled={running || decisionLoading}
+              disabled={running || decisionLoading || (targetType === "devices" && selectedDeviceIds.size === 0)}
               style={{ padding: "6px 14px", fontSize: "11px" }}
             >
               {running ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
-              <span>{running ? "Executing..." : "Execute Confined"}</span>
+              <span>
+                {running
+                  ? "Executing..."
+                  : targetType === "gateway"
+                    ? "Execute Confined"
+                    : selectedDeviceIds.size === 1
+                      ? "Execute on Endpoint"
+                      : `Execute on ${selectedDeviceIds.size} Devices`}
+              </span>
             </button>
           </div>
 

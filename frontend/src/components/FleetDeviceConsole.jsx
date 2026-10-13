@@ -861,10 +861,63 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 ))}
               </div>
 
+              {/* Selected Target Devices Chips */}
+              <div style={{ marginBottom: 12, padding: "8px 10px", background: "#050914", borderRadius: 6, border: "1px solid #162238" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
+                    Selected Targets ({selectedDeviceIds.size} of {devices.filter(d => d.status !== "revoked").length}):
+                  </span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAll}
+                      style={{ padding: "2px 6px", fontSize: 10, background: "#0b1528", border: "1px solid #1e3a5f", color: "#38bdf8", borderRadius: 4, cursor: "pointer" }}
+                    >
+                      {selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length ? "Deselect All" : "Select All"}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {devices.filter(d => selectedDeviceIds.has(d.id)).map(dev => (
+                    <span
+                      key={dev.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "2px 8px",
+                        fontSize: 11,
+                        fontFamily: "var(--font-mono)",
+                        background: "#0c2847",
+                        border: "1px solid #0284c7",
+                        borderRadius: 4,
+                        color: "#38bdf8"
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dev.is_live ? "#22c55e" : "#64748b" }} />
+                      {dev.name || dev.hostname}
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleDeviceCheckbox(e, dev)}
+                        style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", padding: "0 2px", fontSize: 12, lineHeight: 1 }}
+                        title="Remove from target selection"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  {selectedDeviceIds.size === 0 && (
+                    <span style={{ fontSize: 11, color: "#ef4444", fontStyle: "italic" }}>
+                      No devices selected. Check devices above or click Select All.
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Dispatch Form */}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <div style={{ flex: 1, minWidth: 280, display: "flex", alignItems: "center", background: "#03060f", border: "1px solid #1e293b", borderRadius: 6, padding: "0 10px" }}>
-                  <span style={{ fontSize: 11, color: "#38bdf8", fontFamily: "var(--font-mono)", marginRight: 6 }}>[all-fleet]$</span>
+                  <span style={{ fontSize: 11, color: "#38bdf8", fontFamily: "var(--font-mono)", marginRight: 6 }}>[fleet]$</span>
                   <input
                     type="text"
                     value={commandInput}
@@ -895,7 +948,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   style={{ padding: "8px 16px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
                 >
                   {broadcastRunning ? <RefreshCw size={14} className="spin" /> : <Terminal size={14} />}
-                  {broadcastRunning ? "Broadcasting..." : `Dispatch to All (${selectedDeviceIds.size})`}
+                  {broadcastRunning ? "Broadcasting..." : `Dispatch to ${selectedDeviceIds.size} Selected Device(s)`}
                 </button>
               </div>
             </div>
