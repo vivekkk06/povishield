@@ -1,0 +1,423 @@
+import React, { useState, useEffect } from "react";
+import {
+  Terminal, Play, AlertTriangle, ShieldCheck, ShieldAlert, RefreshCw
+} from "lucide-react";
+
+const PRESET_VECTORS = [
+  { label: "Echo (Permitted)", cmd: "/usr/bin/echo 'Hello from PoViShield'", mode: "enforce", desc: "Executes standard output under verified least-privilege policy" },
+  { label: "Cat (Permitted)", cmd: "/usr/bin/cat /dev/null", mode: "enforce", desc: "File read under restricted seccomp boundary" },
+  { label: "Grep (Safety Approved)", cmd: "/usr/bin/grep 'root' /etc/passwd", mode: "approval-required", desc: "Executes after verifying safety gate approval ledger" },
+  { label: "Uname (Trigger SIGSYS Kill)", cmd: "/usr/bin/uname -a", mode: "enforce", desc: "Attempts unlearned syscall: kernel immediately kills process via SIGSYS" },
+  { label: "Ls (Directory Listing)", cmd: "/usr/bin/ls /tmp", mode: "enforce", desc: "Scoped directory inspection under restricted profile" },
+];
+
+function parseCommandArgs(cmdStr) {
+  const trimmed = cmdStr.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      // fallback
+    }
+  }
+  const matches = trimmed.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+  return matches.map(token => {
+    if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+      return token.slice(1, -1);
+    }
+    return token;
+  });
+}
+
+export default function TerminalExecutionConsole({ API, health }) {
+  const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Hello from PoViShield'");
+  const [mode, setMode] = useState("enforce");
+  const [decision, setDecision] = useState(null);
+  const [decisionLoading, setDecisionLoading] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+
+  const [running, setRunning] = useState(false);
+  const [currentSession, setCurrentSession] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [execError, setExecError] = useState("");
+
+  // Load past execution history
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`${API}/executions?limit=30`);
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.executions || []);
+        if (data.executions?.length && !currentSession) {
+          setCurrentSession(data.executions[0]);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not load execution history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  // Pre-evaluate policy when command or mode changes
+  const evaluatePolicy = async (cmdToEval = commandInput, currentMode = mode) => {
+    const args = parseCommandArgs(cmdToEval);
+    if (!args.length) return;
+
+    setDecisionLoading(true);
+    setDecisionError("");
+    try {
+      const res = await fetch(`${API}/executions/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: args, mode: currentMode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || `Evaluation returned ${res.status}`);
+      }
+      setDecision(data);
+    } catch (err) {
+      setDecisionError(err.message || "Failed to evaluate policy");
+      setDecision(null);
+    } finally {
+      setDecisionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      evaluatePolicy(commandInput, mode);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [commandInput, mode]);
+
+  // Execute the command under confinement
+  const handleExecute = async () => {
+    const args = parseCommandArgs(commandInput);
+    if (!args.length) return;
+
+    setRunning(true);
+    setExecError("");
+    try {
+      const res = await fetch(`${API}/executions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: args,
+          mode: mode,
+          timeout_seconds: 30,
+        }),
+      });
+      const sessionData = await res.json();
+      if (!res.ok) {
+        throw new Error(sessionData.detail || `Execution failed with status ${res.status}`);
+      }
+      setCurrentSession(sessionData);
+      setHistory(prev => [sessionData, ...prev.filter(s => s.id !== sessionData.id)]);
+    } catch (err) {
+      setExecError(err.message || "Execution request failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+
+  return (
+    <div className="terminal-execute-view">
+      {/* Quick Vector Presets */}
+      <div className="quick-vector-chips">
+        <span className="quick-chip-label">Research Presets:</span>
+        {PRESET_VECTORS.map((v, idx) => (
+          <button
+            key={idx}
+            className="quick-chip"
+            onClick={() => {
+              setCommandInput(v.cmd);
+              setMode(v.mode);
+            }}
+            title={v.desc}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="terminal-console-container">
+        {/* Left Column: Command & Interactive Terminal */}
+        <div className="terminal-command-deck">
+          {/* Input Bar */}
+          <div className="terminal-input-bar">
+            <span className="terminal-prompt-icon">$ povishield run --</span>
+            <input
+              type="text"
+              className="terminal-text-input"
+              value={commandInput}
+              onChange={(e) => setCommandInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !running) handleExecute(); }}
+              placeholder="/usr/bin/echo 'Hello from PoViShield'"
+              spellCheck="false"
+            />
+            <button
+              className="primary-button"
+              onClick={handleExecute}
+              disabled={running || decisionLoading}
+              style={{ padding: "6px 14px", fontSize: "11px" }}
+            >
+              {running ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
+              <span>{running ? "Executing..." : "Execute Confined"}</span>
+            </button>
+          </div>
+
+          {/* Mode Selector Strip */}
+          <div className="mode-selector-strip">
+            <span className="quick-chip-label">Enforcement Mode:</span>
+            <button
+              className={`mode-chip ${mode === "enforce" ? "active" : ""}`}
+              onClick={() => setMode("enforce")}
+            >
+              ENFORCE (Seccomp-BPF Kill)
+            </button>
+            <button
+              className={`mode-chip ${mode === "inspect" ? "active" : ""}`}
+              onClick={() => setMode("inspect")}
+            >
+              INSPECT (Dynamic Ptrace Audit)
+            </button>
+            <button
+              className={`mode-chip ${mode === "approval-required" ? "active" : ""}`}
+              onClick={() => setMode("approval-required")}
+            >
+              APPROVAL-REQUIRED (Safety Gate Ledger)
+            </button>
+          </div>
+
+          {execError && (
+            <div className="notice" style={{ background: "#260c10", borderColor: "#5a1b24", color: "#f87171", marginBottom: 14 }}>
+              <ShieldAlert size={18} />
+              <div><strong>Execution Supervisor Error</strong><p>{execError}</p></div>
+            </div>
+          )}
+
+          {/* Pre-Execution Policy Evaluation Card */}
+          {decision && (
+            <div className="policy-evaluation-card">
+              <div className="eval-header">
+                <span className="eval-title">Pre-Execution Policy Reasoning & Boundary</span>
+                <span className={`decision-badge ${
+                  decision.action === "PERMIT_WITH_RESTRICTIONS" ? "permit" :
+                  decision.action === "APPROVAL_REQUIRED" ? "approval" : "deny"
+                }`}>
+                  {decision.action === "PERMIT_WITH_RESTRICTIONS" && <ShieldCheck size={13} />}
+                  {decision.action === "APPROVAL_REQUIRED" && <AlertTriangle size={13} />}
+                  {decision.action === "DENIED" && <ShieldAlert size={13} />}
+                  {decision.action}
+                </span>
+              </div>
+
+              <div className="eval-metrics-row">
+                <div className="eval-metric-box">
+                  <span>Allowed Syscalls</span>
+                  <strong>{decision.allowed_syscalls_count} / {decision.total_syscalls_count}</strong>
+                </div>
+                <div className="eval-metric-box">
+                  <span>Attack Surface Reduction</span>
+                  <strong style={{ color: "#34d399" }}>{decision.attack_surface_reduction_pct}%</strong>
+                </div>
+                <div className="eval-metric-box">
+                  <span>Normalized Risk</span>
+                  <strong>{decision.risk_before} &rarr; <span style={{ color: "#38bdf8" }}>{decision.risk_after}</span></strong>
+                </div>
+              </div>
+
+              <div className="eval-rationale">
+                <strong>Policy Rationale:</strong> {decision.rationale}
+              </div>
+
+              {decision.withheld_critical_syscalls?.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>Withheld Critical Syscalls (Blocked by Kernel Filter):</span>
+                  <div className="withheld-list">
+                    {decision.withheld_critical_syscalls.slice(0, 10).map((sys, idx) => (
+                      <span key={idx} className="withheld-chip">{sys}</span>
+                    ))}
+                    {decision.withheld_critical_syscalls.length > 10 && (
+                      <span className="withheld-chip" style={{ color: "#94a3b8" }}>
+                        +{decision.withheld_critical_syscalls.length - 10} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Live Interactive Terminal Screen */}
+          <div className="terminal-viewport">
+            <div className="terminal-top-bar">
+              <div className="terminal-window-dots">
+                <span className="window-dot close" />
+                <span className="window-dot minimize" />
+                <span className="window-dot maximize" />
+              </div>
+              <div className="terminal-session-meta">
+                {currentSession ? (
+                  <>
+                    <span>SESSION: {currentSession.id}</span>
+                    <span style={{ margin: "0 8px", color: "#334155" }}>|</span>
+                    <span>MODE: {currentSession.mode?.toUpperCase()}</span>
+                    <span style={{ margin: "0 8px", color: "#334155" }}>|</span>
+                    <span style={{ color: currentSession.exit_code === 0 ? "#34d399" : "#f87171" }}>
+                      EXIT: {currentSession.exit_code}
+                    </span>
+                    <span style={{ margin: "0 8px", color: "#334155" }}>|</span>
+                    <span>{currentSession.duration_ms}ms</span>
+                  </>
+                ) : (
+                  <span>POVISHIELD_RESTRICTED_CONSOLE // IDLE</span>
+                )}
+              </div>
+            </div>
+
+            <div className="terminal-screen">
+              {currentSession ? (
+                <>
+                  <div className="terminal-line init">
+                    [INIT] Target Vector: {currentSession.command?.join(" ")}
+                  </div>
+                  <div className="terminal-line policy">
+                    [POLICY] Boundary: {currentSession.decision?.profile_path || "Synthesized"} | Allowed: {currentSession.decision?.allowed_syscalls_count} syscalls
+                  </div>
+                  <div className="terminal-line policy">
+                    [ENFORCE] Mechanism: {currentSession.decision?.enforcement_mechanism || "Seccomp BPF"}
+                  </div>
+
+                  <div style={{ margin: "8px 0", borderTop: "1px dashed #1e293b" }} />
+
+                  {currentSession.stdout && (
+                    <div style={{ margin: "6px 0" }}>
+                      <div style={{ color: "#64748b", fontSize: 10 }}>&gt;&gt;&gt; TARGET STDOUT &gt;&gt;&gt;</div>
+                      <pre className="terminal-line stdout" style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+                        {currentSession.stdout}
+                      </pre>
+                    </div>
+                  )}
+
+                  {currentSession.stderr && (
+                    <div style={{ margin: "6px 0" }}>
+                      <div style={{ color: "#f87171", fontSize: 10 }}>&gt;&gt;&gt; TARGET STDERR &gt;&gt;&gt;</div>
+                      <pre className="terminal-line stderr" style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+                        {currentSession.stderr}
+                      </pre>
+                    </div>
+                  )}
+
+                  {currentSession.status === "killed_by_seccomp" && (
+                    <div className="terminal-line violation" style={{ margin: "8px 0" }}>
+                      [ALERT: KERNEL SIGSYS TERMINATION] Target process attempted an unauthorized system call outside its verified seccomp-bpf policy. Process terminated immediately by Linux kernel (Exit Code {currentSession.exit_code}).
+                    </div>
+                  )}
+
+                  {currentSession.status === "denied" && (
+                    <div className="terminal-line violation" style={{ margin: "8px 0" }}>
+                      [SECURITY GATE DENIAL] Pre-execution gate blocked process launch: {currentSession.violation_detail}
+                    </div>
+                  )}
+
+                  <div style={{ margin: "8px 0", borderTop: "1px dashed #1e293b" }} />
+
+                  <div className="terminal-line success">
+                    [RESULT] Status: {currentSession.status?.toUpperCase()} | Returncode: {currentSession.exit_code} | Duration: {currentSession.duration_ms}ms
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: 10 }}>
+                    [AUDIT] Session log recorded to results/sessions/{currentSession.id}.json
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: "#64748b", padding: "20px 0", textAlign: "center" }}>
+                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "#94a3b8" }}>
+                    PoViShield Policy Execution Terminal Ready.
+                  </p>
+                  <p style={{ fontSize: 11, marginTop: 6 }}>
+                    Select a preset command vector above or enter any valid absolute command line to evaluate least-privilege policies and execute under kernel confinement.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Execution History & Session Timeline */}
+        <div className="terminal-timeline-panel">
+          <div className="panel-heading" style={{ marginBottom: 12 }}>
+            <div>
+              <h3>Execution Audit Sessions</h3>
+              <p>Auditable terminal runs ({history.length})</p>
+            </div>
+            <button className="icon-button" onClick={loadHistory} title="Refresh sessions">
+              <RefreshCw size={14} className={historyLoading ? "spin" : ""} />
+            </button>
+          </div>
+
+          <div style={{ overflowY: "auto", maxHeight: 520 }}>
+            {history.length === 0 ? (
+              <p style={{ color: "#64748b", fontSize: 11, textAlign: "center", padding: "20px 0" }}>
+                No execution sessions recorded yet.
+              </p>
+            ) : (
+              history.map((sess) => {
+                const isKill = sess.status === "killed_by_seccomp" || sess.exit_code === 159 || sess.exit_code === -31;
+                const isSelected = currentSession?.id === sess.id;
+                return (
+                  <div
+                    key={sess.id}
+                    className={`history-card ${isSelected ? "selected" : ""}`}
+                    onClick={() => setCurrentSession(sess)}
+                  >
+                    <div className="history-top">
+                      <span className="history-id">{sess.id}</span>
+                      <span className={`history-exit ${isKill ? "code-sigsys" : sess.exit_code === 0 ? "code-0" : "code-other"}`}>
+                        {isKill ? "SIGSYS" : `EXIT ${sess.exit_code}`}
+                      </span>
+                    </div>
+                    <div className="history-cmd">
+                      {sess.command?.join(" ") || sess.target}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: "#64748b" }}>
+                      <span>{sess.mode?.toUpperCase()}</span>
+                      <span>{sess.duration_ms}ms</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {currentSession?.timeline?.length > 0 && (
+            <div style={{ marginTop: 18, borderTop: "1px solid #1a273c", paddingTop: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textTransform: "uppercase" }}>
+                Auditable Event Timeline
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+                {currentSession.timeline.map((item, idx) => (
+                  <div key={idx} style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "4px 8px", background: "#050912", borderRadius: 4, borderLeft: "2px solid #10b981" }}>
+                    <span style={{ color: "#38bdf8", fontWeight: 600 }}>[{item.phase}]</span>{" "}
+                    <span style={{ color: "#cbd5e1" }}>{item.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

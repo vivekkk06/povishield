@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# PoViShield - Intelligent Linux Application Sandboxing & Security Research Platform
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="${SCRIPT_DIR}/build/povishield"
+
+usage() {
+    cat <<EOF
+PoViShield v0.1.0 — Linux Application Sandboxing & Security Research Platform
+
+Usage:
+  povishield run [--mode enforce|inspect|approval-required] [--profile FILE] -- CMD...
+      Execute CMD under policy-gated seccomp enforcement with live session tracking
+
+  povishield evaluate [--mode MODE] -- CMD...
+      Pre-evaluate security policy, attack-surface reduction, and risk for CMD
+
+  povishield list
+      List recent execution sessions and audit logs
+
+Low-level commands:
+  povishield learn   [-o profile.json] [--events events.jsonl] -- CMD...
+      Trace CMD using ptrace and generate observed syscall profile
+
+  povishield enforce -p profile.json [--audit] -- CMD...
+      Execute CMD directly under compiled seccomp filter
+
+  povishield container [--mem MB] [--pids N] [--cpu PCT] [--rootfs DIR] -- CMD...
+      Run CMD with full Linux container namespaces and cgroups v2 (root)
+
+  povishield info total-syscalls
+      Display total system calls recognized on this architecture
+
+Examples:
+  povishield run -- /usr/bin/echo "Hello from PoViShield"
+  povishield run --mode inspect -- /usr/bin/cat /dev/null
+  povishield run --mode approval-required -- /usr/bin/grep "root" /etc/passwd
+  povishield evaluate -- /usr/bin/ls /tmp
+EOF
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 2
+fi
+
+CMD="$1"
+shift
+
+case "$CMD" in
+    run|evaluate|list)
+        exec python3 -m analysis.runner "$CMD" "$@"
+        ;;
+    learn|enforce|info)
+        if [ ! -x "$BIN" ]; then
+            echo "Building PoViShield tracer: make" >&2
+            make -C "$SCRIPT_DIR" povishield >/dev/null
+        fi
+        exec "$BIN" "$CMD" "$@"
+        ;;
+    container)
+        if [ ! -x "$BIN" ]; then
+            echo "Building PoViShield runtime: make" >&2
+            make -C "$SCRIPT_DIR" povishield >/dev/null
+        fi
+        exec "$BIN" run "$@"
+        ;;
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    *)
+        echo "Unknown command: $CMD" >&2
+        usage
+        exit 2
+        ;;
+esac

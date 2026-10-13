@@ -1,6 +1,7 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 import ipaddress
 import os
 import signal
@@ -20,6 +21,13 @@ sys.path.insert(0, str(ROOT))
 RESULTS = ROOT / "results"
 EVENTS_FILE = RESULTS / "syscall-events.jsonl"
 
+from analysis.runner import (
+    evaluate_execution,
+    execute_session,
+    list_sessions,
+    get_session as get_disk_session,
+)
+
 # Local, bounded research sessions. This observes behavior; it does not sandbox it.
 MONITOR_MAX_SECONDS = 30
 MONITOR_MAX_EVENT_BYTES = 10 * 1024 * 1024
@@ -38,6 +46,17 @@ DENIED_EXECUTABLES = {
 class MonitorStartRequest(BaseModel):
     command: list[str] = Field(min_length=1, max_length=16)
     timeout_seconds: int = Field(default=MONITOR_MAX_SECONDS, ge=1, le=MONITOR_MAX_SECONDS)
+
+class ExecutionEvaluateRequest(BaseModel):
+    command: list[str] = Field(min_length=1, max_length=16)
+    mode: str = Field(default="enforce")
+    profile: Optional[str] = None
+
+class ExecutionRunRequest(BaseModel):
+    command: list[str] = Field(min_length=1, max_length=16)
+    mode: str = Field(default="enforce")
+    profile: Optional[str] = None
+    timeout_seconds: int = Field(default=30, ge=1, le=120)
 
 # --- who is really calling? ------------------------------------------------------------------------------------
 # A web page in your browser also connects from 127.0.0.1, so the TCP peer proves nothing about the caller.
@@ -208,11 +227,72 @@ def health():
     tracer = ROOT / "build" / "povishield"
     with MONITOR_LOCK:
         live_connected = any(item["status"] == "running" for item in MONITOR_SESSIONS.values())
+    try:
+        recorded_count = len(list_sessions(limit=100))
+    except Exception:
+        recorded_count = 0
     return {
-        "status": "ok", "service": "PoViShield API", "mode": "local process monitor",
+        "status": "ok", "service": "PoViShield API", "mode": "local process monitor & seccomp enforcement",
         "engine_connected": tracer.is_file() and os.access(tracer, os.X_OK),
         "live_events_connected": live_connected,
+        "recorded_executions_count": recorded_count,
+        "enforcement_ready": tracer.is_file() and os.access(tracer, os.X_OK),
     }
+
+
+@app.post("/api/executions/evaluate")
+def evaluate_execution_endpoint(payload: ExecutionEvaluateRequest, request: Request):
+    _require_local_request(request)
+    if any(not isinstance(arg, str) or not arg or len(arg) > 512 for arg in payload.command):
+        raise HTTPException(status_code=400, detail="command must be an argv array of short, non-empty strings")
+    exe_name = Path(payload.command[0]).name
+    if exe_name in DENIED_EXECUTABLES:
+        raise HTTPException(status_code=400, detail=f"Refusing shell/interpreter or high-risk command: {exe_name}")
+    try:
+        decision = evaluate_execution(payload.command, mode=payload.mode, explicit_profile=payload.profile)
+        return asdict(decision)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/executions")
+def run_execution_endpoint(payload: ExecutionRunRequest, request: Request):
+    _require_local_request(request)
+    if os.geteuid() == 0:
+        raise HTTPException(status_code=403, detail="Do not run the dashboard/API as root")
+    if any(not isinstance(arg, str) or not arg or len(arg) > 512 for arg in payload.command):
+        raise HTTPException(status_code=400, detail="command must be an argv array of short, non-empty strings")
+    exe_name = Path(payload.command[0]).name
+    if exe_name in DENIED_EXECUTABLES:
+        raise HTTPException(status_code=400, detail=f"Refusing shell/interpreter or high-risk command: {exe_name}")
+    try:
+        session = execute_session(
+            command=payload.command,
+            mode=payload.mode,
+            explicit_profile=payload.profile,
+            timeout_seconds=float(payload.timeout_seconds),
+            record_events=True,
+        )
+        return asdict(session)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/executions")
+def list_executions_endpoint(request: Request, limit: int = 50):
+    _require_local_request(request)
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
+    return {"executions": list_sessions(limit=limit)}
+
+
+@app.get("/api/executions/{session_id}")
+def get_execution_endpoint(session_id: str, request: Request):
+    _require_local_request(request)
+    session = get_disk_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Execution session not found")
+    return session
 
 
 @app.post("/api/monitor/sessions")

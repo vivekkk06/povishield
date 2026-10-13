@@ -4,17 +4,21 @@ import {
   FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
-  Check, Copy
+  Check, Copy, Terminal
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, BarChart, Bar
 } from "recharts";
 import "./App.css";
+import TerminalBackground from "./components/TerminalBackground.jsx";
+import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx";
+
 const API = import.meta.env.VITE_API_URL || (typeof window !== "undefined" && window.location.protocol !== "file:" ? "/api" : "http://127.0.0.1:8000/api");
 
 const navigation = [
   { name: "Overview", icon: LayoutDashboard },
+  { name: "Terminal / Execute", icon: Terminal },
   { name: "Activity Monitor", icon: Activity },
   { name: "Syscall Profile", icon: Cpu },
   { name: "Policy Explorer", icon: FileText },
@@ -23,6 +27,15 @@ const navigation = [
   { name: "Safety Gate & Approvals", icon: FileCheck },
   { name: "Experiments", icon: Gauge }
 ];
+
+function getSyscallCategory(name) {
+  if (["read", "write", "openat", "close", "fstat", "newfstatat", "statx", "ioctl", "lseek", "pread64", "pwrite64", "getdents64"].includes(name)) return "File I/O";
+  if (["mmap", "mprotect", "munmap", "brk", "madvise"].includes(name)) return "Memory";
+  if (["execve", "clone", "clone3", "fork", "vfork", "exit_group", "exit", "wait4", "arch_prctl", "set_tid_address", "rseq"].includes(name)) return "Process";
+  if (["socket", "connect", "bind", "listen", "accept", "accept4", "sendto", "recvfrom", "recvmsg", "sendmsg"].includes(name)) return "Network";
+  if (["ptrace", "mount", "umount2", "bpf", "setns", "unshare", "capset", "prctl", "seccomp"].includes(name)) return "Privileged";
+  return "System";
+}
 
 async function getJSON(path) {
   const response = await fetch(`${API}${path}`);
@@ -314,6 +327,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <TerminalBackground />
       <aside className={`sidebar ${menuOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
           <div className="brand-icon"><ShieldCheck size={25} /></div>
@@ -355,7 +369,15 @@ function App() {
           </button>
           <div className="breadcrumb">PoViShield <span>/</span> {page}</div>
           <div className="top-actions">
-            <span className="demo-badge">RESEARCH ARTIFACTS</span>
+            <div className="telemetry-chip">
+              <span>KERNEL:</span>
+              <strong>{overview?.environment?.kernel?.split("-")[0] || "7.2.8 x86_64"}</strong>
+            </div>
+            <div className="telemetry-chip">
+              <span>SECCOMP:</span>
+              <strong style={{ color: "#34d399" }}>BPF KILL ACTIVE</strong>
+            </div>
+            <span className="demo-badge">RESEARCH PLATFORM</span>
             <button className="icon-button" onClick={loadData} title="Refresh data">
               <RefreshCw size={17} />
             </button>
@@ -410,6 +432,32 @@ function App() {
                     <Metric icon={Gauge} label="Median overhead"
                       value={`${aggregate.avg_median_overhead_pct}%`}
                       detail="Average of target medians" />
+                  </section>
+
+                  <section className="panel" style={{ marginBottom: 20 }}>
+                    <div className="panel-heading">
+                      <div>
+                        <h3>Kernel Enforced Execution & Live Terminal Status</h3>
+                        <p>Policy-gated process supervisor with fail-closed seccomp boundaries</p>
+                      </div>
+                      <button className="secondary-button" onClick={() => setPage("Terminal / Execute")}>
+                        <Terminal size={14} /> Open Execution Terminal
+                      </button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                      <div className="eval-metric-box">
+                        <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Enforcement Engine</span>
+                        <strong style={{ color: "#34d399", fontSize: 13, fontFamily: "var(--font-mono)" }}>SCMP_ACT_KILL_PROCESS</strong>
+                      </div>
+                      <div className="eval-metric-box">
+                        <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Tracer Telemetry</span>
+                        <strong style={{ color: "#38bdf8", fontSize: 13, fontFamily: "var(--font-mono)" }}>PTRACE_SYSCALL Active</strong>
+                      </div>
+                      <div className="eval-metric-box">
+                        <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Terminal Sessions</span>
+                        <strong style={{ color: "#f8fafc", fontSize: 13, fontFamily: "var(--font-mono)" }}>{health?.recorded_executions_count ?? 0} Audited Runs</strong>
+                      </div>
+                    </div>
                   </section>
 
                   {ablationData?.aggregate && (
@@ -511,6 +559,10 @@ function App() {
                 </>
               )}
 
+              {page === "Terminal / Execute" && (
+                <TerminalExecutionConsole API={API} health={health} />
+              )}
+
               {page === "Activity Monitor" && (
                 <>
                   <section className="panel events-section live-monitor-panel">
@@ -544,13 +596,20 @@ function App() {
                       </div>
                       {monitorSession.reason && <p className="footnote">Session ended: {monitorSession.reason.replaceAll("_", " ")}. Trace: {monitorSession.source}</p>}
                       <div className="table-wrap activity-table-wrap"><table>
-                        <thead><tr><th>SEQ</th><th>PID</th><th>PHASE</th><th>SYSCALL</th><th>NUMBER</th><th>RETURN VALUE</th></tr></thead>
-                        <tbody>{[...monitorEvents].reverse().map((event, index) => <tr key={`live-${event.seq}-${event.pid}-${event.phase}-${index}`}>
-                          <td className="time-cell">{event.seq}</td><td>{event.pid}</td>
-                          <td><span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>{event.phase}</span></td>
-                          <td className="process-cell">{event.syscall}</td><td><code>{event.syscall_nr}</code></td>
-                          <td>{event.phase === "exit" && event.return_value !== undefined ? <code>{event.return_value}</code> : <span className="muted">—</span>}</td>
-                        </tr>)}</tbody>
+                        <thead><tr><th>SEQ</th><th>PID</th><th>PHASE</th><th>SYSCALL</th><th>CATEGORY</th><th>NUMBER</th><th>RETURN VALUE</th></tr></thead>
+                        <tbody>{[...monitorEvents].reverse().map((event, index) => {
+                          const cat = getSyscallCategory(event.syscall);
+                          return (
+                            <tr key={`live-${event.seq}-${event.pid}-${event.phase}-${index}`}>
+                              <td className="time-cell">{event.seq}</td><td>{event.pid}</td>
+                              <td><span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>{event.phase}</span></td>
+                              <td className="process-cell">{event.syscall}</td>
+                              <td><span className={`category-tag ${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>{cat}</span></td>
+                              <td><code>{event.syscall_nr}</code></td>
+                              <td>{event.phase === "exit" && event.return_value !== undefined ? <code>{event.return_value}</code> : <span className="muted">—</span>}</td>
+                            </tr>
+                          );
+                        })}</tbody>
                       </table></div>
                       <p className="footnote">Polling uses a byte cursor to avoid rereading the trace. The browser retains the latest 1,000 events; the session trace is stored separately under results/.</p>
                     </>}
@@ -604,26 +663,30 @@ function App() {
                               <thead>
                                 <tr>
                                   <th>SEQ</th><th>PID</th><th>PHASE</th>
-                                  <th>SYSCALL</th><th>NUMBER</th><th>RETURN VALUE</th>
+                                  <th>SYSCALL</th><th>CATEGORY</th><th>NUMBER</th><th>RETURN VALUE</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {eventsData.events.map((event, index) => (
-                                  <tr key={`${event.seq}-${event.pid}-${event.phase}-${index}`}>
-                                    <td className="time-cell">{event.seq ?? "—"}</td>
-                                    <td>{event.pid ?? "—"}</td>
-                                    <td>
-                                      <span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>
-                                        {event.phase ?? "unknown"}
-                                      </span>
-                                    </td>
-                                    <td className="process-cell">{event.syscall ?? "unknown"}</td>
-                                    <td><code>{event.syscall_nr ?? "—"}</code></td>
-                                    <td>{event.phase === "exit" && event.return_value !== undefined
-                                      ? <code>{event.return_value}</code>
-                                      : <span className="muted">—</span>}</td>
-                                  </tr>
-                                ))}
+                                {eventsData.events.map((event, index) => {
+                                  const cat = getSyscallCategory(event.syscall || "");
+                                  return (
+                                    <tr key={`${event.seq}-${event.pid}-${event.phase}-${index}`}>
+                                      <td className="time-cell">{event.seq ?? "—"}</td>
+                                      <td>{event.pid ?? "—"}</td>
+                                      <td>
+                                        <span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>
+                                          {event.phase ?? "unknown"}
+                                        </span>
+                                      </td>
+                                      <td className="process-cell">{event.syscall ?? "unknown"}</td>
+                                      <td><span className={`category-tag ${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>{cat}</span></td>
+                                      <td><code>{event.syscall_nr ?? "—"}</code></td>
+                                      <td>{event.phase === "exit" && event.return_value !== undefined
+                                        ? <code>{event.return_value}</code>
+                                        : <span className="muted">—</span>}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
