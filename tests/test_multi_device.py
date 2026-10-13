@@ -56,6 +56,7 @@ try:
         get_approval_status_endpoint,
         grant_approval_endpoint,
         deny_approval_endpoint,
+        agent_overview_endpoint,
     )
     HAS_FASTAPI = True
 except ImportError:
@@ -618,6 +619,50 @@ class TestMultiDeviceFleet(unittest.TestCase):
         # 8. Pending list is now empty for this approval
         pending_after = list_pending_approvals()
         self.assertFalse(any(p["id"] == appr_id for p in pending_after["pending"]))
+
+    def test_agent_overview_endpoint_and_terminal_monitor(self):
+        """Validates /api/agent/overview returns device tasks, events, and pending approvals for terminal monitor."""
+        user_req = make_req({"x-povishield-user": "operator"})
+
+        # Enroll agent
+        res = agent_direct_connect_endpoint(AgentDirectConnectRequest(
+            name="Remote-Worker-Test",
+            hostname="worker-node-1",
+            os_info="Linux 6.8.0",
+            kernel_version="6.8.0",
+            arch="x86_64",
+            capabilities={"seccomp_bpf": True, "cgroups_v2": True},
+            permissions={"allow_execution": True, "share_output": True, "is_root": True}
+        ), user_req)
+
+        dev_id = res["device_id"]
+        token = res["token"]
+
+        # Create task for this device
+        create_device_task(dev_id, DeviceTaskCreateRequest(
+            command=["/usr/bin/echo", "remote worker task"],
+            mode="enforce"
+        ), user_req)
+
+        # Create pending approval
+        request_approval_endpoint(ApprovalRequestCreate(
+            target="cat",
+            command=["/usr/bin/cat", "/etc/os-release"],
+            mode="approval-required",
+            device_id=dev_id,
+            hostname="worker-node-1",
+            rationale="Distro check"
+        ), user_req)
+
+        # Call agent overview endpoint with bearer token
+        agent_req = make_req({"authorization": f"Bearer {token}"})
+        overview = agent_overview_endpoint(agent_req)
+
+        self.assertEqual(overview["status"], "ok")
+        self.assertEqual(overview["device"]["id"], dev_id)
+        self.assertGreaterEqual(len(overview["tasks"]), 1)
+        self.assertGreaterEqual(len(overview["pending_approvals"]), 1)
+        self.assertEqual(overview["tasks"][0]["command"], ["/usr/bin/echo", "remote worker task"])
 
 
 if __name__ == "__main__":

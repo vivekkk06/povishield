@@ -681,6 +681,125 @@ def run_agent_loop(
         pid_path.unlink(missing_ok=True)
 
 
+def monitor_device_terminal(
+    config_path: Path = DEFAULT_CONFIG_PATH,
+    follow: bool = True,
+    poll_interval: float = 2.0,
+    server_override: Optional[str] = None
+) -> None:
+    """Live cybersecurity terminal monitor displaying all remote task executions, verdicts, and syscalls."""
+    config = load_agent_config(config_path) or {}
+    server_url = server_override or config.get("server_url") or os.environ.get("POVI_SERVER_URL") or "http://localhost:8000"
+    server_url = server_url.rstrip("/")
+    token = config.get("token")
+    device_id = config.get("device_id") or "laptop_terminal"
+    dev_name = config.get("name") or socket.gethostname()
+
+    probe = probe_local_security()
+    is_root = (os.geteuid() == 0)
+
+    # ANSI Colors
+    USE_COLOR = sys.stdout.isatty()
+    C_CYAN = "\033[96m" if USE_COLOR else ""
+    C_GREEN = "\033[92m" if USE_COLOR else ""
+    C_RED = "\033[91m" if USE_COLOR else ""
+    C_YELLOW = "\033[93m" if USE_COLOR else ""
+    C_DIM = "\033[90m" if USE_COLOR else ""
+    C_BOLD = "\033[1m" if USE_COLOR else ""
+    C_RESET = "\033[0m" if USE_COLOR else ""
+
+    print(f"\n{C_CYAN}╔══════════════════════════════════════════════════════════════════════════════╗{C_RESET}")
+    print(f"{C_CYAN}║               PoViShield Remote Linux Terminal Security Monitor              ║{C_RESET}")
+    print(f"{C_CYAN}╚══════════════════════════════════════════════════════════════════════════════╝{C_RESET}")
+    print(f"Device Identity:   {C_BOLD}{dev_name}{C_RESET} ({device_id})")
+    print(f"Host / Kernel:     {probe['hostname']} · {probe['os_name']}")
+    print(f"Dashboard Server:  {C_CYAN}{server_url}{C_RESET}")
+    print(f"Privilege State:   {C_GREEN if is_root else C_YELLOW}[{'ROOT / SUPERVISOR ACTIVE' if is_root else 'USER CONFINED (PR_SET_NO_NEW_PRIVS)'}]{C_RESET}")
+    print(f"Kernel Sandbox:    {C_GREEN}[SECCOMP-BPF ACTIVE]{C_RESET}" if probe['seccomp_bpf'] else f"{C_RED}[SECCOMP NOT DETECTED]{C_RESET}")
+    print(f"{C_DIM}────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+    print(f"{C_BOLD}LIVE TASK & EXECUTION STREAM (Press Ctrl+C to terminate){C_RESET}")
+    print(f"{C_DIM}────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+
+    seen_ids = set()
+
+    def _render_task_item(t: Dict[str, Any], is_exec: bool = False):
+        t_id = t.get("id") or t.get("task_id")
+        cmd_list = t.get("command") or []
+        cmd_str = " ".join(cmd_list) if isinstance(cmd_list, list) else str(cmd_list)
+        mode = (t.get("mode") or "enforce").upper()
+        status = (t.get("status") or "completed").upper()
+        res = t.get("result") or {}
+        rc = res.get("exit_code") if res else t.get("exit_code", 0)
+        dur = res.get("duration_ms") if res else t.get("duration_ms", 0)
+        syscalls = res.get("syscalls") if res else (t.get("syscalls") or [])
+        stdout_txt = (res.get("stdout") if res else t.get("stdout")) or ""
+        stderr_txt = (res.get("stderr") if res else t.get("stderr")) or ""
+        time_str = t.get("created_at") or t.get("started_at") or datetime.now().strftime("%H:%M:%S")
+
+        status_color = C_GREEN if status in ("COMPLETED", "APPROVED") else (C_RED if any(k in status for k in ("FAIL", "KILL", "SIGSYS", "DENIED")) else C_YELLOW)
+
+        print(f"\n{C_DIM}[{time_str}]{C_RESET} {C_BOLD}Task {t_id}{C_RESET} · Mode: {C_CYAN}{mode}{C_RESET} · Status: {status_color}{status}{C_RESET} (rc={rc}, {dur}ms)")
+        print(f"  {C_CYAN}Command:{C_RESET}  $ {cmd_str}")
+
+        if syscalls:
+            sc_preview = ", ".join(syscalls[:8]) + (f" ... (+{len(syscalls)-8} more)" if len(syscalls) > 8 else "")
+            print(f"  {C_DIM}Syscalls:{C_RESET} {C_GREEN}[{len(syscalls)} observed]{C_RESET} {sc_preview}")
+
+        if stdout_txt.strip():
+            lines = stdout_txt.strip().splitlines()
+            print(f"  {C_DIM}Stdout:{C_RESET}   {lines[0][:100]}")
+            if len(lines) > 1:
+                print(f"            {C_DIM}(+{len(lines)-1} more lines){C_RESET}")
+        if stderr_txt.strip():
+            print(f"  {C_RED}Stderr:{C_RESET}   {stderr_txt.strip().splitlines()[0][:100]}")
+
+    try:
+        while True:
+            url = f"{server_url}/api/agent/overview"
+            if device_id and device_id != "laptop_terminal":
+                url = f"{url}?device_id={device_id}"
+
+            status_code, data = make_api_request(url, method="GET", token=token, timeout=5.0)
+            if status_code == 200:
+                # 1. Check pending approvals
+                pending = data.get("pending_approvals", [])
+                for appr in pending:
+                    appr_id = appr.get("id")
+                    if appr_id not in seen_ids:
+                        seen_ids.add(appr_id)
+                        print(f"\n{C_YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗{C_RESET}")
+                        print(f"{C_YELLOW}║ ⚠️  PENDING SAFETY GATE APPROVAL DETECTED FOR THIS DEVICE                      ║{C_RESET}")
+                        print(f"{C_YELLOW}╚══════════════════════════════════════════════════════════════════════════════╝{C_RESET}")
+                        print(f"  Request ID: {C_BOLD}{appr_id}{C_RESET}")
+                        print(f"  Target:     {C_CYAN}{' '.join(appr.get('command', [])) if isinstance(appr.get('command'), list) else appr.get('target')}{C_RESET}")
+                        print(f"  Rationale:  {appr.get('rationale')}")
+                        print(f"  {C_BOLD}[ACTION REQUIRED]{C_RESET} Approve on web dashboard or run in terminal.")
+
+                # 2. Check tasks
+                tasks = data.get("tasks", [])
+                for task in tasks:
+                    t_id = task.get("id")
+                    if t_id not in seen_ids:
+                        seen_ids.add(t_id)
+                        _render_task_item(task, is_exec=False)
+
+                # 3. Check recent executions if few tasks
+                if len(tasks) == 0:
+                    execs = data.get("recent_executions", [])
+                    for exc in execs:
+                        e_id = exc.get("id")
+                        if e_id not in seen_ids:
+                            seen_ids.add(e_id)
+                            _render_task_item(exc, is_exec=True)
+
+            if not follow:
+                break
+
+            time.sleep(poll_interval)
+    except KeyboardInterrupt:
+        print(f"\n{C_DIM}[MONITOR] Closed live terminal execution stream.{C_RESET}\n")
+
+
 def print_security_probe():
     probe = probe_local_security()
     print("╔══════════════════════════════════════════════════════════════════════════════╗")
@@ -740,6 +859,25 @@ def main():
     connect_parser.add_argument("--foreground", action="store_true", help="Run loop in foreground instead of background daemon")
     connect_parser.add_argument("--no-daemon", action="store_true", help="Do not start background daemon")
 
+    # monitor / watch
+    monitor_parser = subparsers.add_parser("monitor", help="Live cybersecurity terminal monitor streaming executions and syscalls")
+    monitor_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
+    monitor_parser.add_argument("--server", default=None, help="Dashboard URL override")
+    monitor_parser.add_argument("--poll-interval", type=float, default=2.0, help="Polling interval in seconds")
+    monitor_parser.add_argument("--no-follow", action="store_true", help="Print recent items and exit without following")
+
+    watch_parser = subparsers.add_parser("watch", help="Alias for 'monitor --follow'")
+    watch_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
+    watch_parser.add_argument("--server", default=None, help="Dashboard URL override")
+    watch_parser.add_argument("--poll-interval", type=float, default=2.0, help="Polling interval in seconds")
+
+    # logs
+    logs_parser = subparsers.add_parser("logs", help="View task execution logs and live output on this device")
+    logs_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
+    logs_parser.add_argument("--server", default=None, help="Dashboard URL override")
+    logs_parser.add_argument("-f", "--follow", action="store_true", help="Follow live output stream")
+    logs_parser.add_argument("--limit", type=int, default=20, help="Number of records to display")
+
     # stop
     stop_parser = subparsers.add_parser("stop", help="Stop running background agent")
     stop_parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to agent config")
@@ -748,6 +886,21 @@ def main():
 
     if args.subcommand == "probe":
         print_security_probe()
+    elif args.subcommand in ("monitor", "watch"):
+        follow_mode = not getattr(args, "no_follow", False)
+        monitor_device_terminal(
+            config_path=Path(args.config),
+            follow=follow_mode,
+            poll_interval=args.poll_interval,
+            server_override=args.server
+        )
+    elif args.subcommand == "logs":
+        monitor_device_terminal(
+            config_path=Path(args.config),
+            follow=args.follow,
+            poll_interval=2.0,
+            server_override=args.server
+        )
     elif args.subcommand == "connect":
         try:
             target_srv = args.server or args.server_pos or "http://localhost:8000"

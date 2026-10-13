@@ -1862,3 +1862,65 @@ def agent_disconnect_endpoint(request: Request):
         payload={"reason": "clean_shutdown"}
     )
     return {"status": "disconnected", "device_id": device["id"]}
+
+
+@app.get("/api/agent/overview")
+@app.get("/agent/overview")
+def agent_overview_endpoint(request: Request, device_id: Optional[str] = None):
+    """Returns real-time execution tasks, events, and pending safety gate requests for a device or terminal."""
+    auth_header = request.headers.get("authorization")
+    device = None
+    if auth_header and "pvs_agent_" in auth_header:
+        try:
+            device = get_authenticated_device(request, authorization=auth_header)
+        except Exception:
+            pass
+
+    if not device and device_id:
+        device = db.get_device(device_id)
+
+    if not device:
+        devs = db.list_devices_for_user("usr_operator")
+        if devs:
+            device = devs[0]
+
+    dev_id = device["id"] if device else "laptop_terminal"
+    tasks = db.list_tasks_for_device(dev_id, limit=30) if device else []
+    events = db.get_device_events(dev_id, limit=30) if device else []
+
+    with _PENDING_APPROVALS_LOCK:
+        pending = [
+            v for v in _PENDING_APPROVALS.values()
+            if v.get("status") == "pending" and (
+                v.get("device_id") == dev_id or
+                v.get("device_id") == "all" or
+                v.get("hostname") == (device.get("hostname") if device else None) or
+                not v.get("device_id")
+            )
+        ]
+
+    recent_execs = []
+    if len(tasks) < 5:
+        sessions_dir = RESULTS / "sessions"
+        if sessions_dir.is_dir():
+            for p in sorted(sessions_dir.glob("run-*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:10]:
+                try:
+                    with p.open("r", encoding="utf-8") as sf:
+                        recent_execs.append(json.load(sf))
+                except Exception:
+                    pass
+
+    return {
+        "status": "ok",
+        "device": device or {
+            "id": "laptop_terminal",
+            "name": "Local Terminal",
+            "hostname": socket.gethostname(),
+            "status": "active",
+            "is_live": True
+        },
+        "tasks": tasks,
+        "recent_executions": recent_execs,
+        "events": events,
+        "pending_approvals": pending
+    }

@@ -22,7 +22,16 @@ Usage:
   povishield list
       List recent execution sessions and audit logs
 
-  povishield agent probe|pair|start|status|connect
+  povishield monitor [--follow]
+      Live cybersecurity terminal monitor streaming all executions, tasks, and syscalls on this device
+
+  povishield watch
+      Alias for 'povishield monitor --follow'
+
+  povishield logs [-f] [--limit N]
+      View past and streaming execution session logs on this device
+
+  povishield agent probe|pair|start|status|connect|monitor|logs
       Manage local Linux endpoint security agent and pairing
 
 Low-level commands:
@@ -41,6 +50,9 @@ Low-level commands:
 Examples:
   povishield connect
   sudo povishield connect
+  povishield monitor
+  povishield watch
+  povishield logs -f
   povishield connect --server https://your-backend.onrender.com --code PVS-XXXX
   povishield run -- /usr/bin/echo "Hello from PoViShield"
   povishield run --mode inspect -- /usr/bin/cat /dev/null
@@ -62,6 +74,9 @@ shift
 case "$CMD" in
     connect)
         exec python3 -m agent.povishield_agent connect "$@"
+        ;;
+    monitor|watch|logs)
+        exec python3 -m agent.povishield_agent "$CMD" "$@"
         ;;
     agent)
         exec python3 -m agent.povishield_agent "$@"
