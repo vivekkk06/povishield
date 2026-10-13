@@ -92,3 +92,14 @@ code, pre, kbd {
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin,
+.spin-icon {
+  animation: spin 0.75s linear infinite !important;
+  display: inline-block;
+}

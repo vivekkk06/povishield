@@ -112,6 +112,17 @@ button { cursor: pointer; }
   50%, 100% { opacity: 0; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin,
+.spin-icon {
+  animation: spin 0.75s linear infinite !important;
+  display: inline-block;
+}
+
 /* --- App Shell & Sidebar --- */
 .app-shell {
   min-height: 100vh;

@@ -31,7 +31,7 @@ function parseCommandArgs(cmdStr) {
   });
 }
 
-export default function TerminalExecutionConsole({ API, health, devices = [], activeDeviceId = "gateway", setActiveDeviceId }) {
+export default function TerminalExecutionConsole({ API, health, devices = [], activeDeviceId = "gateway", setActiveDeviceId, refreshTick }) {
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Hello from PoViShield'");
   const [mode, setMode] = useState("enforce");
   const [execTarget, setExecTarget] = useState(activeDeviceId || "gateway");
@@ -71,6 +71,12 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   useEffect(() => {
     loadHistory();
   }, []);
+
+  useEffect(() => {
+    if (refreshTick) {
+      loadHistory();
+    }
+  }, [refreshTick]);
 
   // Pre-evaluate policy when command or mode changes
   const evaluatePolicy = async (cmdToEval = commandInput, currentMode = mode) => {

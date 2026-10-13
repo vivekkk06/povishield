@@ -120,7 +120,12 @@ function renderEscapeBadge(verdict) {
 
 
 async function getJSON(path) {
-  const response = await fetch(`${API}${path}`);
+  let cleanPath = path;
+  if (API.endsWith("/api") && cleanPath.startsWith("/api/")) {
+    cleanPath = cleanPath.slice(4);
+  }
+  const url = `${API}${cleanPath.startsWith("/") ? "" : "/"}${cleanPath}`;
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`API returned ${response.status}`);
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
@@ -270,36 +275,53 @@ function App() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshedRecently, setRefreshedRecently] = useState(false);
 
   async function loadData() {
     setLoading(true);
     setError("");
     try {
-      const [o, p, e, h] = await Promise.all([
+      const [oRes, pRes, eRes, hRes] = await Promise.allSettled([
         getJSON("/overview"),
         getJSON("/policies"),
         getJSON("/experiments"),
         getJSON("/health")
       ]);
-      setOverview(o);
-      setPolicies(p);
-      setExperiments(e);
-      setHealth(h);
 
-      // Fetch optional research endpoints safely
+      if (hRes.status === "rejected" && oRes.status === "rejected") {
+        throw new Error(hRes.reason?.message || oRes.reason?.message || "Failed to reach backend API");
+      }
+
+      if (oRes.status === "fulfilled") setOverview(oRes.value);
+      if (pRes.status === "fulfilled") {
+        const p = pRes.value;
+        setPolicies(p);
+        if (p?.items?.length) {
+          const baseItem = p.items.find(i => i.name?.includes("baseline") || i.name === "grep.json");
+          const candItem = p.items.find(i => i.name?.includes("counterfactual") || i.name?.includes("candidate"));
+          if (baseItem && candItem) {
+            setCompareBase(baseItem.name);
+            setCompareCand(candItem.name);
+          } else if (p.items.length >= 2) {
+            setCompareBase(p.items[0].name);
+            setCompareCand(p.items[1].name);
+          }
+        }
+      }
+      if (eRes.status === "fulfilled") setExperiments(eRes.value);
+      if (hRes.status === "fulfilled") setHealth(hRes.value);
+
+      // Fetch optional research & fleet endpoints safely
       try {
         const abl = await getJSON("/ablation/results");
         setAblationData(abl);
-      } catch {
-        // Optional if eval-ablate not yet run
-      }
+      } catch {}
 
       try {
         const noisy = await getJSON("/ablation/noisy");
         if (noisy?.available) setNoisyAblationData(noisy);
-      } catch {
-        // Optional if eval-noisy not yet run
-      }
+      } catch {}
 
       try {
         const ledg = await getJSON("/ledgers");
@@ -307,38 +329,45 @@ function App() {
         if (ledg.ledgers?.length && !selectedLedgerTarget) {
           setSelectedLedgerTarget(ledg.ledgers[0].target);
         }
-      } catch {
-        // Ledgers optional
-      }
+      } catch {}
 
       try {
         const appr = await getJSON("/approvals");
         setApprovalsList(appr.approvals ?? []);
-      } catch {
-        // Approvals optional
-      }
+      } catch {}
 
       try {
         const devRes = await getJSON("/devices");
         setDevices(devRes.devices ?? []);
-      } catch {
-        // Devices optional
-      }
+      } catch {}
 
-      // Initialize policy compare default filenames
-      if (p?.items?.length) {
-        const baseItem = p.items.find(i => i.name.includes("baseline") || i.name === "grep.json");
-        const candItem = p.items.find(i => i.name.includes("counterfactual") || i.name.includes("candidate"));
-        if (baseItem && candItem) {
-          setCompareBase(baseItem.name);
-          setCompareCand(candItem.name);
-        } else if (p.items.length >= 2) {
-          setCompareBase(p.items[0].name);
-          setCompareCand(p.items[1].name);
-        }
-      }
     } catch (err) {
       setError(`${err.message}. Check that the FastAPI server is running on port 8000.`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRefreshWorkspace() {
+    setLoading(true);
+    setRefreshedRecently(false);
+    try {
+      await loadData();
+      if (page === "Activity Monitor" || page === "Syscall Profile") {
+        await loadEvents();
+      }
+      if (page === "Evidence Ledgers" && selectedLedgerTarget) {
+        await Promise.allSettled([
+          loadLedgerTrials(selectedLedgerTarget),
+          runLedgerAudit(selectedLedgerTarget)
+        ]);
+      }
+      if (page === "Policy Explorer" && compareBase && compareCand) {
+        await runCompare(compareBase, compareCand);
+      }
+      setRefreshTick(t => t + 1);
+      setRefreshedRecently(true);
+      setTimeout(() => setRefreshedRecently(false), 2500);
     } finally {
       setLoading(false);
     }
@@ -677,8 +706,8 @@ function App() {
             >
               <Server size={14} /> Connect Device
             </button>
-            <button className="icon-button" onClick={loadData} title="Refresh workspace data">
-              <RefreshCw size={17} />
+            <button className="icon-button" onClick={handleRefreshWorkspace} title="Refresh workspace data" disabled={loading}>
+              <RefreshCw size={17} className={loading ? "spin" : ""} />
             </button>
             <div className="avatar" title="PoViShield Security Operator">PV</div>
           </div>
@@ -691,9 +720,17 @@ function App() {
               <h1>{page}</h1>
               <p>Rigorous, evidence-backed syscall reduction and fail-closed security for Linux.</p>
             </div>
-            <button className="secondary-button" onClick={loadData}>
-              <RefreshCw size={16} /> Refresh workspace
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {refreshedRecently && (
+                <span style={{ fontSize: 12, color: "#34d399", fontFamily: "var(--font-mono)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Check size={14} /> Refreshed
+                </span>
+              )}
+              <button className="secondary-button" onClick={handleRefreshWorkspace} disabled={loading}>
+                <RefreshCw size={16} className={loading ? "spin" : ""} />
+                {loading ? "Refreshing workspace…" : "Refresh workspace"}
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -703,8 +740,8 @@ function App() {
                   <ShieldAlert size={19} />
                   <div><strong>API connection problem</strong><p>{error}</p></div>
                 </div>
-                <button className="secondary-button" onClick={loadData} style={{ whiteSpace: "nowrap" }}>
-                  <RefreshCw size={14} /> Retry Connection
+                <button className="secondary-button" onClick={handleRefreshWorkspace} disabled={loading} style={{ whiteSpace: "nowrap" }}>
+                  <RefreshCw size={14} className={loading ? "spin" : ""} /> {loading ? "Retrying…" : "Retry Connection"}
                 </button>
               </div>
 
@@ -1266,6 +1303,7 @@ function App() {
                   API={API}
                   activeDeviceId={activeDeviceId}
                   setActiveDeviceId={setActiveDeviceId}
+                  refreshTick={refreshTick}
                 />
               )}
 
@@ -1276,6 +1314,7 @@ function App() {
                   devices={devices}
                   activeDeviceId={activeDeviceId}
                   setActiveDeviceId={setActiveDeviceId}
+                  refreshTick={refreshTick}
                 />
               )}
 

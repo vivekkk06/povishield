@@ -5,9 +5,10 @@ import {
   Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink
 } from "lucide-react";
 
-export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDeviceId }) {
+export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDeviceId, refreshTick }) {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedDevice, setSelectedDevice] = useState(null);
 
@@ -85,6 +86,24 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     }
   }, [selectedDevice?.id]);
 
+  const handleRefreshFleet = async () => {
+    setRefreshing(true);
+    try {
+      await fetchDevices();
+      if (selectedDevice?.id) {
+        await loadDeviceDetails(selectedDevice.id);
+      }
+    } finally {
+      setTimeout(() => setRefreshing(false), 400);
+    }
+  };
+
+  useEffect(() => {
+    if (refreshTick) {
+      handleRefreshFleet();
+    }
+  }, [refreshTick]);
+
   // Generate Pairing Code (supports unlimited multi-device or single-use)
   const handleGeneratePairing = async () => {
     setGeneratingCode(true);
@@ -131,9 +150,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   }, [waitingForPair, pairingData]);
 
   // Dispatch Remote Task
-  const handleDispatchTask = async () => {
+  const handleDispatchTask = async (overrideCmd, overrideMode) => {
     if (!selectedDevice || selectedDevice.status === "revoked") return;
-    const tokens = commandInput.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+    const effectiveCmd = overrideCmd || commandInput;
+    const effectiveMode = overrideMode || execMode;
+    const tokens = effectiveCmd.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
     const args = tokens.map(t => (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")) ? t.slice(1, -1) : t);
     if (!args.length) return;
 
@@ -143,7 +164,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       const res = await fetch(`${API}/devices/${selectedDevice.id}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: args, mode: execMode })
+        body: JSON.stringify({ command: args, mode: effectiveMode })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || `Dispatch failed (${res.status})`);
@@ -213,9 +234,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     if (!selectedDevice || selectedDevice.status === "revoked") return;
     setCommandInput("/usr/bin/id");
     setExecMode("inspect");
-    setTimeout(() => {
-      handleDispatchTask();
-    }, 50);
+    await handleDispatchTask("/usr/bin/id", "inspect");
   };
 
   const copyText = (txt) => {
@@ -272,13 +291,24 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               <h3>Connected Fleet</h3>
               <p>Linux endpoints reporting telemetry</p>
             </div>
-            <button
-              className="primary-button"
-              onClick={() => { setWizardStep(1); setShowPairModal(true); }}
-              style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <Plus size={14} /> Pair Device
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                className="secondary-button"
+                onClick={handleRefreshFleet}
+                disabled={refreshing}
+                title="Refresh connected device fleet"
+                style={{ padding: "6px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}
+              >
+                <RefreshCw size={13} className={refreshing ? "spin" : ""} /> Refresh
+              </button>
+              <button
+                className="primary-button"
+                onClick={() => { setWizardStep(1); setShowPairModal(true); }}
+                style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <Plus size={14} /> Pair Device
+              </button>
+            </div>
           </div>
 
           <div className="device-cards-container" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
@@ -389,10 +419,13 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   className="secondary-button"
-                  onClick={() => loadDeviceDetails(selectedDevice.id)}
-                  title="Refresh device telemetry"
+                  onClick={handleRefreshFleet}
+                  disabled={refreshing}
+                  title="Refresh device telemetry and fleet"
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
                 >
-                  <RefreshCw size={14} /> Refresh
+                  <RefreshCw size={14} className={refreshing ? "spin" : ""} />
+                  {refreshing ? "Refreshing..." : "Refresh"}
                 </button>
                 {setActiveDeviceId && (
                   activeDeviceId === selectedDevice.id ? (
