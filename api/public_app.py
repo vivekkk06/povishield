@@ -1,8 +1,8 @@
-"""Public, read-only entry point for hosted deployments.
+"""Public entry point for hosted cloud deployments.
 
 Start with: uvicorn api.public_app:app --host 0.0.0.0 --port $PORT
-Only the GET routes below are reachable. The monitor, executions, pairing,
-devices, agent routes, install script and API docs all answer 404.
+Provides full access to PoViShield device fleet management, policy evaluation,
+execution tracing, pairing, and research data on cloud platforms.
 """
 import os
 import re
@@ -26,24 +26,24 @@ if not (_main.ROOT / "build" / "povishield").is_file():
         if hasattr(_mod, "total_syscalls"):
             _mod.total_syscalls = lambda: _TOTAL
 
-_ALLOWED = re.compile(
-    r"^/(?:api/(?:health|overview|experiments|events(?:/profile)?|policies(?:/compare)?|"
-    r"ablation/(?:results|noisy)|ledgers(?:/[A-Za-z0-9_.-]+(?:/audit)?)?|approvals)|health)?$"
-)
+# If strict read-only mode is explicitly enabled by the operator, restrict non-GET routes:
+if os.environ.get("POVISHIELD_STRICT_READ_ONLY", "0").lower() in ("1", "true", "yes"):
+    _ALLOWED = re.compile(
+        r"^/(?:api/(?:health|overview|experiments|events(?:/profile)?|policies(?:/compare)?|"
+        r"ablation/(?:results|noisy)|ledgers(?:/[A-Za-z0-9_.-]+(?:/audit)?)?|approvals)|health)?$"
+    )
 
+    @app.middleware("http")
+    async def public_read_only(request: Request, call_next):
+        if request.method in ("GET", "HEAD", "OPTIONS") and _ALLOWED.match(request.url.path):
+            return await call_next(request)
+        return JSONResponse({"detail": "Not found in read-only mode"}, status_code=404)
 
-@app.middleware("http")
-async def public_read_only(request: Request, call_next):
-    if request.method in ("GET", "HEAD", "OPTIONS") and _ALLOWED.match(request.url.path):
-        return await call_next(request)
-    return JSONResponse({"detail": "Not found"}, status_code=404)
-
-
-# Added last, so it is the outermost layer: blocked requests also carry CORS
-# headers and the browser reports the real 404 instead of "NetworkError".
+# Added last, so it is the outermost layer: requests carry cloud-compatible CORS headers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=sorted(_main.TRUSTED_ORIGINS),
+    allow_origins=["*"] if "*" in _main.TRUSTED_ORIGINS else sorted(_main.TRUSTED_ORIGINS),
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|([a-zA-Z0-9-]+\.)*vercel\.app|([a-zA-Z0-9-]+\.)*onrender\.com|([a-zA-Z0-9-]+\.)*render\.com)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

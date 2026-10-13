@@ -6,10 +6,10 @@ FAIL=0
 [ -f results/results.json ] || { echo "results.json missing; running make eval..."; make eval >/dev/null 2>&1; }
 PY=.venv/bin/python; [ -x "$PY" ] || PY=api/.venv/bin/python
 "$PY" -c "import fastapi, uvicorn" 2>/dev/null || { echo "[FAIL] fastapi/uvicorn missing in venv"; exit 1; }
-"$PY" -m py_compile api/main.py && echo "[PASS] api/main.py compiles" || FAIL=1
+"$PY" -m py_compile api/main.py api/public_app.py && echo "[PASS] api/main.py & api/public_app.py compile" || FAIL=1
 "$PY" -m uvicorn api.main:app --host 127.0.0.1 --port 8001 >/tmp/ps-api.log 2>&1 &
 APIPID=$!
-trap 'kill $APIPID 2>/dev/null' EXIT
+trap 'kill $APIPID ${PUBPID:-} 2>/dev/null' EXIT
 sleep 3
 for ep in health overview policies experiments events/profile ablation/results ablation/noisy ledgers approvals "events?limit=10" executions devices; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/api/$ep")
@@ -17,6 +17,21 @@ for ep in health overview policies experiments events/profile ablation/results a
 done
 inst_code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/install.sh")
 [ "$inst_code" = "200" ] && echo "[PASS] /install.sh -> 200" || { echo "[FAIL] /install.sh -> $inst_code"; FAIL=1; }
+
+echo
+echo "=== CLOUD ENTRYPOINT (api.public_app) VERIFICATION ==="
+"$PY" -m uvicorn api.public_app:app --host 127.0.0.1 --port 8002 >/tmp/ps-pub.log 2>&1 &
+PUBPID=$!
+sleep 2
+for pep in health devices executions; do
+  pcode=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8002/api/$pep")
+  [ "$pcode" = "200" ] && echo "[PASS] public_app /api/$pep -> 200" || { echo "[FAIL] public_app /api/$pep -> $pcode"; FAIL=1; }
+done
+peval_code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:8002/api/executions/evaluate" -H "Content-Type: application/json" -d '{"command":["/usr/bin/echo","test"]}')
+[ "$peval_code" = "200" ] && echo "[PASS] public_app /api/executions/evaluate -> 200" || { echo "[FAIL] public_app /api/executions/evaluate -> $peval_code"; FAIL=1; }
+pinst_code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8002/install.sh")
+[ "$pinst_code" = "200" ] && echo "[PASS] public_app /install.sh -> 200" || { echo "[FAIL] public_app /install.sh -> $pinst_code"; FAIL=1; }
+kill $PUBPID 2>/dev/null; wait $PUBPID 2>/dev/null
 
 echo
 echo "=== MULTI-DEVICE FLEET SECURITY TESTS ==="

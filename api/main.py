@@ -196,7 +196,19 @@ def _require_local_request(request: Request) -> None:
     def deny(detail: str):
         raise HTTPException(status_code=403, detail=detail)
 
-    if os.environ.get("POVISHIELD_ALLOW_REMOTE", "0").lower() in ("1", "true", "yes") or os.environ.get("RENDER") == "true":
+    is_remote = (
+        os.environ.get("POVISHIELD_ALLOW_REMOTE", "0").lower() in ("1", "true", "yes")
+        or os.environ.get("RENDER") == "true"
+        or bool(os.environ.get("RENDER_SERVICE_ID"))
+        or bool(os.environ.get("RENDER_EXTERNAL_URL"))
+    )
+    if not is_remote:
+        hdr = request.headers.get("host", "")
+        name = (hdr.split("]")[0] + "]") if hdr.startswith("[") else hdr.rsplit(":", 1)[0]
+        if name.endswith((".onrender.com", ".render.com")):
+            is_remote = True
+
+    if is_remote:
         origin = request.headers.get("origin")
         if origin is not None and not _is_allowed_origin(origin):
             deny("Untrusted Origin")
@@ -260,12 +272,20 @@ def _kill_session_process(session: dict[str, Any]) -> bool:
 
     if proc.poll() is None:
         return False
-    try:
-        os.killpg(pgid, 0)
-    except ProcessLookupError:
-        return True
-    except PermissionError:
-        return False
+
+    deadline = time.monotonic() + 1.5
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(pgid, 0)
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except ProcessLookupError:
+                return True
+            time.sleep(0.05)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
     return False
 
 def _monitor_watchdog(session_id: str) -> None:
