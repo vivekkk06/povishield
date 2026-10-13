@@ -5,7 +5,7 @@ import {
   Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink
 } from "lucide-react";
 
-export default function FleetDeviceConsole({ API }) {
+export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDeviceId }) {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -386,6 +386,22 @@ export default function FleetDeviceConsole({ API }) {
                 >
                   <RefreshCw size={14} /> Refresh
                 </button>
+                {setActiveDeviceId && (
+                  activeDeviceId === selectedDevice.id ? (
+                    <span className="demo-badge" style={{ borderColor: "#10b981", color: "#34d399", padding: "6px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <span className="live-pulse-dot" style={{ width: 6, height: 6 }} /> GLOBAL ACTIVE TARGET
+                    </span>
+                  ) : (
+                    <button
+                      className="secondary-button"
+                      onClick={() => setActiveDeviceId(selectedDevice.id)}
+                      title="Scope entire dashboard and execution to this computer"
+                      style={{ borderColor: "#1e3a5f", color: "#38bdf8", padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <Activity size={14} /> Scope Dashboard to this PC
+                    </button>
+                  )
+                )}
                 <button
                   className="primary-button"
                   onClick={handleRunSecurityAudit}

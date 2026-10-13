@@ -1108,7 +1108,11 @@ function App() {
               )}
 
               {page === "Fleet / Devices" && (
-                <FleetDeviceConsole API={API} />
+                <FleetDeviceConsole
+                  API={API}
+                  activeDeviceId={activeDeviceId}
+                  setActiveDeviceId={setActiveDeviceId}
+                />
               )}
 
               {page === "Terminal / Execute" && (
