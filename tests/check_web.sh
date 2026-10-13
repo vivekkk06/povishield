@@ -11,10 +11,17 @@ PY=.venv/bin/python; [ -x "$PY" ] || PY=api/.venv/bin/python
 APIPID=$!
 trap 'kill $APIPID 2>/dev/null' EXIT
 sleep 3
-for ep in health overview policies experiments events/profile ablation/results ablation/noisy ledgers approvals "events?limit=10" executions; do
+for ep in health overview policies experiments events/profile ablation/results ablation/noisy ledgers approvals "events?limit=10" executions devices; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/api/$ep")
   [ "$code" = "200" ] && echo "[PASS] /api/$ep -> 200" || { echo "[FAIL] /api/$ep -> $code"; FAIL=1; }
 done
+inst_code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8001/install.sh")
+[ "$inst_code" = "200" ] && echo "[PASS] /install.sh -> 200" || { echo "[FAIL] /install.sh -> $inst_code"; FAIL=1; }
+
+echo
+echo "=== MULTI-DEVICE FLEET SECURITY TESTS ==="
+"$PY" -m unittest tests/test_multi_device.py && echo "[PASS] multi-device fleet platform tests" || FAIL=1
+
 echo
 echo "=== LIVE MONITOR API INTEGRATION ==="
 python3 tests/check_monitor_api.py && echo "[PASS] live monitor API integration" || FAIL=1

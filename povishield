@@ -19,6 +19,9 @@ Usage:
   povishield list
       List recent execution sessions and audit logs
 
+  povishield agent probe|pair|start|status
+      Manage local Linux endpoint security agent and pairing
+
 Low-level commands:
   povishield learn   [-o profile.json] [--events events.jsonl] -- CMD...
       Trace CMD using ptrace and generate observed syscall profile
@@ -37,6 +40,8 @@ Examples:
   povishield run --mode inspect -- /usr/bin/cat /dev/null
   povishield run --mode approval-required -- /usr/bin/grep "root" /etc/passwd
   povishield evaluate -- /usr/bin/ls /tmp
+  povishield agent probe
+  povishield agent pair --server http://localhost:8000 --code PVS-XXXX
 EOF
 }
 
@@ -49,6 +54,9 @@ CMD="$1"
 shift
 
 case "$CMD" in
+    agent)
+        exec python3 -m agent.povishield_agent "$@"
+        ;;
     run|evaluate|list)
         exec python3 -m analysis.runner "$CMD" "$@"
         ;;

@@ -12,9 +12,14 @@ import uuid
 from datetime import datetime, timezone
 import sys
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+import api.database as db
+from api.auth import get_current_user, get_authenticated_device, hash_token, generate_device_token
+
+db.init_db()
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -57,6 +62,43 @@ class ExecutionRunRequest(BaseModel):
     mode: str = Field(default="enforce")
     profile: Optional[str] = None
     timeout_seconds: int = Field(default=30, ge=1, le=120)
+
+
+class PairingGenerateRequest(BaseModel):
+    device_name_hint: Optional[str] = None
+    expires_in_seconds: int = Field(default=600, ge=60, le=3600)
+
+
+class AgentPairRequest(BaseModel):
+    pairing_code: str
+    name: str = Field(min_length=1, max_length=128)
+    hostname: str = Field(min_length=1, max_length=128)
+    os_info: str
+    kernel_version: str
+    arch: str
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+    permissions: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentHeartbeatRequest(BaseModel):
+    device_id: str
+    uptime_seconds: Optional[float] = None
+    capabilities: Optional[dict[str, Any]] = None
+    timestamp: Optional[str] = None
+
+
+class AgentTaskResultRequest(BaseModel):
+    status: str
+    result: dict[str, Any]
+
+
+class AgentEventsRequest(BaseModel):
+    events: list[dict[str, Any]]
+
+
+class DeviceTaskCreateRequest(BaseModel):
+    command: list[str] = Field(min_length=1, max_length=16)
+    mode: str = Field(default="enforce")
 
 # --- who is really calling? ------------------------------------------------------------------------------------
 # A web page in your browser also connects from 127.0.0.1, so the TCP peer proves nothing about the caller.
@@ -809,3 +851,273 @@ def get_approvals():
         return {"approvals": list(reversed(items)), "count": len(items)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read approvals: {e}")
+
+
+# --- Multi-Device & Fleet Management Routes ---
+
+@app.get("/install.sh", response_class=PlainTextResponse)
+def get_install_script():
+    script_path = ROOT / "scripts" / "install_agent.sh"
+    if not script_path.is_file():
+        raise HTTPException(status_code=404, detail="Install script not found")
+    return script_path.read_text(encoding="utf-8")
+
+
+@app.get("/api/agent/script", response_class=PlainTextResponse)
+def get_agent_script():
+    agent_path = ROOT / "agent" / "povishield_agent.py"
+    if not agent_path.is_file():
+        raise HTTPException(status_code=404, detail="Agent script not found")
+    return agent_path.read_text(encoding="utf-8")
+
+
+@app.post("/api/pairing/generate")
+def generate_pairing_code(payload: PairingGenerateRequest, request: Request):
+    user = get_current_user(request)
+    code_record = db.create_pairing_code(
+        user_id=user["id"],
+        expires_in_seconds=payload.expires_in_seconds,
+        device_name_hint=payload.device_name_hint
+    )
+    host_header = request.headers.get("host", "127.0.0.1:8000")
+    proto = request.headers.get("x-forwarded-proto", "http")
+    server_base = f"{proto}://{host_header}"
+
+    return {
+        **code_record,
+        "server_url": server_base,
+        "install_command": f"curl -sSL {server_base}/install.sh | bash -s -- --code {code_record['code']} --server {server_base}",
+        "cli_command": f"./povishield agent pair --code {code_record['code']} --server {server_base}"
+    }
+
+
+@app.get("/api/devices")
+def list_devices(request: Request):
+    user = get_current_user(request)
+    devices = db.list_devices_for_user(user["id"])
+    return {"devices": devices, "count": len(devices)}
+
+
+@app.get("/api/devices/{device_id}")
+def get_device_details(device_id: str, request: Request):
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this device")
+    recent_tasks = db.list_tasks_for_device(device_id, limit=10)
+    recent_events = db.get_device_events(device_id, limit=20)
+    return {
+        "device": device,
+        "tasks": recent_tasks,
+        "events": recent_events
+    }
+
+
+@app.post("/api/devices/{device_id}/tasks")
+def create_device_task(device_id: str, payload: DeviceTaskCreateRequest, request: Request):
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied to this device")
+    if device["status"] == "revoked":
+        raise HTTPException(status_code=400, detail="Cannot dispatch tasks to a revoked device")
+
+    if any(not isinstance(arg, str) or not arg or len(arg) > 512 for arg in payload.command):
+        raise HTTPException(status_code=400, detail="command must be an array of short strings")
+
+    exe_name = Path(payload.command[0]).name
+    if exe_name in DENIED_EXECUTABLES:
+        raise HTTPException(status_code=400, detail=f"Refusing shell/interpreter or high-risk command: {exe_name}")
+
+    task_id = f"task_{uuid.uuid4().hex[:10]}"
+    task = db.create_task(
+        device_id=device_id,
+        user_id=user["id"],
+        task_id=task_id,
+        command=payload.command,
+        mode=payload.mode
+    )
+    db.record_device_event(
+        device_id=device_id,
+        event_type="task_queued",
+        payload={"task_id": task_id, "command": payload.command, "mode": payload.mode},
+        task_id=task_id
+    )
+    return task
+
+
+@app.get("/api/devices/{device_id}/tasks/{task_id}")
+def get_device_task(device_id: str, task_id: str, request: Request):
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device or device["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    task = db.get_task(task_id)
+    if not task or task["device_id"] != device_id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@app.post("/api/devices/{device_id}/revoke")
+def revoke_device_endpoint(device_id: str, request: Request):
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    db.revoke_device(device_id, user_id=user["id"])
+    db.record_device_event(
+        device_id=device_id,
+        event_type="device_revoked",
+        payload={"revoked_by": user["id"], "reason": "operator_revoked"}
+    )
+    return {"status": "revoked", "device_id": device_id}
+
+
+@app.delete("/api/devices/{device_id}")
+def delete_device_endpoint(device_id: str, request: Request):
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    db.delete_device(device_id, user_id=user["id"])
+    return {"status": "deleted", "device_id": device_id}
+
+
+@app.get("/api/devices/{device_id}/events")
+def get_device_events_endpoint(device_id: str, request: Request, limit: int = 50):
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device or device["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    events = db.get_device_events(device_id, limit=min(limit, 200))
+    return {"events": events, "count": len(events)}
+
+
+# --- Remote Agent Communication Routes ---
+
+@app.post("/api/agent/pair")
+def agent_pair_endpoint(payload: AgentPairRequest, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if not db.check_pairing_rate_limit(client_ip, max_attempts=5, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many pairing attempts. Please wait 60 seconds.")
+
+    code_record = db.get_pairing_code(payload.pairing_code)
+    if not code_record:
+        raise HTTPException(status_code=400, detail="Invalid pairing code")
+    if code_record.get("is_consumed"):
+        raise HTTPException(status_code=400, detail="Pairing code has already been consumed")
+
+    expires_at = datetime.fromisoformat(code_record["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Pairing code has expired")
+
+    device_id = f"dev_{uuid.uuid4().hex[:10]}"
+    consumed = db.consume_pairing_code(payload.pairing_code, device_id)
+    if not consumed:
+        raise HTTPException(status_code=400, detail="Pairing code could not be claimed (expired or already used)")
+
+    raw_token = generate_device_token()
+    token_hash = hash_token(raw_token)
+
+    db.create_device(
+        user_id=code_record["user_id"],
+        device_id=device_id,
+        name=payload.name,
+        hostname=payload.hostname,
+        os_info=payload.os_info,
+        kernel_version=payload.kernel_version,
+        arch=payload.arch,
+        capabilities=payload.capabilities,
+        permissions=payload.permissions,
+        token_hash=token_hash
+    )
+
+    db.record_device_event(
+        device_id=device_id,
+        event_type="device_paired",
+        payload={"name": payload.name, "hostname": payload.hostname, "kernel": payload.kernel_version}
+    )
+
+    return {
+        "status": "paired",
+        "device_id": device_id,
+        "token": raw_token,
+        "user_id": code_record["user_id"]
+    }
+
+
+@app.post("/api/agent/heartbeat")
+def agent_heartbeat_endpoint(payload: AgentHeartbeatRequest, request: Request):
+    auth_header = request.headers.get("authorization")
+    device = get_authenticated_device(request, authorization=auth_header)
+
+    db.update_device_heartbeat(
+        device_id=device["id"],
+        status="online",
+        updated_capabilities=payload.capabilities
+    )
+    pending_tasks = db.get_pending_tasks_for_device(device["id"], limit=5)
+    return {
+        "status": "ack",
+        "device_id": device["id"],
+        "tasks": pending_tasks
+    }
+
+
+@app.post("/api/agent/tasks/{task_id}/result")
+def agent_task_result_endpoint(task_id: str, payload: AgentTaskResultRequest, request: Request):
+    auth_header = request.headers.get("authorization")
+    device = get_authenticated_device(request, authorization=auth_header)
+
+    updated = db.update_task_result(
+        task_id=task_id,
+        device_id=device["id"],
+        status=payload.status,
+        result=payload.result
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Task not found or device mismatch")
+
+    db.record_device_event(
+        device_id=device["id"],
+        event_type="task_completed",
+        payload={"task_id": task_id, "status": payload.status, "exit_code": payload.result.get("exit_code")},
+        task_id=task_id
+    )
+    return {"status": "received", "task_id": task_id}
+
+
+@app.post("/api/agent/events")
+def agent_events_endpoint(payload: AgentEventsRequest, request: Request):
+    auth_header = request.headers.get("authorization")
+    device = get_authenticated_device(request, authorization=auth_header)
+
+    for ev in payload.events[:100]:
+        db.record_device_event(
+            device_id=device["id"],
+            event_type=ev.get("type", "agent_event"),
+            payload=ev.get("payload", ev),
+            task_id=ev.get("task_id")
+        )
+    return {"status": "recorded", "count": len(payload.events)}
+
+
+@app.post("/api/agent/disconnect")
+def agent_disconnect_endpoint(request: Request):
+    auth_header = request.headers.get("authorization")
+    device = get_authenticated_device(request, authorization=auth_header)
+    db.update_device_heartbeat(device["id"], status="offline")
+    db.record_device_event(
+        device_id=device["id"],
+        event_type="agent_disconnected",
+        payload={"reason": "clean_shutdown"}
+    )
+    return {"status": "disconnected", "device_id": device["id"]}

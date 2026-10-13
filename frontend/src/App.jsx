@@ -4,7 +4,7 @@ import {
   FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
-  Check, Copy, Terminal
+  Check, Copy, Terminal, Server
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -13,6 +13,7 @@ import {
 import "./App.css";
 import TerminalBackground from "./components/TerminalBackground.jsx";
 import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx";
+import FleetDeviceConsole from "./components/FleetDeviceConsole.jsx";
 
 const API = import.meta.env.VITE_API_URL || (
   typeof window !== "undefined" && (window.location.port === "5173" || window.location.port === "5174" || window.location.port === "5175" || window.location.port === "4173")
@@ -22,6 +23,7 @@ const API = import.meta.env.VITE_API_URL || (
 
 const navigation = [
   { name: "Overview", icon: LayoutDashboard },
+  { name: "Fleet / Devices", icon: Server },
   { name: "Terminal / Execute", icon: Terminal },
   { name: "Activity Monitor", icon: Activity },
   { name: "Syscall Profile", icon: Cpu },
@@ -579,6 +581,10 @@ function App() {
                     </div>
                   </section>
                 </>
+              )}
+
+              {page === "Fleet / Devices" && (
+                <FleetDeviceConsole API={API} />
               )}
 
               {page === "Terminal / Execute" && (

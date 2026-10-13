@@ -146,3 +146,56 @@ Open [http://localhost:5175](http://localhost:5175) or [http://127.0.0.1:5175](h
 - **Learn Mode Safety:** Dynamic tracing via ptrace should only be conducted on trusted binaries during policy generation.
 
 For full architectural details, formal assurance properties, and responsible disclosure policies, see [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`docs/SECURITY_ASSURANCE.md`](docs/SECURITY_ASSURANCE.md), and [`SECURITY.md`](SECURITY.md).
+
+---
+
+## 7. Multi-Device Fleet Security & Remote Linux Agent
+
+PoViShield can be deployed as a multi-device Linux fleet security platform. A user can open the central dashboard from any computer, pair remote Linux machines via single-use cryptographically bound pairing codes, inspect kernel security capabilities, dispatch policy-monitored commands, and revoke authorizations in real time.
+
+```
+Central Control Plane (FastAPI + React Dashboard)
+    ▲                ▲
+    │ HTTPS (poll)   │ HTTPS (poll)
+    ▼                ▼
+Remote Device 1   Remote Device 2 (Outbound-only pull loop, zero open inbound ports)
+```
+
+### Key Security & Privacy Guarantees
+
+- **Outbound-Only Pull Architecture:** The local Linux agent (`agent/povishield_agent.py`) connects outbound to the control server over HTTPS. It never listens on open public ports, preventing port scanning and arbitrary incoming network attacks.
+- **Short-Lived, Single-Use Pairing:** Pairing codes expire after 10 minutes and can only be consumed once. Each pairing attempt is rate-limited (5/min per IP/user) to prevent brute-force exploitation.
+- **Strict User Ownership Isolation:** Devices, tasks, and telemetry are isolated per authenticated user (`X-PoViShield-User` / bearer auth). One user cannot inspect or control another user's fleet.
+- **Truthful Capability Probing:** The agent directly queries the Linux kernel (`/proc/self/status` for seccomp, `prctl(PR_SET_NO_NEW_PRIVS)`, cgroups v2, user namespaces). It never claims enforcement is active if unsupported by the host.
+- **Fail-Closed Seccomp Confinement:** Commands executed under `enforce` mode are confined by libseccomp filters. Unauthorized syscalls result in immediate kernel `SIGSYS` termination (exit code 159 / -31).
+- **Privacy by Default:** By default, command stdout and stderr are kept local or redacted unless explicit output-sharing is authorized.
+- **Instant Revocation & Cleanup:** Revoking a device instantly invalidates its bearer token, terminates or rejects pending tasks, and halts telemetry reporting.
+
+### Device Pairing & Installation Flow
+
+#### Option A: One-Liner Web Installer
+On the target Linux machine, open a terminal and run the one-liner provided by the connection wizard:
+```bash
+curl -sSL https://<server-domain>/install.sh | bash -s -- --server https://<server-domain> --code <PAIRING-CODE>
+```
+
+#### Option B: PoViShield Local CLI
+If the repository or CLI is already present on the target host:
+```bash
+# 1. Probe local kernel security capabilities truthfully
+./povishield agent probe
+
+# 2. Pair with the central control plane
+./povishield agent pair --server https://<server-domain> --code <PAIRING-CODE>
+
+# 3. Start the outbound heartbeat supervisor loop
+./povishield agent start
+```
+
+### Production Deployment Notes
+
+1. **Central API:** Deploy FastAPI with Uvicorn behind a TLS reverse proxy (Nginx, Caddy, or Cloudflare) with standard HTTPS certificates. Set environment variables:
+   - `POVISHIELD_DATABASE_URL`: Path to persistent SQLite DB (`results/povishield.db`) or PostgreSQL connection string.
+   - `POVISHIELD_CORS_ORIGINS`: Comma-separated list of allowed frontend domains.
+2. **Dashboard UI:** The React console can be compiled statically via `cd frontend && npm run build` and hosted on any static web host, CDN, or reverse-proxied by Nginx.
+3. **Container Security Caveat:** If deploying the agent or runner inside Docker/Kubernetes containers, ensure the container runtime allows seccomp filters (`--security-opt seccomp=unconfined` or custom profiles permitting `PR_SET_NO_NEW_PRIVS` and `SCMP_ACT_KILL_PROCESS`). Standard unprivileged cloud containers with default Docker seccomp profiles may block nested seccomp initialization.
