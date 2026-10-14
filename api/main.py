@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 import ipaddress
 import os
 import signal
@@ -152,6 +152,21 @@ class ApprovalRequestCreate(BaseModel):
     hostname: Optional[str] = None
     rationale: Optional[str] = None
     candidate: Optional[str] = None
+
+
+class PolicyVerifyRequest(BaseModel):
+    candidate: str = Field(min_length=1, max_length=256)
+    active: Optional[str] = None
+    regression_command: Optional[Union[str, list[str], list[list[str]]]] = None
+    adversarial_command: Optional[Union[str, list[str], list[list[str]]]] = None
+    target_name: Optional[str] = "app"
+
+
+class PolicySaveRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    syscalls: list[str] = Field(min_length=1)
+    command: Optional[str] = "custom"
+    schema_version: Optional[int] = 1
 
 # --- who is really calling? ------------------------------------------------------------------------------------
 # A web page in your browser also connects from 127.0.0.1, so the TCP peer proves nothing about the caller.
@@ -1302,27 +1317,31 @@ def audit_target_ledger(target: str, candidate_profile: str = None):
     return report
 
 
+def resolve_policy_file(name: str) -> Path:
+    for root in (RESULTS, ROOT / "deploy_data"):
+        p1 = root / name
+        if p1.is_file():
+            return p1
+        p2 = root / "profiles" / name
+        if p2.is_file():
+            return p2
+        if not name.endswith(".json"):
+            p3 = root / "profiles" / f"{name}.json"
+            if p3.is_file():
+                return p3
+            p4 = root / f"{name}.json"
+            if p4.is_file():
+                return p4
+    raise HTTPException(status_code=404, detail=f"Policy profile '{name}' not found")
+
+
 @app.get("/api/policies/compare")
 def compare_policies(base: str, cand: str):
     from analysis.common import load_profile_meta, total_syscalls
     from analysis.risk import risk_pct
 
-    def resolve_p(name: str) -> Path:
-        for root in (RESULTS, ROOT / "deploy_data"):
-            p1 = root / name
-            if p1.is_file():
-                return p1
-            p2 = root / "profiles" / name
-            if p2.is_file():
-                return p2
-            if not name.endswith(".json"):
-                p3 = root / "profiles" / f"{name}.json"
-                if p3.is_file():
-                    return p3
-        raise HTTPException(status_code=404, detail=f"Profile '{name}' not found")
-
-    p_base = resolve_p(base)
-    p_cand = resolve_p(cand)
+    p_base = resolve_policy_file(base)
+    p_cand = resolve_policy_file(cand)
     meta_base = load_profile_meta(p_base)
     meta_cand = load_profile_meta(p_cand)
     s_base = set(meta_base.get("syscalls", []))
@@ -1350,6 +1369,104 @@ def compare_policies(base: str, cand: str):
         "removed_syscalls": removed,
         "permission_tiers": tiers,
         "cand_schema": meta_cand.get("schema", 1),
+    }
+
+
+@app.post("/api/policies/verify")
+@app.post("/policies/verify")
+def verify_policy_endpoint(payload: PolicyVerifyRequest, request: Request):
+    from analysis.verify import verify_policy_candidate
+
+    cand_path = resolve_policy_file(payload.candidate)
+    active_path = resolve_policy_file(payload.active) if payload.active else None
+
+    # Parse regression command
+    reg_workloads = []
+    if payload.regression_command:
+        if isinstance(payload.regression_command, str):
+            cmd_list = [c for c in payload.regression_command.strip().split() if c]
+            if cmd_list:
+                reg_workloads.append(cmd_list)
+        elif isinstance(payload.regression_command, list):
+            if payload.regression_command and isinstance(payload.regression_command[0], list):
+                reg_workloads = payload.regression_command
+            else:
+                reg_workloads = [payload.regression_command]
+    if not reg_workloads:
+        target = payload.target_name or "app"
+        if "grep" in cand_path.name:
+            reg_workloads = [["grep", "--help"]]
+        elif "python" in cand_path.name:
+            reg_workloads = [["python3", "--version"]]
+        elif "sed" in cand_path.name:
+            reg_workloads = [["sed", "--version"]]
+        elif "gzip" in cand_path.name:
+            reg_workloads = [["gzip", "--version"]]
+        elif "curl" in cand_path.name:
+            reg_workloads = [["curl", "--version"]]
+        elif "node" in cand_path.name:
+            reg_workloads = [["node", "--version"]]
+        else:
+            reg_workloads = [["/usr/bin/true"]]
+
+    # Parse adversarial command
+    adv_workloads = []
+    if payload.adversarial_command:
+        if isinstance(payload.adversarial_command, str):
+            cmd_list = [c for c in payload.adversarial_command.strip().split() if c]
+            if cmd_list:
+                adv_workloads.append(cmd_list)
+        elif isinstance(payload.adversarial_command, list):
+            if payload.adversarial_command and isinstance(payload.adversarial_command[0], list):
+                adv_workloads = payload.adversarial_command
+            else:
+                adv_workloads = [payload.adversarial_command]
+    if not adv_workloads:
+        adv_workloads = [["uname", "-a"]]
+
+    try:
+        report = verify_policy_candidate(
+            candidate_path=cand_path,
+            active_path=active_path,
+            regression_workloads=reg_workloads,
+            adversarial_workloads=adv_workloads,
+            target_name=payload.target_name or "app"
+        )
+        return report
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Verification failure: {e}")
+
+
+@app.post("/api/policies/save")
+@app.post("/policies/save")
+def save_policy_endpoint(payload: PolicySaveRequest, request: Request):
+    from analysis.common import save_profile
+    import re
+
+    clean_name = re.sub(r"[^a-zA-Z0-9_\-\.]", "", payload.name).strip()
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Invalid policy name")
+    if not clean_name.endswith(".json"):
+        clean_name = f"{clean_name}.json"
+
+    valid_syscalls = sorted(list(set(re.sub(r"[^a-zA-Z0-9_]", "", s) for s in payload.syscalls if s)))
+    if not valid_syscalls:
+        raise HTTPException(status_code=400, detail="At least one valid syscall name is required")
+
+    dest = RESULTS / "profiles" / clean_name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    save_profile(
+        path=dest,
+        syscalls=valid_syscalls,
+        command=payload.command or "custom",
+        schema=payload.schema_version or 1,
+        extra={"created_at": datetime.now(timezone.utc).isoformat(), "source": "policy_explorer"}
+    )
+    return {
+        "status": "saved",
+        "name": clean_name,
+        "count": len(valid_syscalls),
+        "path": str(dest.relative_to(ROOT))
     }
 
 

@@ -15,6 +15,7 @@ import TerminalBackground from "./components/TerminalBackground.jsx";
 import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx";
 import FleetDeviceConsole from "./components/FleetDeviceConsole.jsx";
 import RemoteWatchGuidePanel from "./components/RemoteWatchGuidePanel.jsx";
+import PolicyExplorer from "./components/PolicyExplorer.jsx";
 
 function getInitialApiUrl() {
   if (typeof window !== "undefined") {
@@ -1785,190 +1786,19 @@ function App() {
               )}
 
               {page === "Policy Explorer" && (
-                <>
-                  <section className="panel" style={{ marginBottom: 20 }}>
-                    <div className="panel-heading">
-                      <div>
-                        <h3>Side-by-Side Policy Comparator & Permission Tiers</h3>
-                        <p>Empirically compare a baseline profile against an ablated candidate policy.</p>
-                      </div>
-                      <GitCompare size={20} className="muted-icon" />
-                    </div>
-
-                    <div className="comparator-grid">
-                      <div className="compare-select-card">
-                        <label>Baseline Policy (Pre-Ablation)</label>
-                        <select value={compareBase} onChange={e => setCompareBase(e.target.value)}>
-                          {policies?.items?.map(item => (
-                            <option key={`base-${item.name}`} value={item.name}>{item.name} ({item.count} syscalls)</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="compare-select-card">
-                        <label>Candidate Policy (Evidence-Backed Candidate)</label>
-                        <select value={compareCand} onChange={e => setCompareCand(e.target.value)}>
-                          {policies?.items?.map(item => (
-                            <option key={`cand-${item.name}`} value={item.name}>{item.name} ({item.count} syscalls)</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {compareLoading && <p className="muted">Calculating policy diff…</p>}
-                    {compareError && <div className="notice"><ShieldAlert size={16} /><div>{compareError}</div></div>}
-
-                    {compareResult && (
-                      <div className="diff-summary-card">
-                        <div className="diff-stat-row">
-                          <div className="diff-stat-item">
-                            <span>Baseline Syscalls</span>
-                            <strong>{compareResult.base_count}</strong>
-                          </div>
-                          <div className="diff-stat-item">
-                            <span>Candidate Syscalls</span>
-                            <strong>{compareResult.cand_count}</strong>
-                          </div>
-                          <div className="diff-stat-item">
-                            <span>Syscalls Removed</span>
-                            <strong className="diff-removed">-{compareResult.removed_syscalls.length}</strong>
-                          </div>
-                          <div className="diff-stat-item">
-                            <span>Attack Surface Risk</span>
-                            <strong className="diff-risk-down">{compareResult.base_risk} → {compareResult.cand_risk}</strong>
-                          </div>
-                        </div>
-
-                        {compareResult.removed_syscalls.length > 0 && (
-                          <div className="tier-section">
-                            <h4><CheckCircle2 size={15} style={{ color: "#45d6a5" }} /> Removable Syscalls (Safe Pruning)</h4>
-                            <div className="syscall-pill-wrap">
-                              {compareResult.removed_syscalls.map(s => (
-                                <span key={s} className="syscall-pill pill-removed">{s}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {compareResult.added_syscalls.length > 0 && (
-                          <div className="tier-section">
-                            <h4><AlertTriangle size={15} style={{ color: "#f4b251" }} /> Unexpected Added Syscalls</h4>
-                            <div className="syscall-pill-wrap">
-                              {compareResult.added_syscalls.map(s => (
-                                <span key={s} className="syscall-pill pill-added">+{s}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {compareResult.permission_tiers && (
-                          <div style={{ marginTop: 16 }}>
-                            <h4>Tripartite Permission Tiers</h4>
-                            <div className="tier-section">
-                              <h4 style={{ color: "#78e6bc" }}>Tier 1: Experimentally Necessary ({compareResult.permission_tiers.experimentally_necessary?.length ?? 0})</h4>
-                              <p className="footnote" style={{ margin: "4px 0 8px" }}>Proven indispensable by empirical execution failure (SIGSYS / exit code mismatch) when ablated.</p>
-                              <div className="syscall-pill-wrap">
-                                {(compareResult.permission_tiers.experimentally_necessary ?? []).map(s => (
-                                  <span key={s} className="syscall-pill pill-necessary">{s}</span>
-                                ))}
-                              </div>
-                            </div>
-
-                            {(compareResult.permission_tiers.removable_for_tested_tasks?.length ?? 0) > 0 && (
-                              <div className="tier-section">
-                                <h4 style={{ color: "#f4c46d" }}>Tier 2: Removable for Tested Tasks ({compareResult.permission_tiers.removable_for_tested_tasks.length})</h4>
-                                <div className="syscall-pill-wrap">
-                                  {compareResult.permission_tiers.removable_for_tested_tasks.map(s => (
-                                    <span key={s} className="syscall-pill pill-removable">{s}</span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {(compareResult.permission_tiers.not_yet_validated?.length ?? 0) > 0 && (
-                              <div className="tier-section">
-                                <h4 style={{ color: "#c9abf5" }}>Tier 3: Not Yet Validated ({compareResult.permission_tiers.not_yet_validated.length})</h4>
-                                <p className="footnote" style={{ margin: "4px 0 8px" }}>Permitted in policy but untested or unconfirmed by positive ablation proof.</p>
-                                <div className="syscall-pill-wrap">
-                                  {compareResult.permission_tiers.not_yet_validated.map(s => (
-                                    <span key={s} className="syscall-pill pill-untested">{s}</span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </section>
-
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <div>
-                        <h3>Policy Catalog</h3>
-                        <p>All generated baseline and candidate JSON policies in results/ & results/profiles/</p>
-                      </div>
-                      <input
-                        placeholder="Filter policies…"
-                        value={policySearch}
-                        onChange={e => setPolicySearch(e.target.value)}
-                        style={{ padding: "6px 10px", background: "#101a29", border: "1px solid #29364a", borderRadius: 6, color: "#d5deeb", fontSize: 11 }}
-                      />
-                    </div>
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>POLICY FILE</th>
-                            <th>SCHEMA</th>
-                            <th>ALLOWED SYSCALLS</th>
-                            <th>SIZE</th>
-                            <th>ACTIONS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {policies?.items
-                            ?.filter(p => !policySearch || p.name.toLowerCase().includes(policySearch.toLowerCase()))
-                            .map(item => (
-                              <tr key={item.name}>
-                                <td className="process-cell">
-                                  <code>{item.name}</code>
-                                </td>
-                                <td>Schema {item.schema}</td>
-                                <td><strong>{item.count}</strong></td>
-                                <td>{item.size_bytes} bytes</td>
-                                <td>
-                                  <button
-                                    className="secondary-button"
-                                    style={{ padding: "4px 8px", fontSize: 10 }}
-                                    onClick={() => setSelectedPolicy(item)}
-                                  >
-                                    Inspect
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {selectedPolicy && (
-                      <div className="trial-drawer">
-                        <div className="trial-drawer-header">
-                          <div>
-                            <h4>Policy Details: {selectedPolicy.name}</h4>
-                            <span className="footnote">Schema {selectedPolicy.schema} · {selectedPolicy.count} syscalls</span>
-                          </div>
-                          <button className="secondary-button" onClick={() => setSelectedPolicy(null)}>Close</button>
-                        </div>
-                        <div className="syscall-pill-wrap">
-                          {(selectedPolicy.data?.syscalls ?? []).map(s => (
-                            <span key={s} className="syscall-pill pill-necessary">{s}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                </>
+                <PolicyExplorer
+                  API={API}
+                  policies={policies}
+                  onRefresh={handleRefreshWorkspace}
+                  compareBase={compareBase}
+                  setCompareBase={setCompareBase}
+                  compareCand={compareCand}
+                  setCompareCand={setCompareCand}
+                  compareResult={compareResult}
+                  compareLoading={compareLoading}
+                  compareError={compareError}
+                  runCompare={runCompare}
+                />
               )}
 
               {page === "Counterfactual Research" && (

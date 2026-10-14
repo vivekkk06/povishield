@@ -2382,3 +2382,31 @@ input:checked + .toggle-slider:before {
   align-items: center;
   font-size: 11px;
 }
+
+.fleet-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .fleet-two-col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.active-tab-btn {
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.2);
+}
+
+.policy-explorer-container .table-wrap table td {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.policy-explorer-container .table-wrap table th {
+  padding: 10px 12px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}

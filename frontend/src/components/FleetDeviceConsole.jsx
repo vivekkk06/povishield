@@ -356,7 +356,14 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
             const tData = await tr.json();
             if (tData.status === "completed" || tData.status === "failed") {
               clearInterval(pollTask);
-              setActiveTaskResult(tData.result ? { ...tData.result, status: tData.status } : tData);
+              setActiveTaskResult({
+                ...(tData.result || {}),
+                status: tData.status,
+                task_id: taskId,
+                command: args,
+                mode: effectiveMode,
+                error: tData.error || tData.result?.error
+              });
               loadDeviceDetails(selectedDevice.id);
               setDispatchingTask(false);
               return;
@@ -1306,20 +1313,37 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               {/* Task Result Viewport */}
               {activeTaskResult && (
                 <div className="terminal-viewport" style={{ marginTop: 16 }}>
-                  <div className="terminal-top-bar">
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>
-                      REMOTE_EXECUTION_RESULT // {selectedDevice.hostname} {activeTaskResult.task_id ? `[${activeTaskResult.task_id}]` : ""}
-                    </span>
-                    <span style={{
-                      color: activeTaskResult.exit_code === 0 ? "#34d399" : activeTaskResult.status === "queued" ? "#fbbf24" : "#f87171",
-                      fontFamily: "var(--font-mono)", fontSize: 11
-                    }}>
-                      STATUS: {activeTaskResult.status?.toUpperCase()} {activeTaskResult.exit_code !== undefined ? `(EXIT: ${activeTaskResult.exit_code})` : ""}
-                    </span>
+                  <div className="terminal-top-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                        REMOTE_EXECUTION_RESULT // {selectedDevice.hostname} {activeTaskResult.task_id ? `[${activeTaskResult.task_id}]` : ""}
+                      </span>
+                      {activeTaskResult.mode && (
+                        <span style={{ fontSize: 9, padding: "1px 5px", background: "#0c2d48", color: "#38bdf8", borderRadius: 3, fontFamily: "var(--font-mono)" }}>
+                          MODE: {activeTaskResult.mode.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{
+                        color: activeTaskResult.exit_code === 0 ? "#34d399" : activeTaskResult.status === "queued" ? "#fbbf24" : "#f87171",
+                        fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700
+                      }}>
+                        STATUS: {activeTaskResult.status?.toUpperCase()} {activeTaskResult.exit_code !== undefined ? `(EXIT: ${activeTaskResult.exit_code})` : ""}
+                      </span>
+                      <button
+                        className="icon-button"
+                        onClick={() => setActiveTaskResult(null)}
+                        title="Dismiss execution result viewport"
+                        style={{ padding: 2, background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div className="terminal-screen" style={{ maxHeight: 240, overflowY: "auto" }}>
                     <div className="terminal-line init">
-                      [TARGET] Command: {Array.isArray(activeTaskResult.command) ? activeTaskResult.command.join(" ") : commandInput} | Host: {selectedDevice.hostname}
+                      [TARGET] Command: {Array.isArray(activeTaskResult.command) ? activeTaskResult.command.join(" ") : String(activeTaskResult.command || commandInput)} | Host: {selectedDevice.hostname}
                     </div>
 
                     {activeTaskResult.queued_notice && (
@@ -1328,6 +1352,12 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                         <p style={{ margin: "4px 0 0", fontSize: 11, color: "#fef3c7" }}>
                           This endpoint is currently offline. The command has been saved to the queue and will execute automatically the moment <code>./povishield watch</code> or the background agent connects from <strong>{selectedDevice.hostname}</strong>.
                         </p>
+                      </div>
+                    )}
+
+                    {activeTaskResult.error && (
+                      <div className="terminal-line error" style={{ margin: "6px 0", padding: "8px 10px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: 5, color: "#f87171" }}>
+                        [ALERT: EXECUTION ERROR] {activeTaskResult.error}
                       </div>
                     )}
 
@@ -1371,7 +1401,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               )}
 
               {/* Two Column Section: Recent Tasks & Device Audit Events */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24 }}>
+              <div className="fleet-two-col">
                 {/* Recent Tasks List */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1381,8 +1411,8 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   {deviceTasks.length === 0 ? (
                     <p style={{ fontSize: 12, color: "#64748b" }}>No execution tasks recorded on this host yet.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                      {deviceTasks.slice(0, 8).map(t => {
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto" }}>
+                      {deviceTasks.slice(0, 10).map(t => {
                         const cmdText = Array.isArray(t.command) ? t.command.join(" ") : String(t.command || "");
                         const isSelectedTask = activeTaskResult?.task_id === t.id || activeTaskResult?.id === t.id;
 
@@ -1391,7 +1421,20 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                             key={t.id}
                             className={`fleet-task-row ${isSelectedTask ? "active" : ""}`}
                             onClick={() => {
-                              setActiveTaskResult(t.result ? { ...t.result, status: t.status, task_id: t.id, command: t.command } : { status: t.status, task_id: t.id, command: t.command });
+                              setActiveTaskResult(t.result ? {
+                                ...t.result,
+                                status: t.status,
+                                task_id: t.id,
+                                command: t.command,
+                                mode: t.mode,
+                                error: t.error
+                              } : {
+                                status: t.status,
+                                task_id: t.id,
+                                command: t.command,
+                                mode: t.mode,
+                                error: t.error
+                              });
                             }}
                             title="Click to view execution stdout and syscall details in viewport"
                           >
@@ -1427,21 +1470,38 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   {deviceEvents.length === 0 ? (
                     <p style={{ fontSize: 12, color: "#64748b" }}>No audit events logged for this device yet.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                      {deviceEvents.slice(0, 8).map((ev, i) => (
-                        <div key={i} className="fleet-event-row">
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{
-                              width: 6, height: 6, borderRadius: "50%",
-                              background: ev.event_type.includes("completed") ? "#10b981" : ev.event_type.includes("queued") ? "#38bdf8" : "#a855f7"
-                            }} />
-                            <strong style={{ color: "#cbd5e1", fontSize: 11 }}>{ev.event_type}</strong>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto" }}>
+                      {deviceEvents.slice(0, 10).map((ev, i) => {
+                        const payloadSummary = ev.payload ? (
+                          ev.payload.command ? (Array.isArray(ev.payload.command) ? ev.payload.command.join(" ") : String(ev.payload.command)) :
+                          ev.payload.target ? `target: ${ev.payload.target}` :
+                          ev.payload.task_id ? `task: ${ev.payload.task_id}` :
+                          ev.payload.reason ? `reason: ${ev.payload.reason}` :
+                          null
+                        ) : null;
+
+                        return (
+                          <div key={i} className="fleet-event-row" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 3 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{
+                                  width: 6, height: 6, borderRadius: "50%",
+                                  background: ev.event_type.includes("completed") ? "#10b981" : ev.event_type.includes("queued") ? "#38bdf8" : ev.event_type.includes("revoked") ? "#ef4444" : "#a855f7"
+                                }} />
+                                <strong style={{ color: "#cbd5e1", fontSize: 11 }}>{ev.event_type}</strong>
+                              </div>
+                              <span style={{ color: "#64748b", fontFamily: "var(--font-mono)", fontSize: 10 }}>
+                                {ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : "—"}
+                              </span>
+                            </div>
+                            {payloadSummary && (
+                              <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "var(--font-mono)", paddingLeft: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {payloadSummary}
+                              </div>
+                            )}
                           </div>
-                          <span style={{ color: "#64748b", fontFamily: "var(--font-mono)", fontSize: 10 }}>
-                            {ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : "—"}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
