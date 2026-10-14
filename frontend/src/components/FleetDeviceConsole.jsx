@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Server, ShieldCheck, ShieldAlert, Terminal, Plus, RefreshCw,
   Copy, Check, Trash2, Lock, AlertTriangle, Cpu, Activity,
-  Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink, Download
+  Clock, CheckCircle2, XCircle, ArrowRight, X, ExternalLink, Download,
+  Radio, Play, Eye
 } from "lucide-react";
 import RemoteWatchGuidePanel from "./RemoteWatchGuidePanel.jsx";
 
@@ -17,7 +18,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   // Pairing Wizard & Download Modal State
   const [showPairModal, setShowPairModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1); // 1: Privacy & Perms, 2: Code & Install
+  const [wizardStep, setWizardStep] = useState(1);
   const [pairingName, setPairingName] = useState("");
   const [enrollmentMode, setEnrollmentMode] = useState("multi"); // "multi" or "single"
   const [enrolledDevicesThisSession, setEnrolledDevicesThisSession] = useState([]);
@@ -35,6 +36,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Fleet Policy Execution'");
   const [execMode, setExecMode] = useState("enforce");
   const [dispatchingTask, setDispatchingTask] = useState(false);
+  const [dispatchedTaskId, setDispatchedTaskId] = useState(null);
   const [activeTaskResult, setActiveTaskResult] = useState(null);
   const [deviceTasks, setDeviceTasks] = useState([]);
   const [deviceEvents, setDeviceEvents] = useState([]);
@@ -49,15 +51,33 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
         setDevices(devList);
         const activeDevs = devList.filter(d => d.status !== "revoked");
 
-        if (devList.length > 0) {
-          if (!selectedDevice) {
-            // Default to selecting ALL fleet devices on initial load
-            setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
-            setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
-          } else if (selectedDevice.id !== "all") {
-            const updated = devList.find(d => d.id === selectedDevice.id);
-            if (updated) setSelectedDevice(updated);
+        // Maintain selection
+        setSelectedDeviceIds(prevIds => {
+          if (prevIds.size === 0) {
+            return new Set(activeDevs.map(d => d.id));
           }
+          const valid = new Set([...prevIds].filter(id => devList.some(d => d.id === id && d.status !== "revoked")));
+          return valid.size > 0 ? valid : new Set(activeDevs.map(d => d.id));
+        });
+
+        if (devList.length > 0) {
+          setSelectedDevice(prev => {
+            if (!prev) {
+              if (activeDeviceId && activeDeviceId !== "gateway" && activeDeviceId !== "broadcast") {
+                const found = devList.find(d => d.id === activeDeviceId);
+                if (found) return found;
+              }
+              return { id: "all", name: "All Fleet Devices", isAll: true };
+            }
+            if (prev.id === "all") {
+              return prev;
+            }
+            const updated = devList.find(d => d.id === prev.id);
+            return updated || { id: "all", name: "All Fleet Devices", isAll: true };
+          });
+        } else {
+          setSelectedDevice(null);
+          setSelectedDeviceIds(new Set());
         }
       }
     } catch (err) {
@@ -83,60 +103,49 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       const found = devices.find(d => d.id === activeDeviceId);
       if (found) {
         setSelectedDevice(found);
-        setSelectedDeviceIds(new Set([found.id]));
       }
     }
   }, [activeDeviceId]);
 
-  const handleToggleSelectAll = () => {
+  // Master Select/Deselect All Checkboxes
+  const handleToggleSelectAll = (e) => {
+    if (e) e.stopPropagation();
     const activeDevs = devices.filter(d => d.status !== "revoked");
     if (selectedDeviceIds.size === activeDevs.length && selectedDeviceIds.size > 0) {
       setSelectedDeviceIds(new Set());
-      setSelectedDevice({ id: "all", name: "0 Devices Selected", isAll: true, count: 0 });
     } else {
       setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
-      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
-      if (setActiveDeviceId) setActiveDeviceId("broadcast");
     }
   };
 
+  // Toggle individual device checkbox
   const handleToggleDeviceCheckbox = (e, dev) => {
     e.stopPropagation();
-    const activeDevs = devices.filter(d => d.status !== "revoked");
-    let current = selectedDeviceIds;
-    if (selectedDevice?.id === "all" && current.size === 0) {
-      current = new Set(activeDevs.map(d => d.id));
-    }
-    const next = new Set(current);
-    if (next.has(dev.id)) {
-      next.delete(dev.id);
-    } else {
-      next.add(dev.id);
-    }
-    setSelectedDeviceIds(next);
-
-    if (next.size === 0) {
-      setSelectedDevice({ id: "all", name: "0 Devices Selected", isAll: true, count: 0 });
-    } else if (next.size === 1) {
-      const singleId = Array.from(next)[0];
-      const found = devices.find(d => d.id === singleId);
-      if (found) {
-        setSelectedDevice(found);
-        if (setActiveDeviceId) setActiveDeviceId(found.id);
+    setSelectedDeviceIds(prev => {
+      const next = new Set(prev);
+      if (next.has(dev.id)) {
+        next.delete(dev.id);
+      } else {
+        next.add(dev.id);
       }
-    } else if (next.size === activeDevs.length) {
-      setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
-      if (setActiveDeviceId) setActiveDeviceId("broadcast");
-    } else {
-      setSelectedDevice({ id: "all", name: `${next.size} Selected Devices`, isAll: true, count: next.size });
-      if (setActiveDeviceId) setActiveDeviceId("broadcast");
-    }
+      return next;
+    });
   };
 
-  const handleSelectSingleDevice = (dev) => {
+  // Click on a device card to inspect its details
+  const handleInspectDevice = (dev) => {
     setSelectedDevice(dev);
-    setSelectedDeviceIds(new Set([dev.id]));
-    if (setActiveDeviceId) setActiveDeviceId(dev.id);
+    setActiveTaskResult(null);
+    setDispatchedTaskId(null);
+  };
+
+  // Switch right pane to broadcast supervisor
+  const handleSwitchToBroadcast = () => {
+    const activeDevs = devices.filter(d => d.status !== "revoked");
+    setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
+    if (selectedDeviceIds.size === 0) {
+      setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
+    }
   };
 
   const loadDeviceDetails = async (devId) => {
@@ -180,7 +189,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     }
   }, [refreshTick]);
 
-  // Generate Pairing Code (supports unlimited multi-device or single-use)
+  // Generate Pairing Code
   const handleGeneratePairing = async () => {
     setGeneratingCode(true);
     setError("");
@@ -206,7 +215,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     }
   };
 
-  // Poll pairing code endpoint to live-detect all newly paired endpoints without closing modal
+  // Poll pairing code endpoint to live-detect all newly paired endpoints
   useEffect(() => {
     if (!waitingForPair || !pairingData) return;
     const timer = setInterval(async () => {
@@ -231,7 +240,10 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     const effectiveMode = (typeof overrideMode === "string" ? overrideMode : null) || execMode;
     const tokens = effectiveCmd.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
     const args = tokens.map(t => (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")) ? t.slice(1, -1) : t);
-    if (!args.length) return;
+    if (!args.length) {
+      setError("Please specify a command to broadcast.");
+      return;
+    }
 
     if (selectedDeviceIds.size === 0) {
       setError("Please select at least one fleet endpoint to broadcast the command.");
@@ -240,12 +252,14 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
     setBroadcastRunning(true);
     setBroadcastResult(null);
+    setError("");
 
     try {
-      const payload = { command: args, mode: effectiveMode };
-      if (selectedDeviceIds.size > 0) {
-        payload.target_device_ids = Array.from(selectedDeviceIds);
-      }
+      const payload = {
+        command: args,
+        mode: effectiveMode,
+        target_device_ids: Array.from(selectedDeviceIds)
+      };
       const res = await fetch(`${API}/devices/broadcast`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -289,7 +303,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     }
   };
 
-  // Dispatch Remote Task
+  // Dispatch Remote Task to Single Device
   const handleDispatchTask = async (overrideCmd, overrideMode) => {
     if (selectedDevice?.id === "all") {
       return handleBroadcastTask(overrideCmd, overrideMode);
@@ -299,10 +313,16 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     const effectiveMode = (typeof overrideMode === "string" ? overrideMode : null) || execMode;
     const tokens = effectiveCmd.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
     const args = tokens.map(t => (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")) ? t.slice(1, -1) : t);
-    if (!args.length) return;
+    if (!args.length) {
+      setError("Please specify a command to dispatch.");
+      return;
+    }
 
     setDispatchingTask(true);
     setActiveTaskResult(null);
+    setDispatchedTaskId(null);
+    setError("");
+
     try {
       const res = await fetch(`${API}/devices/${selectedDevice.id}/tasks`, {
         method: "POST",
@@ -312,8 +332,21 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || `Dispatch failed (${res.status})`);
 
-      // Poll task result
       const taskId = data.id;
+      setDispatchedTaskId(taskId);
+
+      // If device is offline, show queued notice
+      if (!selectedDevice.is_live) {
+        setActiveTaskResult({
+          status: "queued",
+          task_id: taskId,
+          command: args,
+          mode: effectiveMode,
+          queued_notice: true
+        });
+      }
+
+      // Poll task result
       let polls = 0;
       const pollTask = setInterval(async () => {
         polls++;
@@ -323,15 +356,17 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
             const tData = await tr.json();
             if (tData.status === "completed" || tData.status === "failed") {
               clearInterval(pollTask);
-              setActiveTaskResult(tData.result);
+              setActiveTaskResult(tData.result ? { ...tData.result, status: tData.status } : tData);
               loadDeviceDetails(selectedDevice.id);
               setDispatchingTask(false);
+              return;
             }
           }
         } catch {}
-        if (polls > 15) {
+        if (polls > 20) {
           clearInterval(pollTask);
           setDispatchingTask(false);
+          loadDeviceDetails(selectedDevice.id);
         }
       }, 1000);
     } catch (err) {
@@ -346,7 +381,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     try {
       const res = await fetch(`${API}/devices/${devId}/revoke`, { method: "POST" });
       if (res.ok) {
-        fetchDevices();
+        await fetchDevices();
         if (selectedDevice?.id === devId) {
           setSelectedDevice(prev => ({ ...prev, status: "revoked" }));
         }
@@ -362,17 +397,22 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
     try {
       const res = await fetch(`${API}/devices/${devId}`, { method: "DELETE" });
       if (res.ok) {
-        fetchDevices();
+        setSelectedDeviceIds(prev => {
+          const next = new Set(prev);
+          next.delete(devId);
+          return next;
+        });
         if (selectedDevice?.id === devId) {
-          setSelectedDevice(null);
+          setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
         }
+        await fetchDevices();
       }
     } catch (err) {
       setError(err.message || "Failed to delete device");
     }
   };
 
-  // Run Security Audit
+  // Run Security Audit on Device
   const handleRunSecurityAudit = async () => {
     if (!selectedDevice || selectedDevice.status === "revoked") return;
     setCommandInput("/usr/bin/id");
@@ -381,13 +421,16 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
   };
 
   const copyText = (txt) => {
-    navigator.clipboard.writeText(txt);
-    setCopiedCmd(true);
-    setTimeout(() => setCopiedCmd(false), 2000);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(txt);
+      setCopiedCmd(true);
+      setTimeout(() => setCopiedCmd(false), 2000);
+    }
   };
 
-  const onlineDevicesCount = devices.filter(d => d.is_live).length;
-  const verifiedEnforceCount = devices.filter(d => d.capabilities?.enforcement_verified).length;
+  const activeDevsCount = devices.filter(d => d.status !== "revoked").length;
+  const onlineDevicesCount = devices.filter(d => d.is_live && d.status !== "revoked").length;
+  const verifiedEnforceCount = devices.filter(d => d.capabilities?.enforcement_verified && d.status !== "revoked").length;
 
   const filteredDevices = devices.filter(d => {
     if (fleetFilter === "online") return d.is_live && d.status !== "revoked";
@@ -400,9 +443,9 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       {/* Top Fleet Summary Metrics */}
       <div className="metrics-grid" style={{ marginBottom: 20 }}>
         <div className="metric-card">
-          <div className="metric-top"><span>Paired Endpoints</span><Server size={19} /></div>
-          <div className="metric-value">{devices.length}</div>
-          <div className="metric-detail">{devices.length === 1 ? "1 connected computer" : `${devices.length} registered hosts`}</div>
+          <div className="metric-top"><span>Registered Endpoints</span><Server size={19} /></div>
+          <div className="metric-value">{activeDevsCount}</div>
+          <div className="metric-detail">{activeDevsCount === 1 ? "1 connected machine" : `${activeDevsCount} registered hosts`}</div>
         </div>
         <div className="metric-card">
           <div className="metric-top"><span>Active & Online</span><Activity size={19} /></div>
@@ -426,7 +469,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       {error && (
         <div className="notice" style={{ marginBottom: 16 }}>
           <ShieldAlert size={19} />
-          <div><strong>Fleet Console Alert</strong><p>{error}</p></div>
+          <div style={{ flex: 1 }}>
+            <strong>Fleet Console Alert</strong>
+            <p>{error}</p>
+          </div>
+          <button className="icon-button" onClick={() => setError("")}><X size={14} /></button>
         </div>
       )}
 
@@ -434,21 +481,21 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
       <RemoteWatchGuidePanel API={API} onDevicePaired={fetchDevices} />
 
       {/* Main Layout: Device List + Device Detail Drawer */}
-      <div className="fleet-layout" style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20 }}>
+      <div className="fleet-layout">
 
         {/* Left Column: Device List & Pairing Wizard CTA */}
         <div className="panel fleet-list-panel">
-          <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <div>
-              <h3>Connected Fleet</h3>
-              <p>Linux endpoints reporting telemetry</p>
+              <h3 style={{ margin: 0, fontSize: 15 }}>Connected Fleet</h3>
+              <p style={{ margin: "3px 0 0", fontSize: 11 }}>Linux endpoints reporting telemetry</p>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <button
                 className="secondary-button"
                 onClick={() => setShowDownloadModal(true)}
                 title="Download ./povishield CLI & Agent"
-                style={{ padding: "6px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 5, borderColor: "#0284c7", color: "#38bdf8" }}
+                style={{ padding: "5px 9px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, borderColor: "#0284c7", color: "#38bdf8" }}
               >
                 <Download size={13} /> Download CLI
               </button>
@@ -457,16 +504,16 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 onClick={handleRefreshFleet}
                 disabled={refreshing}
                 title="Refresh connected device fleet"
-                style={{ padding: "6px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}
+                style={{ padding: "5px 9px", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}
               >
-                <RefreshCw size={13} className={refreshing ? "spin" : ""} /> Refresh
+                <RefreshCw size={13} className={refreshing ? "spin" : ""} />
               </button>
               <button
                 className="primary-button"
                 onClick={() => { setWizardStep(1); setShowPairModal(true); }}
-                style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+                style={{ padding: "5px 10px", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}
               >
-                <Plus size={14} /> Pair Device
+                <Plus size={13} /> Pair Device
               </button>
             </div>
           </div>
@@ -533,35 +580,23 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   </button>
                 </div>
 
-                {/* ⚡ All Fleet Devices (Broadcast / Multi-Device Selection) Card */}
+                {/* ⚡ All Fleet Devices (Broadcast Supervisor) Card */}
                 <div
-                  onClick={() => {
-                    const activeDevs = devices.filter(d => d.status !== "revoked");
-                    setSelectedDevice({ id: "all", name: "All Fleet Devices", isAll: true });
-                    setSelectedDeviceIds(new Set(activeDevs.map(d => d.id)));
-                    if (setActiveDeviceId) setActiveDeviceId("broadcast");
-                  }}
-                  className={`device-card ${selectedDevice?.id === "all" ? "selected" : ""}`}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 8,
-                    border: selectedDevice?.id === "all" ? "1px solid #38bdf8" : "1px solid #1e293b",
-                    background: selectedDevice?.id === "all" ? "#082038" : "#070e1c",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease"
-                  }}
+                  onClick={handleSwitchToBroadcast}
+                  className={`device-card ${selectedDevice?.id === "all" ? "selected-broadcast" : ""}`}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <input
                         type="checkbox"
-                        checked={devices.length > 0 && selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length}
+                        checked={activeDevsCount > 0 && selectedDeviceIds.size === activeDevsCount}
                         onChange={handleToggleSelectAll}
                         onClick={(e) => e.stopPropagation()}
                         style={{ cursor: "pointer", accentColor: "#38bdf8" }}
+                        title="Select/Deselect all endpoints for broadcast"
                       />
                       <strong style={{ fontSize: 13, color: selectedDevice?.id === "all" ? "#38bdf8" : "#f1f5f9" }}>
-                        ⚡ All Fleet Devices (Broadcast)
+                        ⚡ Fleet Broadcast Supervisor
                       </strong>
                     </div>
                     <span style={{
@@ -574,11 +609,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                       color: "#38bdf8",
                       border: "1px solid #0284c7"
                     }}>
-                      {devices.filter(d => d.status !== "revoked").length} NODES
+                      {selectedDeviceIds.size} / {activeDevsCount} TARGETED
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: "#94a3b8", paddingLeft: 22 }}>
-                    Execute policies across all endpoints simultaneously & stream fleet telemetry.
+                    Simultaneously dispatch tasks and stream live telemetry across targeted nodes.
                   </div>
                 </div>
 
@@ -598,29 +633,22 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                       fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer", textDecoration: "underline"
                     }}
                   >
-                    {selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length ? "Deselect All" : "Select All"}
+                    {selectedDeviceIds.size === activeDevsCount ? "Deselect All" : "Select All"}
                   </button>
                 </div>
 
                 {filteredDevices.map(dev => {
-                  const isSelected = selectedDevice?.id === dev.id;
+                  const isInspecting = selectedDevice?.id === dev.id;
                   const isChecked = selectedDeviceIds.has(dev.id);
                   const isOnline = dev.is_live;
                   const isRevoked = dev.status === "revoked";
+                  const isGloballyActive = activeDeviceId === dev.id;
 
                   return (
                     <div
                       key={dev.id}
-                      onClick={() => handleSelectSingleDevice(dev)}
-                      className={`device-card ${isSelected ? "selected" : ""}`}
-                      style={{
-                        padding: "12px 14px",
-                        borderRadius: 8,
-                        border: isSelected ? "1px solid #10b981" : isChecked ? "1px solid #1e3a5f" : "1px solid #1e293b",
-                        background: isSelected ? "#0a1f18" : isChecked ? "#081224" : "#0a0f1d",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease"
-                      }}
+                      onClick={() => handleInspectDevice(dev)}
+                      className={`device-card ${isInspecting ? "selected" : isChecked ? "checked-target" : ""}`}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -630,36 +658,30 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                             onChange={(e) => handleToggleDeviceCheckbox(e, dev)}
                             onClick={(e) => e.stopPropagation()}
                             style={{ cursor: "pointer", accentColor: "#10b981" }}
+                            title="Toggle inclusion in multi-device broadcast pool"
                           />
-                          <strong style={{ fontSize: 13, color: isSelected ? "#34d399" : "#f1f5f9" }}>
+                          <strong style={{ fontSize: 13, color: isInspecting ? "#34d399" : isGloballyActive ? "#38bdf8" : "#f1f5f9" }}>
                             {dev.name || dev.hostname}
                           </strong>
+                          {isGloballyActive && (
+                            <span style={{ fontSize: 9, background: "#0c2d48", color: "#38bdf8", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>
+                              SCOPED
+                            </span>
+                          )}
                         </div>
-                        <span className={`status-pill ${isRevoked ? "revoked" : isOnline ? "online" : "offline"}`} style={{
-                          fontSize: 10,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          fontFamily: "var(--font-mono)",
-                          fontWeight: 700,
-                          background: isRevoked ? "#381014" : isOnline ? "#064e3b" : "#1e293b",
-                          color: isRevoked ? "#f87171" : isOnline ? "#34d399" : "#94a3b8",
-                          border: isRevoked ? "1px solid #7f1d1d" : isOnline ? "1px solid #059669" : "1px solid #334155",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5
-                        }}>
+                        <span className={`status-pill ${isRevoked ? "revoked" : isOnline ? "online" : "offline"}`}>
                           {isOnline && !isRevoked && <span className="live-pulse-dot" style={{ width: 5, height: 5 }} />}
                           {isRevoked ? "REVOKED" : isOnline ? "ONLINE" : "OFFLINE"}
                         </span>
                       </div>
 
-                      <div style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", display: "flex", flexDirection: "column", gap: 3, paddingLeft: 22 }}>
+                      <div style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", display: "flex", flexDirection: "column", gap: 2, paddingLeft: 22 }}>
                         <span>HOST: {dev.hostname} ({dev.arch})</span>
-                        <span>KERNEL: {dev.kernel_version?.slice(0, 22)}</span>
+                        <span>KERNEL: {dev.kernel_version?.slice(0, 24) || "Linux"}</span>
                       </div>
 
-                      <div style={{ display: "flex", gap: 6, marginTop: 8, paddingLeft: 22, flexWrap: "wrap" }}>
-                        {dev.capabilities?.enforcement_verified && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, paddingLeft: 22, flexWrap: "wrap", alignItems: "center" }}>
+                        {dev.capabilities?.seccomp_bpf && (
                           <span style={{ fontSize: 9, background: "#064e3b", color: "#34d399", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
                             SECCOMP BPF
                           </span>
@@ -667,6 +689,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                         {dev.capabilities?.cgroups_v2 && (
                           <span style={{ fontSize: 9, background: "#0c2d48", color: "#38bdf8", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
                             CGROUPS V2
+                          </span>
+                        )}
+                        {dev.capabilities?.no_new_privs && (
+                          <span style={{ fontSize: 9, background: "#1e1b4b", color: "#a5b4fc", padding: "1px 5px", borderRadius: 4, fontFamily: "var(--font-mono)" }}>
+                            NO_NEW_PRIVS
                           </span>
                         )}
                       </div>
@@ -680,12 +707,13 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
         {/* Right Column: Detailed Device Console & Remote Supervisor */}
         {selectedDevice?.id === "all" ? (
+          /* Multi-Device Broadcast Supervisor Pane */
           <div className="panel fleet-detail-panel">
             <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    ⚡ {selectedDevice.name || "All Fleet Devices"}
+                  <h2 style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, fontSize: 18 }}>
+                    ⚡ Fleet Multi-Node Supervisor
                   </h2>
                   <span style={{
                     fontSize: 11,
@@ -695,15 +723,12 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                     alignItems: "center",
                     gap: 5
                   }}>
-                    <span style={{
-                      width: 7, height: 7, borderRadius: "50%",
-                      background: "#0ea5e9"
-                    }} />
-                    FLEET BROADCAST SUPERVISOR
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#0ea5e9" }} />
+                    BROADCAST READY
                   </span>
                 </div>
-                <p style={{ marginTop: 4 }}>
-                  Targeting <strong>{selectedDeviceIds.size}</strong> of {devices.filter(d => d.status !== "revoked").length} registered endpoint(s) · Simultaneous policy dispatch & real-time kernel observability
+                <p style={{ marginTop: 4, color: "#94a3b8", fontSize: 12 }}>
+                  Targeting <strong>{selectedDeviceIds.size}</strong> of {activeDevsCount} registered endpoint(s) · Simultaneous policy dispatch & real-time kernel observability
                 </p>
               </div>
 
@@ -713,9 +738,9 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   onClick={handleRefreshFleet}
                   disabled={refreshing}
                   title="Refresh all fleet telemetry"
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}
                 >
-                  <RefreshCw size={14} className={refreshing ? "spin" : ""} />
+                  <RefreshCw size={13} className={refreshing ? "spin" : ""} />
                   {refreshing ? "Refreshing..." : "Refresh"}
                 </button>
 
@@ -723,16 +748,15 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   className="secondary-button"
                   onClick={handleToggleSelectAll}
                   style={{ borderColor: "#1e3a5f", color: "#38bdf8", padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
-                  title="Select or deselect all nodes in fleet"
                 >
-                  <CheckCircle2 size={14} />
-                  {selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length ? "Deselect All Nodes" : "Select All Nodes"}
+                  <CheckCircle2 size={13} />
+                  {selectedDeviceIds.size === activeDevsCount ? "Deselect All" : "Select All Nodes"}
                 </button>
 
                 {setActiveDeviceId && (
                   activeDeviceId === "broadcast" ? (
                     <span className="demo-badge" style={{ borderColor: "#0284c7", color: "#38bdf8", padding: "6px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <span className="live-pulse-dot" style={{ width: 6, height: 6, background: "#38bdf8" }} /> GLOBAL TARGET: ALL NODES
+                      <span className="live-pulse-dot" style={{ width: 6, height: 6, background: "#38bdf8" }} /> SCOPED: ALL NODES
                     </span>
                   ) : (
                     <button
@@ -741,7 +765,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                       title="Scope entire dashboard to broadcast mode across all fleet nodes"
                       style={{ borderColor: "#1e3a5f", color: "#38bdf8", padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
                     >
-                      <Activity size={14} /> Scope Dashboard to All Nodes
+                      <Activity size={13} /> Scope Dashboard
                     </button>
                   )
                 )}
@@ -753,29 +777,29 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
                   title="Dispatch kernel probe across all selected nodes"
                 >
-                  <ShieldCheck size={14} /> Probe All Nodes
+                  <ShieldCheck size={13} /> Probe All Nodes
                 </button>
               </div>
             </div>
 
             {/* Capability Diagnostics Grid across targeted nodes */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, margin: "16px 0 20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, margin: "16px 0 20px" }}>
               <div className="eval-metric-box">
                 <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Target Nodes Selected</span>
                 <strong style={{ color: selectedDeviceIds.size > 0 ? "#38bdf8" : "#f87171", fontSize: 14, fontFamily: "var(--font-mono)" }}>
-                  {selectedDeviceIds.size} / {devices.filter(d => d.status !== "revoked").length}
+                  {selectedDeviceIds.size} / {activeDevsCount}
                 </strong>
               </div>
               <div className="eval-metric-box">
-                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Live Heartbeats (Online)</span>
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Live Heartbeats</span>
                 <strong style={{ color: "#34d399", fontSize: 14, fontFamily: "var(--font-mono)" }}>
                   {devices.filter(d => selectedDeviceIds.has(d.id) && d.is_live).length} ONLINE
                 </strong>
               </div>
               <div className="eval-metric-box">
-                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Kernel Seccomp-BPF Active</span>
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Kernel Seccomp-BPF</span>
                 <strong style={{ color: "#34d399", fontSize: 14, fontFamily: "var(--font-mono)" }}>
-                  {devices.filter(d => selectedDeviceIds.has(d.id) && d.capabilities?.enforcement_verified).length} NODES
+                  {devices.filter(d => selectedDeviceIds.has(d.id) && d.capabilities?.seccomp_bpf).length} NODES
                 </strong>
               </div>
               <div className="eval-metric-box">
@@ -787,12 +811,12 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
             </div>
 
             {/* Target Endpoints Chip Bar */}
-            <div style={{ marginBottom: 20, padding: "10px 14px", background: "#050914", border: "1px solid #142034", borderRadius: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ marginBottom: 20, padding: "12px 14px", background: "#050914", border: "1px solid #142034", borderRadius: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
                 <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
                   ACTIVE BROADCAST TARGET POOL ({selectedDeviceIds.size} nodes):
                 </span>
-                <span style={{ fontSize: 10, color: "#64748b" }}>Click an endpoint to inspect its individual kernel diagnostics</span>
+                <span style={{ fontSize: 10, color: "#64748b" }}>Click an endpoint to inspect individual telemetry</span>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {devices.filter(d => d.status !== "revoked").map(dev => {
@@ -820,7 +844,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                         style={{ cursor: "pointer", accentColor: "#38bdf8" }}
                       />
                       <span
-                        onClick={() => handleSelectSingleDevice(dev)}
+                        onClick={() => handleInspectDevice(dev)}
                         style={{ cursor: "pointer", textDecoration: "underline" }}
                         title="Click to inspect this device individually"
                       >
@@ -839,11 +863,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
             {/* Fleet-Wide Command Dispatch Section */}
             <div style={{ marginBottom: 24, padding: "16px 18px", background: "#070c1a", border: "1px solid #1e293b", borderRadius: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>
                   <Terminal size={15} color="#38bdf8" /> Multi-Node Command Dispatch
                 </span>
                 <span style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)" }}>
-                  Broadcasts simultaneously to all {selectedDeviceIds.size} selected nodes
+                  Broadcasts to {selectedDeviceIds.size} selected nodes simultaneously
                 </span>
               </div>
 
@@ -864,7 +888,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                       setExecMode(preset.mode);
                     }}
                     style={{
-                      padding: "3px 8px", fontSize: 10, background: "#0b1528",
+                      padding: "4px 8px", fontSize: 11, background: "#0b1528",
                       border: "1px solid #1e3a5f", color: "#93c5fd", borderRadius: 4,
                       cursor: "pointer", fontFamily: "var(--font-mono)"
                     }}
@@ -874,62 +898,9 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 ))}
               </div>
 
-              {/* Selected Target Devices Chips */}
-              <div style={{ marginBottom: 12, padding: "8px 10px", background: "#050914", borderRadius: 6, border: "1px solid #162238" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
-                    Selected Targets ({selectedDeviceIds.size} of {devices.filter(d => d.status !== "revoked").length}):
-                  </span>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={handleToggleSelectAll}
-                      style={{ padding: "2px 6px", fontSize: 10, background: "#0b1528", border: "1px solid #1e3a5f", color: "#38bdf8", borderRadius: 4, cursor: "pointer" }}
-                    >
-                      {selectedDeviceIds.size === devices.filter(d => d.status !== "revoked").length ? "Deselect All" : "Select All"}
-                    </button>
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {devices.filter(d => selectedDeviceIds.has(d.id)).map(dev => (
-                    <span
-                      key={dev.id}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 5,
-                        padding: "2px 8px",
-                        fontSize: 11,
-                        fontFamily: "var(--font-mono)",
-                        background: "#0c2847",
-                        border: "1px solid #0284c7",
-                        borderRadius: 4,
-                        color: "#38bdf8"
-                      }}
-                    >
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dev.is_live ? "#22c55e" : "#64748b" }} />
-                      {dev.name || dev.hostname}
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleDeviceCheckbox(e, dev)}
-                        style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", padding: "0 2px", fontSize: 12, lineHeight: 1 }}
-                        title="Remove from target selection"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {selectedDeviceIds.size === 0 && (
-                    <span style={{ fontSize: 11, color: "#ef4444", fontStyle: "italic" }}>
-                      No devices selected. Check devices above or click Select All.
-                    </span>
-                  )}
-                </div>
-              </div>
-
               {/* Dispatch Form */}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ flex: 1, minWidth: 280, display: "flex", alignItems: "center", background: "#03060f", border: "1px solid #1e293b", borderRadius: 6, padding: "0 10px" }}>
+                <div style={{ flex: 1, minWidth: 260, display: "flex", alignItems: "center", background: "#03060f", border: "1px solid #1e293b", borderRadius: 6, padding: "0 10px" }}>
                   <span style={{ fontSize: 11, color: "#38bdf8", fontFamily: "var(--font-mono)", marginRight: 6 }}>[fleet]$</span>
                   <input
                     type="text"
@@ -961,7 +932,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   style={{ padding: "8px 16px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
                 >
                   {broadcastRunning ? <RefreshCw size={14} className="spin" /> : <Terminal size={14} />}
-                  {broadcastRunning ? "Broadcasting..." : `Dispatch to ${selectedDeviceIds.size} Selected Device(s)`}
+                  {broadcastRunning ? "Broadcasting..." : `Dispatch to ${selectedDeviceIds.size} Node(s)`}
                 </button>
               </div>
             </div>
@@ -1041,7 +1012,6 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                           </div>
                         </div>
 
-                        {/* Terminal stdout / stderr output */}
                         {res ? (
                           <div style={{
                             background: "#02040a",
@@ -1059,8 +1029,20 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                             {res.stdout || res.stderr || "(No terminal output captured)"}
                           </div>
                         ) : (
-                          <div style={{ fontSize: 11, color: "#64748b", fontFamily: "var(--font-mono)", fontStyle: "italic" }}>
-                            Task queued. Awaiting endpoint execution and telemetry sync...
+                          <div style={{
+                            background: "#030814",
+                            border: "1px dashed #1e3a5f",
+                            borderRadius: 6,
+                            padding: "8px 12px",
+                            fontSize: 11,
+                            color: "#93c5fd",
+                            fontFamily: "var(--font-mono)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8
+                          }}>
+                            <RefreshCw size={12} className="spin" color="#38bdf8" />
+                            <span>Task queued on server. Awaiting endpoint agent heartbeat to execute... (run <code>./povishield watch</code> on host)</span>
                           </div>
                         )}
                       </div>
@@ -1086,11 +1068,32 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
             )}
           </div>
         ) : selectedDevice ? (
+          /* Single Device Deep-Dive Inspector Pane */
           <div className="panel fleet-detail-panel">
+            {/* Top Multi-Device Switch Banner if user has checkboxes selected */}
+            {selectedDeviceIds.size > 1 && (
+              <div style={{
+                marginBottom: 16, padding: "8px 14px", background: "#071a2e",
+                border: "1px solid #0284c7", borderRadius: 8, display: "flex",
+                justifyContent: "space-between", alignItems: "center"
+              }}>
+                <span style={{ fontSize: 11, color: "#38bdf8", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Terminal size={14} /> You have <strong>{selectedDeviceIds.size}</strong> endpoints selected for multi-device broadcast.
+                </span>
+                <button
+                  className="secondary-button"
+                  onClick={handleSwitchToBroadcast}
+                  style={{ padding: "3px 8px", fontSize: 11, borderColor: "#0284c7", color: "#38bdf8" }}
+                >
+                  Open Broadcast Supervisor
+                </button>
+              </div>
+            )}
+
             <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <h2>{selectedDevice.name}</h2>
+                  <h2 style={{ margin: 0, fontSize: 18 }}>{selectedDevice.name}</h2>
                   <span style={{
                     fontSize: 11,
                     fontFamily: "var(--font-mono)",
@@ -1106,7 +1109,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                     {selectedDevice.status === "revoked" ? "AUTHORIZATION REVOKED" : selectedDevice.is_live ? "LIVE HEARTBEAT ACTIVE" : "OFFLINE / DISCONNECTED"}
                   </span>
                 </div>
-                <p style={{ marginTop: 4 }}>ID: <code>{selectedDevice.id}</code> · Host: <code>{selectedDevice.hostname}</code> · OS: {selectedDevice.os_info}</p>
+                <p style={{ marginTop: 4, fontSize: 12 }}>ID: <code>{selectedDevice.id}</code> · Host: <code>{selectedDevice.hostname}</code> · OS: {selectedDevice.os_info}</p>
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1115,16 +1118,27 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   onClick={handleRefreshFleet}
                   disabled={refreshing}
                   title="Refresh device telemetry and fleet"
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}
                 >
-                  <RefreshCw size={14} className={refreshing ? "spin" : ""} />
+                  <RefreshCw size={13} className={refreshing ? "spin" : ""} />
                   {refreshing ? "Refreshing..." : "Refresh"}
                 </button>
+
                 {setActiveDeviceId && (
                   activeDeviceId === selectedDevice.id ? (
-                    <span className="demo-badge" style={{ borderColor: "#10b981", color: "#34d399", padding: "6px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <span className="live-pulse-dot" style={{ width: 6, height: 6 }} /> GLOBAL ACTIVE TARGET
-                    </span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span className="demo-badge" style={{ borderColor: "#10b981", color: "#34d399", padding: "6px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                        <span className="live-pulse-dot" style={{ width: 6, height: 6 }} /> SCOPED ACTIVE TARGET
+                      </span>
+                      <button
+                        className="secondary-button"
+                        onClick={() => setActiveDeviceId("gateway")}
+                        style={{ padding: "6px 10px", fontSize: 11 }}
+                        title="Reset global scope back to Gateway"
+                      >
+                        Reset Scope
+                      </button>
+                    </div>
                   ) : (
                     <button
                       className="secondary-button"
@@ -1132,10 +1146,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                       title="Scope entire dashboard and execution to this computer"
                       style={{ borderColor: "#1e3a5f", color: "#38bdf8", padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
                     >
-                      <Activity size={14} /> Scope Dashboard to this PC
+                      <Activity size={13} /> Scope Dashboard to this PC
                     </button>
                   )
                 )}
+
                 <button
                   className="primary-button"
                   onClick={handleRunSecurityAudit}
@@ -1143,40 +1158,42 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   style={{ padding: "6px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
                   title="Run immediate kernel diagnostic audit on this PC"
                 >
-                  <ShieldCheck size={14} /> Run Security Audit
+                  <ShieldCheck size={13} /> Run Security Audit
                 </button>
+
                 {selectedDevice.status !== "revoked" ? (
                   <button
                     className="secondary-button"
                     onClick={() => handleRevokeDevice(selectedDevice.id)}
-                    style={{ color: "#f87171", borderColor: "#7f1d1d" }}
+                    style={{ color: "#f87171", borderColor: "#7f1d1d", fontSize: 12 }}
                     title="Permanently invalidate agent credentials"
                   >
-                    <Lock size={14} /> Revoke Authorization
+                    <Lock size={13} /> Revoke
                   </button>
                 ) : (
                   <button
                     className="secondary-button"
                     onClick={() => handleDeleteDevice(selectedDevice.id)}
-                    style={{ color: "#f87171", borderColor: "#7f1d1d" }}
+                    style={{ color: "#f87171", borderColor: "#7f1d1d", fontSize: 12 }}
                     title="Delete device record"
                   >
-                    <Trash2 size={14} /> Delete
+                    <Trash2 size={13} /> Delete Record
                   </button>
                 )}
+
                 <button
                   className="secondary-button"
                   onClick={() => handleDeleteDevice(selectedDevice.id)}
-                  style={{ color: "#94a3b8" }}
+                  style={{ color: "#94a3b8", fontSize: 12 }}
                   title="Remove device from fleet"
                 >
-                  <Trash2 size={14} /> Remove
+                  <Trash2 size={13} /> Remove
                 </button>
               </div>
             </div>
 
             {/* Capability Diagnostics Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, margin: "16px 0 24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, margin: "16px 0 24px" }}>
               <div className="eval-metric-box">
                 <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Kernel Seccomp-BPF</span>
                 <strong style={{ color: selectedDevice.capabilities?.seccomp_bpf ? "#34d399" : "#f87171", fontSize: 13, fontFamily: "var(--font-mono)" }}>
@@ -1190,7 +1207,7 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 </strong>
               </div>
               <div className="eval-metric-box">
-                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Cgroups v2 Resource Cap</span>
+                <span style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase" }}>Cgroups v2 Cap</span>
                 <strong style={{ color: selectedDevice.capabilities?.cgroups_v2 ? "#38bdf8" : "#94a3b8", fontSize: 13, fontFamily: "var(--font-mono)" }}>
                   {selectedDevice.capabilities?.cgroups_v2 ? "MOUNTED" : "ABSENT"}
                 </strong>
@@ -1205,7 +1222,14 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
             {/* Remote Command Execution Console */}
             <div style={{ borderTop: "1px solid #1e293b", paddingTop: 18 }}>
-              <h3 style={{ fontSize: 15, marginBottom: 4 }}>Remote Policy-Gated Execution</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <h3 style={{ fontSize: 15, margin: 0 }}>Remote Policy-Gated Execution</h3>
+                {!selectedDevice.is_live && (
+                  <span style={{ fontSize: 11, color: "#f59e0b", fontFamily: "var(--font-mono)" }}>
+                    ⚠️ Endpoint is offline (tasks will queue until agent connects)
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
                 Dispatch commands to execute under kernel seccomp confinement on this specific computer.
               </p>
@@ -1232,8 +1256,8 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 </button>
               </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <div style={{ flex: 1, position: "relative" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 260, position: "relative" }}>
                   <input
                     type="text"
                     value={commandInput}
@@ -1283,18 +1307,30 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               {activeTaskResult && (
                 <div className="terminal-viewport" style={{ marginTop: 16 }}>
                   <div className="terminal-top-bar">
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>REMOTE_EXECUTION_RESULT // {selectedDevice.hostname}</span>
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                      REMOTE_EXECUTION_RESULT // {selectedDevice.hostname} {activeTaskResult.task_id ? `[${activeTaskResult.task_id}]` : ""}
+                    </span>
                     <span style={{
-                      color: activeTaskResult.exit_code === 0 ? "#34d399" : "#f87171",
+                      color: activeTaskResult.exit_code === 0 ? "#34d399" : activeTaskResult.status === "queued" ? "#fbbf24" : "#f87171",
                       fontFamily: "var(--font-mono)", fontSize: 11
                     }}>
-                      EXIT CODE: {activeTaskResult.exit_code} ({activeTaskResult.status?.toUpperCase()})
+                      STATUS: {activeTaskResult.status?.toUpperCase()} {activeTaskResult.exit_code !== undefined ? `(EXIT: ${activeTaskResult.exit_code})` : ""}
                     </span>
                   </div>
-                  <div className="terminal-screen" style={{ maxHeight: 220, overflowY: "auto" }}>
+                  <div className="terminal-screen" style={{ maxHeight: 240, overflowY: "auto" }}>
                     <div className="terminal-line init">
-                      [TARGET] Command: {commandInput} | Host: {selectedDevice.hostname}
+                      [TARGET] Command: {Array.isArray(activeTaskResult.command) ? activeTaskResult.command.join(" ") : commandInput} | Host: {selectedDevice.hostname}
                     </div>
+
+                    {activeTaskResult.queued_notice && (
+                      <div style={{ margin: "8px 0", padding: "10px", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: 6, color: "#fbbf24" }}>
+                        <strong>Task Queued on Server (ID: {activeTaskResult.task_id})</strong>
+                        <p style={{ margin: "4px 0 0", fontSize: 11, color: "#fef3c7" }}>
+                          This endpoint is currently offline. The command has been saved to the queue and will execute automatically the moment <code>./povishield watch</code> or the background agent connects from <strong>{selectedDevice.hostname}</strong>.
+                        </p>
+                      </div>
+                    )}
+
                     {activeTaskResult.stdout && (
                       <pre className="terminal-line stdout" style={{ margin: "4px 0", whiteSpace: "pre-wrap" }}>
                         {activeTaskResult.stdout}
@@ -1325,48 +1361,92 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                         </div>
                       </div>
                     )}
-                    <div className="terminal-line success">
-                      [RESULT] Status: {activeTaskResult.status} | Duration: {activeTaskResult.duration_ms}ms
-                    </div>
+                    {activeTaskResult.duration_ms !== undefined && (
+                      <div className="terminal-line success">
+                        [RESULT] Status: {activeTaskResult.status} | Duration: {activeTaskResult.duration_ms}ms
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Recent Tasks List */}
-              <div style={{ marginTop: 24 }}>
-                <h4 style={{ fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>Recent Endpoint Tasks</h4>
-                {deviceTasks.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#64748b" }}>No execution tasks recorded on this host yet.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {deviceTasks.slice(0, 5).map(t => (
-                      <div key={t.id} style={{
-                        padding: "8px 12px",
-                        background: "#070c18",
-                        border: "1px solid #162032",
-                        borderRadius: 6,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        fontSize: 11,
-                        fontFamily: "var(--font-mono)"
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span>{t.command?.join(" ")}</span>
-                          {t.result?.syscalls?.length > 0 && (
-                            <span style={{ fontSize: 9, padding: "1px 5px", background: "#0e1a2d", border: "1px solid #1e3a5f", borderRadius: 3, color: "#38bdf8" }}>
-                              {t.result.syscalls.length} syscalls
-                            </span>
-                          )}
-                        </div>
-                        <span style={{ color: t.result?.exit_code === 0 ? "#34d399" : t.status === "completed" ? "#f87171" : "#38bdf8" }}>
-                          {t.status.toUpperCase()} (EXIT: {t.result?.exit_code ?? "-"})
-                        </span>
-                      </div>
-                    ))}
+              {/* Two Column Section: Recent Tasks & Device Audit Events */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24 }}>
+                {/* Recent Tasks List */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <h4 style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>Recent Tasks (Click to Inspect)</h4>
+                    <span style={{ fontSize: 10, color: "#64748b" }}>{deviceTasks.length} recorded</span>
                   </div>
-                )}
+                  {deviceTasks.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "#64748b" }}>No execution tasks recorded on this host yet.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+                      {deviceTasks.slice(0, 8).map(t => {
+                        const cmdText = Array.isArray(t.command) ? t.command.join(" ") : String(t.command || "");
+                        const isSelectedTask = activeTaskResult?.task_id === t.id || activeTaskResult?.id === t.id;
+
+                        return (
+                          <div
+                            key={t.id}
+                            className={`fleet-task-row ${isSelectedTask ? "active" : ""}`}
+                            onClick={() => {
+                              setActiveTaskResult(t.result ? { ...t.result, status: t.status, task_id: t.id, command: t.command } : { status: t.status, task_id: t.id, command: t.command });
+                            }}
+                            title="Click to view execution stdout and syscall details in viewport"
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+                              <Eye size={12} style={{ opacity: isSelectedTask ? 1 : 0.4 }} />
+                              <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{cmdText}</span>
+                              {t.result?.syscalls?.length > 0 && (
+                                <span style={{ fontSize: 9, padding: "1px 5px", background: "#0e1a2d", border: "1px solid #1e3a5f", borderRadius: 3, color: "#38bdf8", flexShrink: 0 }}>
+                                  {t.result.syscalls.length} syscalls
+                                </span>
+                              )}
+                            </div>
+                            <span style={{
+                              color: t.result?.exit_code === 0 ? "#34d399" : t.status === "completed" ? "#f87171" : "#fbbf24",
+                              flexShrink: 0,
+                              fontWeight: 600
+                            }}>
+                              {t.status.toUpperCase()} {t.result?.exit_code !== undefined ? `(${t.result.exit_code})` : ""}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Device Audit Events Timeline */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <h4 style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>Endpoint Telemetry Events</h4>
+                    <span style={{ fontSize: 10, color: "#64748b" }}>{deviceEvents.length} events</span>
+                  </div>
+                  {deviceEvents.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "#64748b" }}>No audit events logged for this device yet.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+                      {deviceEvents.slice(0, 8).map((ev, i) => (
+                        <div key={i} className="fleet-event-row">
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{
+                              width: 6, height: 6, borderRadius: "50%",
+                              background: ev.event_type.includes("completed") ? "#10b981" : ev.event_type.includes("queued") ? "#38bdf8" : "#a855f7"
+                            }} />
+                            <strong style={{ color: "#cbd5e1", fontSize: 11 }}>{ev.event_type}</strong>
+                          </div>
+                          <span style={{ color: "#64748b", fontFamily: "var(--font-mono)", fontSize: 10 }}>
+                            {ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
             </div>
           </div>
         ) : (
@@ -1581,65 +1661,23 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
 
                 <div style={{ marginBottom: 20 }}>
                   <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 6 }}>
-                    Option B: If you already have the repository cloned on the host:
+                    Option B: If you already downloaded <code>./povishield</code>:
                   </span>
                   <div style={{
                     position: "relative", background: "#050811", border: "1px solid #1e293b",
                     borderRadius: 6, padding: "10px 42px 10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "#38bdf8"
                   }}>
                     <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                      {pairingData.cli_command}
+                      {`./povishield connect ${pairingData.server_url} --code ${pairingData.code}`}
                     </pre>
                     <button
                       className="icon-button"
-                      onClick={() => copyText(pairingData.cli_command)}
+                      onClick={() => copyText(`./povishield connect ${pairingData.server_url} --code ${pairingData.code}`)}
                       style={{ position: "absolute", right: 8, top: 8 }}
                       title="Copy CLI command"
                     >
                       {copiedCmd ? <Check size={16} color="#38bdf8" /> : <Copy size={16} />}
                     </button>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 6 }}>
-                    Option C: Download <code>./povishield</code> on another PC directly:
-                  </span>
-                  <div style={{
-                    background: "#050811", border: "1px solid #1e293b", borderRadius: 8, padding: 14
-                  }}>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-                      <a
-                        href={`${API.replace(/\/api$/, '')}/download/povishield`}
-                        download="povishield"
-                        className="primary-button"
-                        style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 14px" }}
-                      >
-                        <Download size={14} /> Download ./povishield Script
-                      </a>
-                      <a
-                        href={`${API.replace(/\/api$/, '')}/download/povishield-agent.tar.gz`}
-                        download="povishield-agent.tar.gz"
-                        className="secondary-button"
-                        style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "7px 14px", borderColor: "#334155" }}
-                      >
-                        <Download size={14} /> Download Agent Bundle (.tar.gz)
-                      </a>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 6, fontFamily: "var(--font-mono)" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#090d16", padding: "6px 10px", borderRadius: 4 }}>
-                        <span>1. Make executable: <strong style={{ color: "#f1f5f9" }}>chmod +x povishield</strong></span>
-                        <button className="icon-button" onClick={() => copyText("chmod +x povishield")} title="Copy"><Copy size={13} /></button>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#090d16", padding: "6px 10px", borderRadius: 4 }}>
-                        <span style={{ wordBreak: "break-all" }}>2. Connect: <strong style={{ color: "#38bdf8" }}>./povishield connect --server {pairingData.server_url} --code {pairingData.code}</strong></span>
-                        <button className="icon-button" onClick={() => copyText(`./povishield connect --server ${pairingData.server_url} --code ${pairingData.code}`)} title="Copy"><Copy size={13} /></button>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#090d16", padding: "6px 10px", borderRadius: 4 }}>
-                        <span>3. Live Watch: <strong style={{ color: "#34d399" }}>./povishield watch</strong></span>
-                        <button className="icon-button" onClick={() => copyText("./povishield watch")} title="Copy"><Copy size={13} /></button>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -1669,15 +1707,6 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                     {enrollmentMode === "multi" ? "Keep this window open to paste into additional machines." : ""}
                   </span>
                   <div style={{ display: "flex", gap: 10 }}>
-                    {enrollmentMode === "multi" && (
-                      <button
-                        className="secondary-button"
-                        onClick={() => { copyText(pairingData.install_command); }}
-                        style={{ borderColor: "#1e3a5f", color: "#38bdf8" }}
-                      >
-                        <Copy size={14} /> Copy Command
-                      </button>
-                    )}
                     <button
                       className="primary-button"
                       onClick={() => { setShowPairModal(false); setWaitingForPair(false); fetchDevices(); }}
@@ -1752,14 +1781,14 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
               </span>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 12, fontFamily: "var(--font-mono)" }}>
                 <div>
-                  <div style={{ color: "#64748b", marginBottom: 4 }}>1. Download via Terminal (or use button above):</div>
+                  <div style={{ color: "#64748b", marginBottom: 4 }}>1. Download via Terminal:</div>
                   <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#38bdf8", wordBreak: "break-all" }}>
                     curl -sSL {typeof window !== "undefined" ? window.location.origin : ""}/download/povishield -o povishield && chmod +x povishield
                     <button className="icon-button" onClick={() => copyText(`curl -sSL ${window.location.origin}/download/povishield -o povishield && chmod +x povishield`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
                   </div>
                 </div>
                 <div>
-                  <div style={{ color: "#64748b", marginBottom: 4 }}>2. Connect & enroll this machine to PoViShield:</div>
+                  <div style={{ color: "#64748b", marginBottom: 4 }}>2. Connect & enroll this machine:</div>
                   <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#cbd5e1", wordBreak: "break-all" }}>
                     ./povishield connect {typeof window !== "undefined" ? window.location.origin : ""}
                     <button className="icon-button" onClick={() => copyText(`./povishield connect ${window.location.origin}`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>

@@ -2263,3 +2263,122 @@ input:checked + .toggle-slider:before {
   .eval-metrics-row { grid-template-columns: 1fr; }
   .quick-action-card { grid-column: span 1; }
 }
+
+/* ==========================================================================
+   Fleet Device Console Styles
+   ========================================================================== */
+.fleet-view {
+  width: 100%;
+}
+
+.fleet-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .fleet-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.device-card {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #162236;
+  background: #070d1a;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.device-card:hover {
+  border-color: #223c62;
+  background: #0a1324;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.device-card.selected {
+  border-color: #10b981;
+  background: #081a17;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.15), inset 0 0 12px rgba(16, 185, 129, 0.05);
+}
+
+.device-card.selected-broadcast {
+  border-color: #0284c7;
+  background: #081d33;
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.15), inset 0 0 12px rgba(14, 165, 233, 0.05);
+}
+
+.device-card.checked-target {
+  border-color: #1e3a5f;
+  background: #091326;
+}
+
+.status-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-pill.online {
+  background: #064e3b;
+  color: #34d399;
+  border: 1px solid #059669;
+}
+
+.status-pill.offline {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+.status-pill.revoked {
+  background: #381014;
+  color: #f87171;
+  border: 1px solid #7f1d1d;
+}
+
+.fleet-task-row {
+  padding: 8px 12px;
+  background: #070c18;
+  border: 1px solid #162032;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fleet-task-row:hover {
+  background: #0d1729;
+  border-color: #223854;
+  transform: translateX(2px);
+}
+
+.fleet-task-row.active {
+  border-color: #38bdf8;
+  background: #081d33;
+}
+
+.fleet-event-row {
+  padding: 7px 10px;
+  background: #040813;
+  border: 1px solid #121c2e;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}

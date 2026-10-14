@@ -188,6 +188,12 @@ function App() {
     return localStorage.getItem("povishield_active_device_id") || "gateway";
   });
 
+  useEffect(() => {
+    if (activeDeviceId) {
+      localStorage.setItem("povishield_active_device_id", activeDeviceId);
+    }
+  }, [activeDeviceId]);
+
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
       const next = !prev;
