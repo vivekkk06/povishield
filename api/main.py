@@ -1318,6 +1318,9 @@ def audit_target_ledger(target: str, candidate_profile: str = None):
 
 
 def resolve_policy_file(name: str) -> Path:
+    direct = ROOT / name if not Path(name).is_absolute() else Path(name)
+    if direct.is_file():
+        return direct
     for root in (RESULTS, ROOT / "deploy_data"):
         p1 = root / name
         if p1.is_file():

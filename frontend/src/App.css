@@ -2410,3 +2410,247 @@ input:checked + .toggle-slider:before {
   font-size: 11px;
   letter-spacing: 0.5px;
 }
+
+/* --- Dynamic Sidebar Badges --- */
+.nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-badge.pending-badge {
+  background: #431407;
+  color: #fb923c;
+  border: 1px solid #7c2d12;
+  animation: pulseGlowOrange 2s infinite;
+}
+
+.nav-badge.fleet-badge {
+  background: #064e3b;
+  color: #34d399;
+  border: 1px solid #059669;
+}
+
+.nav-badge.catalog-badge {
+  background: #0c2d48;
+  color: #38bdf8;
+  border: 1px solid #0284c7;
+}
+
+@keyframes pulseGlowOrange {
+  0%, 100% { box-shadow: 0 0 0 rgba(249, 115, 22, 0); }
+  50% { box-shadow: 0 0 8px rgba(249, 115, 22, 0.6); }
+}
+
+@keyframes pulseGlowGreen {
+  0%, 100% { box-shadow: 0 0 0 rgba(16, 185, 129, 0); }
+  50% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+}
+
+/* --- Hero & Pipeline Hover Enhancements --- */
+.quick-action-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.quick-action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 16px rgba(14, 165, 233, 0.12);
+  border-color: #0284c7;
+}
+
+.pipeline-step-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.pipeline-step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  border-color: #10b981;
+}
+
+/* --- Category Tags --- */
+.category-tag.file-i-o { background: #06281e; color: #34d399; border: 1px solid #059669; }
+.category-tag.process { background: #1b122e; color: #c084fc; border: 1px solid #7c3aed; }
+.category-tag.memory { background: #261906; color: #fbbf24; border: 1px solid #d97706; }
+.category-tag.network { background: #08243b; color: #38bdf8; border: 1px solid #0284c7; }
+.category-tag.privileged { background: #2b0b10; color: #f87171; border: 1px solid #b91c1c; }
+.category-tag.system { background: #131b2a; color: #94a3b8; border: 1px solid #29384e; }
+
+/* --- Enhanced Filter & Category Toolbars --- */
+.filter-bar-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #060b16;
+  border: 1px solid #142034;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.filter-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.category-pill-btn {
+  padding: 3px 9px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid #1e293b;
+  background: #091220;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.category-pill-btn:hover {
+  border-color: #38bdf8;
+  color: #f1f5f9;
+}
+
+.category-pill-btn.active {
+  background: #0c2d48;
+  border-color: #0284c7;
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.25);
+}
+
+.category-pill-btn.active.file-i-o { background: #064e3b; border-color: #10b981; color: #34d399; }
+.category-pill-btn.active.process { background: #2e1065; border-color: #8b5cf6; color: #c084fc; }
+.category-pill-btn.active.memory { background: #451a03; border-color: #f59e0b; color: #fbbf24; }
+.category-pill-btn.active.network { background: #0c2d48; border-color: #0284c7; color: #38bdf8; }
+.category-pill-btn.active.privileged { background: #450a0a; border-color: #ef4444; color: #f87171; }
+.category-pill-btn.active.system { background: #1e293b; border-color: #64748b; color: #cbd5e1; }
+
+/* Category Visual Distribution Bar */
+.category-dist-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0a1120;
+  border: 1px solid #1a273b;
+  margin: 10px 0 14px 0;
+}
+
+.category-dist-item {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.category-dist-item.file-i-o { background: #10b981; }
+.category-dist-item.process { background: #a855f7; }
+.category-dist-item.memory { background: #f59e0b; }
+.category-dist-item.network { background: #0284c7; }
+.category-dist-item.privileged { background: #ef4444; }
+.category-dist-item.system { background: #64748b; }
+
+/* Color-coded Syscall Profile Bars */
+.profile-bar-value.file-i-o { background: linear-gradient(90deg, #059669, #10b981); }
+.profile-bar-value.process { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+.profile-bar-value.memory { background: linear-gradient(90deg, #d97706, #f59e0b); }
+.profile-bar-value.network { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+.profile-bar-value.privileged { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+.profile-bar-value.system { background: linear-gradient(90deg, #475569, #64748b); }
+
+/* Exploit Inspector Card */
+.exploit-inspector-card {
+  background: #081222;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  animation: fadeIn 0.2s ease;
+}
+
+.exploit-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.exploit-grid-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+@media (max-width: 800px) {
+  .exploit-grid-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+.exploit-detail-box {
+  background: #040914;
+  border: 1px solid #142034;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.exploit-detail-box span {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.exploit-detail-box strong {
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+/* Safety Gate Interactive Verifier Widget */
+.safety-gate-widget {
+  background: #081120;
+  border: 1px solid #1e3352;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.safety-gate-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Quick Summary Stat Chips */
+.summary-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #08101e;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: #94a3b8;
+}
+
+.summary-stat-chip strong {
+  color: #f1f5f9;
+}

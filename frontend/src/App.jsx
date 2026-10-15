@@ -4,7 +4,7 @@ import {
   FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, ChevronLeft, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
-  Check, Copy, Terminal, Server, X, Download
+  Check, Copy, Terminal, Server, X, Download, Search, Filter, Info, Eye, Sliders
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -85,14 +85,78 @@ function getSyscallCategory(name) {
 }
 
 const ESCAPE_TEST_DEFS = [
-  { id: "esc_chroot", name: "Chroot Breakout", desc: "Break out of chroot jail using fchdir and unconfined fd" },
-  { id: "esc_hostfs", name: "Host FS Write", desc: "Attempt to write backdoor file to host filesystem /root" },
-  { id: "esc_mount", name: "Mount Tampering", desc: "Invoke mount syscall to overwrite host filesystem mounts" },
-  { id: "esc_ptrace", name: "Process Injection", desc: "Inject malicious shellcode into host process via ptrace" },
-  { id: "esc_rawsock", name: "Raw Socket Sniffing", desc: "Create AF_INET SOCK_RAW socket to capture packet headers" },
-  { id: "esc_unshare", name: "User NS Escalation", desc: "Unshare user namespace to acquire elevated capabilities" },
-  { id: "limit_mem", name: "Memory Exhaustion", desc: "Allocate heap memory beyond configured 32MB cgroup limit" },
-  { id: "limit_pids", name: "Fork Bomb / PID Floor", desc: "Fork processes aggressively to exhaust kernel task limits" },
+  {
+    id: "esc_chroot",
+    name: "Chroot Breakout",
+    category: "Filesystem / Escape",
+    desc: "Break out of chroot jail using fchdir and unconfined file descriptor",
+    mitre: "T1611: Escape to Host",
+    syscalls: ["fchdir", "chroot"],
+    rationale: "PoViShield's seccomp-bpf filter omits 'chroot' and unconfined 'fchdir' from the allowed whitelist. Any attempt triggers SCMP_ACT_KILL_PROCESS instantly terminating the rogue process."
+  },
+  {
+    id: "esc_hostfs",
+    name: "Host FS Write",
+    category: "Filesystem / Escape",
+    desc: "Attempt to write backdoor file or exploit artifact to host filesystem /root",
+    mitre: "T1059.004: Unix Shell",
+    syscalls: ["openat", "creat", "write"],
+    rationale: "Unprivileged profile confines openat flags and paths; rootfs isolation locks the host filesystem as read-only (MS_RDONLY) while seccomp restricts writing to host paths."
+  },
+  {
+    id: "esc_mount",
+    name: "Mount Tampering",
+    category: "Namespace / FS",
+    desc: "Invoke mount syscall to overwrite host filesystem mounts or remount rw",
+    mitre: "T1611: Container Escape",
+    syscalls: ["mount", "umount2"],
+    rationale: "'mount' and 'umount2' are strictly omitted from standard workload seccomp filters. Executing mount invokes kernel-level SIGSYS kill."
+  },
+  {
+    id: "esc_ptrace",
+    name: "Process Injection",
+    category: "Process / Injection",
+    desc: "Inject malicious shellcode into neighboring host processes via ptrace attach",
+    mitre: "T1055: Process Injection",
+    syscalls: ["ptrace", "process_vm_writev"],
+    rationale: "ptrace is forbidden in all runtime containment profiles and PR_SET_NO_NEW_PRIVS ensures child tasks cannot escalate privilege to trace peers."
+  },
+  {
+    id: "esc_rawsock",
+    name: "Raw Socket Sniffing",
+    category: "Network / Exfiltration",
+    desc: "Create AF_INET SOCK_RAW socket to capture promiscuous packet headers",
+    mitre: "T1040: Network Sniffing",
+    syscalls: ["socket", "setsockopt"],
+    rationale: "SOCK_RAW requires CAP_NET_RAW; non-network profiles strip the socket syscall entirely, killing the thread on invocation."
+  },
+  {
+    id: "esc_unshare",
+    name: "User NS Escalation",
+    category: "Privilege Escalation",
+    desc: "Unshare user namespace to acquire synthetic elevated capabilities",
+    mitre: "T1068: Privilege Escalation",
+    syscalls: ["unshare", "setns"],
+    rationale: "unshare and setns are denied by seccomp policy unless explicitly allowed in specialized rootless isolation profiles."
+  },
+  {
+    id: "limit_mem",
+    name: "Memory Exhaustion",
+    category: "Resource Abuse",
+    desc: "Allocate heap memory beyond configured 32MB cgroup limit",
+    mitre: "T1499: Endpoint DoS",
+    syscalls: ["brk", "mmap"],
+    rationale: "Kernel cgroup v2 enforces strict memory.max ceiling (32 MiB). When exceeded, the kernel OOM killer terminates the task group."
+  },
+  {
+    id: "limit_pids",
+    name: "Fork Bomb / PID Floor",
+    category: "Resource Abuse",
+    desc: "Fork processes aggressively to exhaust kernel task table limits",
+    mitre: "T1499: Resource Exhaustion",
+    syscalls: ["clone", "clone3", "fork"],
+    rationale: "Cgroups v2 pids.max restricts maximum concurrent threads/tasks to prevent fork bombs and thread exhaustion attacks."
+  }
 ];
 
 const ESCAPE_CONFIGS = [
@@ -282,6 +346,38 @@ function App() {
   const [chartMetric, setChartMetric] = useState("coverage_reduction");
   const [evalSearch, setEvalSearch] = useState("");
 
+  // Activity Monitor enhancements
+  const [traceSearch, setTraceSearch] = useState("");
+  const [traceCategory, setTraceCategory] = useState("ALL");
+  const [tracePhase, setTracePhase] = useState("all");
+  const [liveSearch, setLiveSearch] = useState("");
+  const [liveCategory, setLiveCategory] = useState("ALL");
+
+  // Syscall Profile enhancements
+  const [profileCategory, setProfileCategory] = useState("ALL");
+  const [profileSort, setProfileSort] = useState("count_desc");
+
+  // Evidence Ledgers enhancements
+  const [ledgerSignalFilter, setLedgerSignalFilter] = useState("ALL");
+  const [ledgerDivergenceFilter, setLedgerDivergenceFilter] = useState("ALL");
+  const [copiedRemovables, setCopiedRemovables] = useState(false);
+
+  // Safety Gate & Approvals enhancements
+  const [approvalSearch, setApprovalSearch] = useState("");
+  const [approvalNotice, setApprovalNotice] = useState("");
+  const [liveGateTarget, setLiveGateTarget] = useState("grep.json");
+  const [liveGateLoading, setLiveGateLoading] = useState(false);
+  const [liveGateResult, setLiveGateResult] = useState(null);
+
+  // Experiments enhancements
+  const [escapeSearch, setEscapeSearch] = useState("");
+  const [escapeCategoryFilter, setEscapeCategoryFilter] = useState("ALL");
+  const [selectedExploitDef, setSelectedExploitDef] = useState(null);
+
+  // Settings enhancements
+  const [pingStatus, setPingStatus] = useState(null);
+  const [pingLoading, setPingLoading] = useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -404,6 +500,8 @@ function App() {
     try {
       const res = await fetch(`${API}/approvals/${approvalId}/grant`, { method: "POST" });
       if (res.ok) {
+        setApprovalNotice(`Request ${approvalId} successfully granted by operator.`);
+        setTimeout(() => setApprovalNotice(""), 3500);
         await fetchPendingApprovals();
         await loadData();
       }
@@ -416,12 +514,80 @@ function App() {
     try {
       const res = await fetch(`${API}/approvals/${approvalId}/deny`, { method: "POST" });
       if (res.ok) {
+        setApprovalNotice(`Request ${approvalId} successfully denied.`);
+        setTimeout(() => setApprovalNotice(""), 3500);
         await fetchPendingApprovals();
         await loadData();
       }
     } catch (err) {
       console.error("Failed to deny approval:", err);
     }
+  };
+
+  const runLiveSafetyGate = async (targetFile) => {
+    setLiveGateLoading(true);
+    setLiveGateResult(null);
+    try {
+      const targetName = targetFile.replace(".json", "");
+      const res = await fetch(`${API}/policies/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidate: `results/profiles/${targetFile}`,
+          active: `results/profiles/baseline_${targetFile}`,
+          regression_cmd: `${targetName} --help`
+        })
+      });
+      const data = await res.json();
+      setLiveGateResult(data);
+    } catch (err) {
+      setLiveGateResult({ error: err.message || "Failed to verify safety gate" });
+    } finally {
+      setLiveGateLoading(false);
+    }
+  };
+
+  const handlePingBackend = async () => {
+    setPingLoading(true);
+    setPingStatus(null);
+    const start = performance.now();
+    try {
+      const res = await fetch(`${API}/health`);
+      const latency = Math.round(performance.now() - start);
+      if (res.ok) {
+        setPingStatus({ ok: true, latency, msg: `Operational — ${latency}ms latency` });
+      } else {
+        setPingStatus({ ok: false, latency, msg: `HTTP status ${res.status}` });
+      }
+    } catch (err) {
+      setPingStatus({ ok: false, msg: err.message || "Failed to connect to API" });
+    } finally {
+      setPingLoading(false);
+    }
+  };
+
+  const handleDownloadAuditBundle = () => {
+    const bundle = {
+      exported_at: new Date().toISOString(),
+      platform: "PoViShield Linux Security Platform",
+      health: health,
+      overview: overview,
+      devices: devices,
+      approvals: approvalsList,
+      pending_approvals: pendingApprovals,
+      policies: policies?.items ?? [],
+      noisy_ablation: noisyAblationData,
+      experiments: experiments
+    };
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `povishield-audit-bundle-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   useEffect(() => {
@@ -648,12 +814,29 @@ function App() {
                 {group.items.map(item => {
                   const Icon = item.icon;
                   const isActive = page === item.name;
+                  const onlineCount = devices.filter(d => d.is_live && d.status !== "revoked").length;
+
                   return (
                     <button key={item.name}
                       className={`nav-item ${isActive ? "active" : ""}`}
                       onClick={() => { setPage(item.name); setMenuOpen(false); }}>
                       <Icon size={18} /><span>{item.name}</span>
-                      {isActive && <ChevronRight size={15} />}
+                      {item.name === "Safety Gate & Approvals" && pendingApprovals?.length > 0 && (
+                        <span className="nav-badge pending-badge" title={`${pendingApprovals.length} pending approvals`}>
+                          {pendingApprovals.length}
+                        </span>
+                      )}
+                      {item.name === "Fleet / Devices" && onlineCount > 0 && (
+                        <span className="nav-badge fleet-badge" title={`${onlineCount} devices online`}>
+                          {onlineCount}
+                        </span>
+                      )}
+                      {item.name === "Policy Explorer" && policies?.items?.length > 0 && (
+                        <span className="nav-badge catalog-badge" title={`${policies.items.length} policy profiles`}>
+                          {policies.items.length}
+                        </span>
+                      )}
+                      {isActive && <ChevronRight size={15} style={{ marginLeft: item.name === "Overview" ? "auto" : undefined }} />}
                     </button>
                   );
                 })}
@@ -1566,35 +1749,79 @@ function App() {
                     <div className="monitor-actions">
                       <button className="secondary-button" onClick={startMonitoring} disabled={monitorBusy || monitorSession?.status === "running"}><Play size={15} />{monitorBusy ? "Working…" : "Start live monitoring"}</button>
                       <button className="secondary-button monitor-stop-button" onClick={stopMonitoring} disabled={monitorBusy || monitorSession?.status !== "running"}><Square size={14} />Stop process</button>
+                      <button className="secondary-button" onClick={() => setMonitorEvents([])} disabled={monitorEvents.length === 0} title="Clear buffered live events"><RefreshCw size={13} />Clear buffer</button>
                       {monitorSession && <span className="monitor-session-id">Session {monitorSession.id}</span>}
                     </div>
                     {monitorError && <div className="notice activity-error"><ShieldAlert size={19} /><div><strong>Monitoring message</strong><p>{monitorError}</p></div></div>}
-                    {monitorSession && <>
-                      <div className="activity-summary">
-                        <div><span>Session status</span><strong>{monitorSession.status}</strong></div>
-                        <div><span>Buffered events</span><strong>{monitorEvents.length}</strong></div>
-                        <div><span>Elapsed (seconds)</span><strong>{monitorSession.elapsed_seconds ?? 0}</strong></div>
-                        <div><span>Exit code</span><strong>{monitorSession.exit_code ?? "—"}</strong></div>
-                      </div>
-                      {monitorSession.reason && <p className="footnote">Session ended: {monitorSession.reason.replaceAll("_", " ")}. Trace: {monitorSession.source}</p>}
-                      <div className="table-wrap activity-table-wrap"><table>
-                        <thead><tr><th>SEQ</th><th>PID</th><th>PHASE</th><th>SYSCALL</th><th>CATEGORY</th><th>NUMBER</th><th>RETURN VALUE</th></tr></thead>
-                        <tbody>{[...monitorEvents].reverse().map((event, index) => {
-                          const cat = getSyscallCategory(event.syscall);
-                          return (
-                            <tr key={`live-${event.seq}-${event.pid}-${event.phase}-${index}`}>
-                              <td className="time-cell">{event.seq}</td><td>{event.pid}</td>
-                              <td><span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>{event.phase}</span></td>
-                              <td className="process-cell">{event.syscall}</td>
-                              <td><span className={`category-tag ${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>{cat}</span></td>
-                              <td><code>{event.syscall_nr}</code></td>
-                              <td>{event.phase === "exit" && event.return_value !== undefined ? <code>{event.return_value}</code> : <span className="muted">—</span>}</td>
-                            </tr>
-                          );
-                        })}</tbody>
-                      </table></div>
-                      <p className="footnote">Polling uses a byte cursor to avoid rereading the trace. The browser retains the latest 1,000 events; the session trace is stored separately under results/.</p>
-                    </>}
+                    {monitorSession && (() => {
+                      const filteredLive = monitorEvents.filter(ev => {
+                        const cat = getSyscallCategory(ev.syscall || "");
+                        const matchCat = liveCategory === "ALL" || cat.toLowerCase().replace(/[^a-z0-9]/g, "-") === liveCategory.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                        const query = liveSearch.trim().toLowerCase();
+                        const matchQuery = !query || (ev.syscall || "").toLowerCase().includes(query) || String(ev.pid || "").includes(query);
+                        return matchCat && matchQuery;
+                      });
+                      return (
+                        <>
+                          <div className="activity-summary">
+                            <div><span>Session status</span><strong>{monitorSession.status}</strong></div>
+                            <div><span>Buffered events</span><strong>{monitorEvents.length}</strong></div>
+                            <div><span>Elapsed (seconds)</span><strong>{monitorSession.elapsed_seconds ?? 0}</strong></div>
+                            <div><span>Exit code</span><strong>{monitorSession.exit_code ?? "—"}</strong></div>
+                          </div>
+                          {monitorSession.reason && <p className="footnote">Session ended: {monitorSession.reason.replaceAll("_", " ")}. Trace: {monitorSession.source}</p>}
+
+                          <div className="filter-bar-container">
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 200 }}>
+                              <Search size={14} style={{ color: "#64748b" }} />
+                              <input
+                                placeholder="Filter live stream by syscall or PID…"
+                                value={liveSearch}
+                                onChange={e => setLiveSearch(e.target.value)}
+                                style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, width: "100%", outline: "none", fontFamily: "var(--font-mono)" }}
+                              />
+                            </div>
+                            <div className="filter-pills-row">
+                              {["ALL", "File I/O", "Process", "Memory", "Network", "Privileged", "System"].map(cat => {
+                                const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                                return (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    className={`category-pill-btn ${liveCategory === cat ? `active ${cls}` : ""}`}
+                                    onClick={() => setLiveCategory(cat)}
+                                  >
+                                    {cat}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 11, color: "#64748b" }}>
+                            <span>Showing {filteredLive.length} of {monitorEvents.length} live events</span>
+                          </div>
+
+                          <div className="table-wrap activity-table-wrap"><table>
+                            <thead><tr><th>SEQ</th><th>PID</th><th>PHASE</th><th>SYSCALL</th><th>CATEGORY</th><th>NUMBER</th><th>RETURN VALUE</th></tr></thead>
+                            <tbody>{[...filteredLive].reverse().map((event, index) => {
+                              const cat = getSyscallCategory(event.syscall);
+                              return (
+                                <tr key={`live-${event.seq}-${event.pid}-${event.phase}-${index}`}>
+                                  <td className="time-cell">{event.seq}</td><td>{event.pid}</td>
+                                  <td><span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>{event.phase}</span></td>
+                                  <td className="process-cell">{event.syscall}</td>
+                                  <td><span className={`category-tag ${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>{cat}</span></td>
+                                  <td><code>{event.syscall_nr}</code></td>
+                                  <td>{event.phase === "exit" && event.return_value !== undefined ? <code>{event.return_value}</code> : <span className="muted">—</span>}</td>
+                                </tr>
+                              );
+                            })}</tbody>
+                          </table></div>
+                          <p className="footnote">Polling uses a byte cursor to avoid rereading the trace. The browser retains the latest 1,000 events; the session trace is stored separately under results/.</p>
+                        </>
+                      );
+                    })()}
                   </section>
 
                   <section className="panel events-section">
@@ -1603,10 +1830,59 @@ function App() {
                         <h3>Syscall activity trace</h3>
                         <p>Events captured by PoViShield's learning tracer</p>
                       </div>
-                      <button className="secondary-button" onClick={loadEvents} disabled={eventsLoading}>
-                        <RefreshCw size={15} className={eventsLoading ? "spin-icon" : ""} />
-                        {eventsLoading ? "Refreshing…" : "Refresh events"}
-                      </button>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <button className="secondary-button" onClick={loadEvents} disabled={eventsLoading}>
+                          <RefreshCw size={15} className={eventsLoading ? "spin-icon" : ""} />
+                          {eventsLoading ? "Refreshing…" : "Refresh events"}
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={!eventsData?.events?.length}
+                          onClick={() => {
+                            if (!eventsData?.events?.length) return;
+                            const blob = new Blob([JSON.stringify(eventsData.events, null, 2)], { type: "application/json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `povishield-trace-${new Date().toISOString().slice(0, 10)}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                          }}
+                        >
+                          <Download size={14} /> Export JSON
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={!eventsData?.events?.length}
+                          onClick={() => {
+                            if (!eventsData?.events?.length) return;
+                            const headers = ["seq", "pid", "phase", "syscall", "category", "syscall_nr", "return_value"];
+                            const rows = eventsData.events.map(e => [
+                              e.seq ?? "",
+                              e.pid ?? "",
+                              e.phase ?? "",
+                              e.syscall ?? "",
+                              getSyscallCategory(e.syscall || ""),
+                              e.syscall_nr ?? "",
+                              e.return_value ?? ""
+                            ]);
+                            const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+                            const blob = new Blob([csv], { type: "text/csv" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `povishield-trace-${new Date().toISOString().slice(0, 10)}.csv`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                          }}
+                        >
+                          <FileText size={14} /> Export CSV
+                        </button>
+                      </div>
                     </div>
 
                     <div className="trace-status">
@@ -1628,53 +1904,106 @@ function App() {
                       <p className="muted activity-message">Loading recorded syscall events…</p>
                     )}
 
-                    {!eventsLoading && !eventsError && eventsData && (
-                      <>
-                        <div className="activity-summary">
-                          <div><span>Events shown</span><strong>{eventsData.count}</strong></div>
-                          <div><span>Valid records</span><strong>{eventsData.total_valid_records_in_read_window}</strong></div>
-                          <div><span>Malformed records</span><strong>{eventsData.malformed_records_in_read_window}</strong></div>
-                          <div><span>Source</span><strong className="source-value">{eventsData.source}</strong></div>
-                        </div>
+                    {!eventsLoading && !eventsError && eventsData && (() => {
+                      const allTraceEvents = Array.isArray(eventsData.events) ? eventsData.events : [];
+                      const filteredTraceEvents = allTraceEvents.filter(ev => {
+                        const cat = getSyscallCategory(ev.syscall || "");
+                        const matchCat = traceCategory === "ALL" || cat.toLowerCase().replace(/[^a-z0-9]/g, "-") === traceCategory.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                        const matchPhase = tracePhase === "all" || ev.phase === tracePhase;
+                        const query = traceSearch.trim().toLowerCase();
+                        const matchQuery = !query || (ev.syscall || "").toLowerCase().includes(query) || String(ev.pid || "").includes(query) || String(ev.syscall_nr || "").includes(query);
+                        return matchCat && matchPhase && matchQuery;
+                      });
 
-                        {eventsData.events.length === 0 ? (
-                          <p className="muted activity-message">No recorded events found in results/syscall-events.jsonl.</p>
-                        ) : (
-                          <div className="table-wrap activity-table-wrap">
-                            <table>
-                              <thead>
-                                <tr>
-                                  <th>SEQ</th><th>PID</th><th>PHASE</th>
-                                  <th>SYSCALL</th><th>CATEGORY</th><th>NUMBER</th><th>RETURN VALUE</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {eventsData.events.map((event, index) => {
-                                  const cat = getSyscallCategory(event.syscall || "");
-                                  return (
-                                    <tr key={`${event.seq}-${event.pid}-${event.phase}-${index}`}>
-                                      <td className="time-cell">{event.seq ?? "—"}</td>
-                                      <td>{event.pid ?? "—"}</td>
-                                      <td>
-                                        <span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>
-                                          {event.phase ?? "unknown"}
-                                        </span>
-                                      </td>
-                                      <td className="process-cell">{event.syscall ?? "unknown"}</td>
-                                      <td><span className={`category-tag ${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>{cat}</span></td>
-                                      <td><code>{event.syscall_nr ?? "—"}</code></td>
-                                      <td>{event.phase === "exit" && event.return_value !== undefined
-                                        ? <code>{event.return_value}</code>
-                                        : <span className="muted">—</span>}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                      const uniqueSyscallsInFilter = new Set(filteredTraceEvents.map(e => e.syscall)).size;
+
+                      return (
+                        <>
+                          <div className="activity-summary">
+                            <div><span>Total Trace Events</span><strong>{eventsData.count}</strong></div>
+                            <div><span>Matching Filter</span><strong style={{ color: "#38bdf8" }}>{filteredTraceEvents.length}</strong></div>
+                            <div><span>Unique Syscalls</span><strong>{uniqueSyscallsInFilter}</strong></div>
+                            <div><span>Source File</span><strong className="source-value">{eventsData.source}</strong></div>
                           </div>
-                        )}
-                      </>
-                    )}
+
+                          <div className="filter-bar-container">
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 220 }}>
+                              <Search size={14} style={{ color: "#64748b" }} />
+                              <input
+                                placeholder="Search recorded trace by syscall name, number, or PID…"
+                                value={traceSearch}
+                                onChange={e => setTraceSearch(e.target.value)}
+                                style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, width: "100%", outline: "none", fontFamily: "var(--font-mono)" }}
+                              />
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>Phase:</span>
+                              <select
+                                value={tracePhase}
+                                onChange={e => setTracePhase(e.target.value)}
+                                style={{ background: "#091220", border: "1px solid #1e293b", color: "#f1f5f9", fontSize: 11, borderRadius: 4, padding: "2px 6px" }}
+                              >
+                                <option value="all">All Phases</option>
+                                <option value="entry">Entry Only</option>
+                                <option value="exit">Exit Only</option>
+                              </select>
+                            </div>
+                            <div className="filter-pills-row">
+                              {["ALL", "File I/O", "Process", "Memory", "Network", "Privileged", "System"].map(cat => {
+                                const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                                return (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    className={`category-pill-btn ${traceCategory === cat ? `active ${cls}` : ""}`}
+                                    onClick={() => setTraceCategory(cat)}
+                                  >
+                                    {cat}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {filteredTraceEvents.length === 0 ? (
+                            <p className="muted activity-message">No recorded events match the selected filters.</p>
+                          ) : (
+                            <div className="table-wrap activity-table-wrap">
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>SEQ</th><th>PID</th><th>PHASE</th>
+                                    <th>SYSCALL</th><th>CATEGORY</th><th>NUMBER</th><th>RETURN VALUE</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredTraceEvents.map((event, index) => {
+                                    const cat = getSyscallCategory(event.syscall || "");
+                                    return (
+                                      <tr key={`${event.seq}-${event.pid}-${event.phase}-${index}`}>
+                                        <td className="time-cell">{event.seq ?? "—"}</td>
+                                        <td>{event.pid ?? "—"}</td>
+                                        <td>
+                                          <span className={`phase-tag ${event.phase === "entry" ? "phase-entry" : "phase-exit"}`}>
+                                            {event.phase ?? "unknown"}
+                                          </span>
+                                        </td>
+                                        <td className="process-cell">{event.syscall ?? "unknown"}</td>
+                                        <td><span className={`category-tag ${cat.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>{cat}</span></td>
+                                        <td><code>{event.syscall_nr ?? "—"}</code></td>
+                                        <td>{event.phase === "exit" && event.return_value !== undefined
+                                          ? <code>{event.return_value}</code>
+                                          : <span className="muted">—</span>}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </section>
                 </>
               )}
@@ -1730,54 +2059,153 @@ function App() {
                   {!eventsLoading && !eventsError && eventsData && (() => {
                     const allEvents = Array.isArray(eventsData.events) ? eventsData.events : [];
                     const allRows = (profileData?.syscalls ?? []).map(item => ({
-                      name: item.syscall, number: item.syscall_nr, count: item.count
+                      name: item.syscall,
+                      number: item.syscall_nr,
+                      count: item.count,
+                      category: getSyscallCategory(item.syscall)
                     }));
                     const totalInvocations = profileData?.entry_records ?? 0;
                     const uniqueSyscalls = profileData?.unique_syscalls ?? allRows.length;
-                    const visibleRows = allRows.filter(row => {
-                      const query = profileSearch.trim().toLowerCase();
-                      return !query || row.name.toLowerCase().includes(query) || String(row.number ?? "").includes(query);
+
+                    // Category distribution stats
+                    const categorySums = {
+                      "File I/O": 0,
+                      "Process": 0,
+                      "Memory": 0,
+                      "Network": 0,
+                      "Privileged": 0,
+                      "System": 0
+                    };
+                    allRows.forEach(r => {
+                      if (categorySums[r.category] !== undefined) categorySums[r.category] += r.count;
+                      else categorySums["System"] += r.count;
                     });
+                    const totalSum = Object.values(categorySums).reduce((a, b) => a + b, 0) || 1;
+
+                    // Filter
+                    let visibleRows = allRows.filter(row => {
+                      const query = profileSearch.trim().toLowerCase();
+                      const matchQuery = !query || row.name.toLowerCase().includes(query) || String(row.number ?? "").includes(query);
+                      const matchCat = profileCategory === "ALL" || row.category.toLowerCase().replace(/[^a-z0-9]/g, "-") === profileCategory.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                      return matchQuery && matchCat;
+                    });
+
+                    // Sort
+                    if (profileSort === "count_desc") visibleRows.sort((a, b) => b.count - a.count);
+                    else if (profileSort === "count_asc") visibleRows.sort((a, b) => a.count - b.count);
+                    else if (profileSort === "name_asc") visibleRows.sort((a, b) => a.name.localeCompare(b.name));
+                    else if (profileSort === "num_asc") visibleRows.sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+
                     const maxCount = Math.max(1, ...visibleRows.map(row => row.count));
+
                     return (
                       <>
                         <div className="activity-summary profile-summary">
-                          <div><span>Observed invocations</span><strong>{totalInvocations}</strong></div>
-                          <div><span>Unique syscall names</span><strong>{uniqueSyscalls}</strong></div>
-                          <div><span>Full trace records</span><strong>{profileData?.total_records ?? allEvents.length}</strong></div>
-                          <div><span>Count method</span><strong className="source-value">Entry records</strong></div>
+                          <div><span>Observed Invocations</span><strong>{totalInvocations}</strong></div>
+                          <div><span>Unique Syscalls</span><strong>{uniqueSyscalls}</strong></div>
+                          <div><span>Filtered Syscalls</span><strong style={{ color: "#38bdf8" }}>{visibleRows.length}</strong></div>
+                          <div><span>Count Method</span><strong className="source-value">Entry records</strong></div>
                         </div>
 
-                        <div className="profile-controls">
-                          <label className="profile-search">
-                            <span>Search syscall</span>
-                            <input value={profileSearch} onChange={event => setProfileSearch(event.target.value)}
-                              placeholder="e.g. openat, read, 3" />
-                          </label>
-                          <label className="profile-filter">
-                            <span>Count events by</span>
-                            <select value={profilePhase} onChange={event => setProfilePhase(event.target.value)}>
-                              <option value="entry">Invocation entries (recommended)</option>
-                              <option value="all">All observed syscall names</option>
+                        {/* Visual Category Distribution Bar */}
+                        <div style={{ marginTop: 8, marginBottom: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 11 }}>
+                            <span style={{ color: "#94a3b8", fontWeight: 600 }}>Syscall Category Invocations Distribution:</span>
+                            <span style={{ color: "#64748b", fontFamily: "var(--font-mono)", fontSize: 10 }}>Total: {totalSum.toLocaleString()} calls</span>
+                          </div>
+                          <div className="category-dist-bar">
+                            {Object.entries(categorySums).map(([cat, cnt]) => {
+                              const pct = ((cnt / totalSum) * 100).toFixed(1);
+                              if (cnt === 0) return null;
+                              const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                              return (
+                                <div
+                                  key={cat}
+                                  className={`category-dist-item ${cls}`}
+                                  style={{ width: `${pct}%` }}
+                                  title={`${cat}: ${cnt} (${pct}%)`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10, fontFamily: "var(--font-mono)" }}>
+                            {Object.entries(categorySums).map(([cat, cnt]) => {
+                              if (cnt === 0) return null;
+                              const pct = ((cnt / totalSum) * 100).toFixed(1);
+                              const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                              return (
+                                <div key={cat} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <span className={`category-tag ${cls}`} style={{ padding: "1px 5px", fontSize: 9 }}>{cat}</span>
+                                  <span style={{ color: "#94a3b8" }}>{pct}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="filter-bar-container">
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 200 }}>
+                            <Search size={14} style={{ color: "#64748b" }} />
+                            <input
+                              value={profileSearch}
+                              onChange={event => setProfileSearch(event.target.value)}
+                              placeholder="Search syscall by name or number (e.g. openat, read, 3)…"
+                              style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, width: "100%", outline: "none", fontFamily: "var(--font-mono)" }}
+                            />
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>Sort:</span>
+                            <select
+                              value={profileSort}
+                              onChange={e => setProfileSort(e.target.value)}
+                              style={{ background: "#091220", border: "1px solid #1e293b", color: "#f1f5f9", fontSize: 11, borderRadius: 4, padding: "2px 6px" }}
+                            >
+                              <option value="count_desc">Frequency (Highest first)</option>
+                              <option value="count_asc">Frequency (Lowest first)</option>
+                              <option value="name_asc">Alphabetical (A-Z)</option>
+                              <option value="num_asc">Syscall Number (#)</option>
                             </select>
-                          </label>
+                          </div>
+
+                          <div className="filter-pills-row">
+                            {["ALL", "File I/O", "Process", "Memory", "Network", "Privileged", "System"].map(cat => {
+                              const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                              return (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  className={`category-pill-btn ${profileCategory === cat ? `active ${cls}` : ""}`}
+                                  onClick={() => setProfileCategory(cat)}
+                                >
+                                  {cat}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
 
                         <div className="profile-chart-list">
                           {visibleRows.length === 0 ? (
-                            <p className="muted activity-message">No syscalls match this search.</p>
-                          ) : visibleRows.map(row => (
-                            <div className="profile-bar-row" key={row.name}>
-                              <div className="profile-bar-label">
-                                <span>{row.name}</span>
-                                <code>#{row.number ?? "?"}</code>
-                                <strong>{row.count}</strong>
+                            <p className="muted activity-message">No syscalls match this search or category filter.</p>
+                          ) : visibleRows.map(row => {
+                            const cls = row.category.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                            return (
+                              <div className="profile-bar-row" key={row.name}>
+                                <div className="profile-bar-label">
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ fontWeight: 600 }}>{row.name}</span>
+                                    <code>#{row.number ?? "?"}</code>
+                                    <span className={`category-tag ${cls}`} style={{ fontSize: 9, padding: "1px 6px" }}>{row.category}</span>
+                                  </div>
+                                  <strong>{row.count.toLocaleString()} calls</strong>
+                                </div>
+                                <div className="profile-bar-track">
+                                  <div className={`profile-bar-value ${cls}`} style={{ width: `${(row.count / maxCount) * 100}%` }} />
+                                </div>
                               </div>
-                              <div className="profile-bar-track">
-                                <div className="profile-bar-value" style={{ width: `${(row.count / maxCount) * 100}%` }} />
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </>
                     );
@@ -1860,12 +2288,40 @@ function App() {
                           </section>
 
                           <section className="panel" style={{ marginBottom: 20 }}>
-                            <div className="panel-heading">
+                            <div className="panel-heading" style={{ flexWrap: "wrap", gap: 10 }}>
                               <div>
                                 <h3>Controlled Noisy Policy Minimization Results</h3>
                                 <p>Synthetic extraneous permissions eliminated across all 9 Linux targets (results/noisy_ablation_eval.json)</p>
                               </div>
-                              <span className="demo-badge">100% INJECTED ELIMINATION</span>
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#050914", border: "1px solid #1a273b", borderRadius: 6, padding: "4px 8px" }}>
+                                  <Search size={13} style={{ color: "#64748b" }} />
+                                  <input
+                                    placeholder="Filter noisy targets…"
+                                    value={noisyTargetSearch}
+                                    onChange={e => setNoisyTargetSearch(e.target.value)}
+                                    style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, outline: "none", width: 140, fontFamily: "var(--font-mono)" }}
+                                  />
+                                </div>
+                                <button
+                                  className="secondary-button"
+                                  onClick={() => {
+                                    const blob = new Blob([JSON.stringify(noisyAblationData, null, 2)], { type: "application/json" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = "povishield-noisy-ablation-eval.json";
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                  }}
+                                  style={{ fontSize: 11 }}
+                                >
+                                  <Download size={13} /> Export JSON
+                                </button>
+                                <span className="demo-badge">100% INJECTED ELIMINATION</span>
+                              </div>
                             </div>
                             <div className="table-wrap">
                               <table>
@@ -1883,23 +2339,25 @@ function App() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {(noisyAblationData.targets ?? []).map(t => (
-                                    <tr key={t.target}>
-                                      <td className="process-cell"><strong>{t.target}</strong></td>
-                                      <td>{t.ground_truth_syscalls}</td>
-                                      <td>{t.noisy_baseline?.allowed_syscalls}</td>
-                                      <td><strong>{t.minimized?.allowed_syscalls}</strong></td>
-                                      <td>
-                                        <span className="diff-removed">
-                                          {t.minimized?.injected_removed_count}/{t.noisy_baseline?.injected_permissions_count}
-                                        </span>
-                                      </td>
-                                      <td><strong style={{ color: "#45d6a5" }}>{t.minimized?.injected_removal_rate_pct}%</strong></td>
-                                      <td>{t.minimized?.required_retention_rate_pct}%</td>
-                                      <td>{t.minimized?.heldout_compat_pct}%</td>
-                                      <td>{t.minimized?.ablation_search_seconds}s</td>
-                                    </tr>
-                                  ))}
+                                  {(noisyAblationData.targets ?? [])
+                                    .filter(t => !noisyTargetSearch.trim() || t.target.toLowerCase().includes(noisyTargetSearch.trim().toLowerCase()))
+                                    .map(t => (
+                                      <tr key={t.target}>
+                                        <td className="process-cell"><strong>{t.target}</strong></td>
+                                        <td>{t.ground_truth_syscalls}</td>
+                                        <td>{t.noisy_baseline?.allowed_syscalls}</td>
+                                        <td><strong>{t.minimized?.allowed_syscalls}</strong></td>
+                                        <td>
+                                          <span className="diff-removed">
+                                            {t.minimized?.injected_removed_count}/{t.noisy_baseline?.injected_permissions_count}
+                                          </span>
+                                        </td>
+                                        <td><strong style={{ color: "#45d6a5" }}>{t.minimized?.injected_removal_rate_pct}%</strong></td>
+                                        <td>{t.minimized?.required_retention_rate_pct}%</td>
+                                        <td>{t.minimized?.heldout_compat_pct}%</td>
+                                        <td>{t.minimized?.ablation_search_seconds}s</td>
+                                      </tr>
+                                    ))}
                                 </tbody>
                               </table>
                             </div>
@@ -1913,14 +2371,19 @@ function App() {
                               </div>
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-                              {(noisyAblationData.injected_permissions ?? []).map(p => (
-                                <div key={p.syscall} className="tier-section" style={{ margin: 0 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span className="syscall-pill pill-removable">{p.syscall}</span>
-                                    <span style={{ fontSize: 11, color: "#dbe4f1" }}>{p.rationale}</span>
+                              {(noisyAblationData.injected_permissions ?? []).map(p => {
+                                const cat = getSyscallCategory(p.syscall);
+                                const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                                return (
+                                  <div key={p.syscall} className="tier-section" style={{ margin: 0 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      <span className="syscall-pill pill-removable">{p.syscall}</span>
+                                      <span className={`category-tag ${cls}`} style={{ fontSize: 9, padding: "1px 5px" }}>{cat}</span>
+                                      <span style={{ fontSize: 11, color: "#dbe4f1" }}>{p.rationale}</span>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </section>
 
@@ -1967,10 +2430,38 @@ function App() {
                           </section>
 
                           <section className="panel" style={{ marginBottom: 20 }}>
-                            <div className="panel-heading">
+                            <div className="panel-heading" style={{ flexWrap: "wrap", gap: 10 }}>
                               <div>
                                 <h3>Minimization Benchmark Results by Program</h3>
                                 <p>Observation-only minimal unions under SCMP_ACT_KILL_PROCESS fail-stop semantics (results/ablation_eval.json)</p>
+                              </div>
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#050914", border: "1px solid #1a273b", borderRadius: 6, padding: "4px 8px" }}>
+                                  <Search size={13} style={{ color: "#64748b" }} />
+                                  <input
+                                    placeholder="Filter benchmark targets…"
+                                    value={baselineTargetSearch}
+                                    onChange={e => setBaselineTargetSearch(e.target.value)}
+                                    style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, outline: "none", width: 140, fontFamily: "var(--font-mono)" }}
+                                  />
+                                </div>
+                                <button
+                                  className="secondary-button"
+                                  onClick={() => {
+                                    const blob = new Blob([JSON.stringify(ablationData, null, 2)], { type: "application/json" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = "povishield-ablation-eval.json";
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                  }}
+                                  style={{ fontSize: 11 }}
+                                >
+                                  <Download size={13} /> Export JSON
+                                </button>
                               </div>
                             </div>
                             <div className="table-wrap">
@@ -1988,22 +2479,24 @@ function App() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {(ablationData.targets ?? []).map(t => (
-                                    <tr key={t.target}>
-                                      <td className="process-cell"><strong>{t.target}</strong></td>
-                                      <td>{t.baseline?.allowed_syscalls ?? "—"}</td>
-                                      <td>{t.counterfactual?.allowed_syscalls ?? "—"}</td>
-                                      <td>
-                                        <span className={t.counterfactual?.syscalls_removed > 0 ? "diff-removed" : "muted"}>
-                                          {t.counterfactual?.syscalls_removed ?? 0}
-                                        </span>
-                                      </td>
-                                      <td>{t.counterfactual?.ablation_search_seconds ?? "—"}s</td>
-                                      <td>{t.counterfactual?.trials_run ?? "—"}</td>
-                                      <td>{t.counterfactual?.evidence_completeness_pct ?? 100}%</td>
-                                      <td>{t.counterfactual?.false_kills ?? 0}</td>
-                                    </tr>
-                                  ))}
+                                  {(ablationData.targets ?? [])
+                                    .filter(t => !baselineTargetSearch.trim() || t.target.toLowerCase().includes(baselineTargetSearch.trim().toLowerCase()))
+                                    .map(t => (
+                                      <tr key={t.target}>
+                                        <td className="process-cell"><strong>{t.target}</strong></td>
+                                        <td>{t.baseline?.allowed_syscalls ?? "—"}</td>
+                                        <td>{t.counterfactual?.allowed_syscalls ?? "—"}</td>
+                                        <td>
+                                          <span className={t.counterfactual?.syscalls_removed > 0 ? "diff-removed" : "muted"}>
+                                            {t.counterfactual?.syscalls_removed ?? 0}
+                                          </span>
+                                        </td>
+                                        <td>{t.counterfactual?.ablation_search_seconds ?? "—"}s</td>
+                                        <td>{t.counterfactual?.trials_run ?? "—"}</td>
+                                        <td>{t.counterfactual?.evidence_completeness_pct ?? 100}%</td>
+                                        <td>{t.counterfactual?.false_kills ?? 0}</td>
+                                      </tr>
+                                    ))}
                                 </tbody>
                               </table>
                             </div>
@@ -2130,150 +2623,249 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="ledger-controls">
-                    <div className="ledger-target-select">
-                      <label>Select Target Ledger</label>
-                      <select value={selectedLedgerTarget} onChange={e => setSelectedLedgerTarget(e.target.value)}>
-                        {ledgersList.map(l => (
-                          <option key={l.target} value={l.target}>{l.target}.jsonl ({l.trial_count} trials)</option>
-                        ))}
-                      </select>
-                    </div>
+                  {(() => {
+                    const removableList = Array.from(new Set(
+                      ledgerTrials.filter(t => t.verdict?.includes("REMOVABLE")).map(t => t.ablated_syscall)
+                    ));
 
-                    <div className="ledger-filter-select">
-                      <label>Filter Verdict</label>
-                      <select value={ledgerVerdictFilter} onChange={e => setLedgerVerdictFilter(e.target.value)}>
-                        <option value="ALL">All Verdicts</option>
-                        <option value="REQUIRED_FOR_TESTED_WORKLOADS">REQUIRED_FOR_TESTED_WORKLOADS / NECESSARY</option>
-                        <option value="REMOVABLE_FOR_TESTED_WORKLOADS">REMOVABLE_FOR_TESTED_WORKLOADS / REMOVABLE</option>
-                      </select>
-                    </div>
+                    const filteredTrials = ledgerTrials.filter(t => {
+                      const matchVerdict = ledgerVerdictFilter === "ALL" || (
+                        ledgerVerdictFilter.includes("REQUIRED")
+                          ? (t.verdict?.includes("NECESSARY") || t.verdict?.includes("REQUIRED"))
+                          : (t.verdict?.includes("REMOVABLE"))
+                      );
+                      const matchSyscall = !ledgerSyscallFilter.trim() || t.ablated_syscall?.toLowerCase().includes(ledgerSyscallFilter.trim().toLowerCase());
+                      const matchSignal = ledgerSignalFilter === "ALL" || (
+                        ledgerSignalFilter === "SIGSYS" ? t.signal === "SIGSYS" : t.signal !== "SIGSYS"
+                      );
+                      const matchDiv = ledgerDivergenceFilter === "ALL" || (
+                        ledgerDivergenceFilter === "DIVERGED" ? Boolean(t.output_diverged) : !Boolean(t.output_diverged)
+                      );
+                      return matchVerdict && matchSyscall && matchSignal && matchDiv;
+                    });
 
-                    <div className="ledger-search-input">
-                      <label>Search Syscall</label>
-                      <input
-                        placeholder="e.g. read, write, openat"
-                        value={ledgerSyscallFilter}
-                        onChange={e => setLedgerSyscallFilter(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <section className="audit-panel">
-                    <div className="audit-header">
-                      <div>
-                        <h3>Independent Fail-Closed Ledger Audit</h3>
-                        <p>Verify ledger records using analysis.audit_ledger</p>
-                      </div>
-                      <button
-                        className="secondary-button"
-                        onClick={() => runLedgerAudit(selectedLedgerTarget)}
-                        disabled={auditLoading || !selectedLedgerTarget}
-                      >
-                        <ShieldCheck size={16} />
-                        {auditLoading ? "Auditing…" : "Run Independent Audit"}
-                      </button>
-                    </div>
-
-                    {auditReport && (
-                      <div>
-                        <div style={{ marginTop: 10 }}>
-                          <span className={`audit-badge ${auditReport.valid ? "passed" : "failed"}`}>
-                            {auditReport.valid ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-                            {auditReport.valid ? "AUDIT PASSED — FAIL-CLOSED VERIFIED" : "AUDIT FAILED — TAMPER OR DEFECT DETECTED"}
-                          </span>
-                        </div>
-                        <div className="audit-details-grid">
-                          <div className="audit-detail-card">
-                            <span>Total Trials Verified</span>
-                            <strong>{auditReport.trials_total ?? 0}</strong>
-                          </div>
-                          <div className="audit-detail-card">
-                            <span>Experimentally Required</span>
-                            <strong style={{ color: "#78e6bc" }}>{auditReport.experimentally_required_count ?? 0}</strong>
-                          </div>
-                          <div className="audit-detail-card">
-                            <span>Removable Syscalls</span>
-                            <strong style={{ color: "#f4c46d" }}>{auditReport.removable_count ?? 0}</strong>
-                          </div>
-                          <div className="audit-detail-card">
-                            <span>Audit Errors Detected</span>
-                            <strong style={{ color: (auditReport.error_count ?? 0) === 0 ? "#78e6bc" : "#ff8696" }}>
-                              {auditReport.error_count ?? 0}
-                            </strong>
-                          </div>
-                        </div>
-
-                        {auditReport.errors?.length > 0 && (
-                          <div className="audit-error-list">
-                            <strong>Audit Errors:</strong>
-                            <ul>
-                              {auditReport.errors.map((err, i) => (
-                                <li key={i}>{err}</li>
+                    return (
+                      <>
+                        <div className="ledger-controls" style={{ flexWrap: "wrap", gap: 10 }}>
+                          <div className="ledger-target-select">
+                            <label>Target Ledger File</label>
+                            <select value={selectedLedgerTarget} onChange={e => setSelectedLedgerTarget(e.target.value)}>
+                              {ledgersList.map(l => (
+                                <option key={l.target} value={l.target}>{l.target}.jsonl ({l.trial_count} trials)</option>
                               ))}
-                            </ul>
+                            </select>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </section>
 
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <div>
-                        <h3>Ablation Trials Stream ({ledgerTrials.length} shown / {ledgerTotalRecords} total)</h3>
-                        <p>Click any row to inspect reproduction details and environment fingerprints</p>
-                      </div>
-                    </div>
-                    <div className="table-wrap activity-table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>TRIAL ID</th>
-                            <th>ABLATED SYSCALL</th>
-                            <th>VERDICT</th>
-                            <th>RC</th>
-                            <th>SIGNAL</th>
-                            <th>OUTPUT DIVERGENCE</th>
-                            <th>WORKLOAD</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ledgerTrials.map(trial => (
-                            <tr
-                              key={trial.trial_id}
-                              onClick={() => setSelectedTrial(trial)}
-                              style={{
-                                cursor: "pointer",
-                                background: selectedTrial?.trial_id === trial.trial_id ? "#132338" : "transparent"
+                          <div className="ledger-filter-select">
+                            <label>Verdict Filter</label>
+                            <select value={ledgerVerdictFilter} onChange={e => setLedgerVerdictFilter(e.target.value)}>
+                              <option value="ALL">All Verdicts</option>
+                              <option value="REQUIRED_FOR_TESTED_WORKLOADS">Required / Necessary Only</option>
+                              <option value="REMOVABLE_FOR_TESTED_WORKLOADS">Removable Permissions Only</option>
+                            </select>
+                          </div>
+
+                          <div className="ledger-filter-select">
+                            <label>Signal Filter</label>
+                            <select value={ledgerSignalFilter} onChange={e => setLedgerSignalFilter(e.target.value)}>
+                              <option value="ALL">All Signals</option>
+                              <option value="SIGSYS">SIGSYS (Intercepted Kill)</option>
+                              <option value="NORMAL">Normal Exit (RC 0 / no signal)</option>
+                            </select>
+                          </div>
+
+                          <div className="ledger-filter-select">
+                            <label>Output Divergence</label>
+                            <select value={ledgerDivergenceFilter} onChange={e => setLedgerDivergenceFilter(e.target.value)}>
+                              <option value="ALL">All Outputs</option>
+                              <option value="DIVERGED">Diverged Output</option>
+                              <option value="IDENTICAL">Identical Output</option>
+                            </select>
+                          </div>
+
+                          <div className="ledger-search-input" style={{ flex: 1, minWidth: 160 }}>
+                            <label>Search Syscall</label>
+                            <input
+                              placeholder="e.g. read, write, openat"
+                              value={ledgerSyscallFilter}
+                              onChange={e => setLedgerSyscallFilter(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <span className="summary-stat-chip">
+                              Total Trials: <strong>{ledgerTotalRecords}</strong>
+                            </span>
+                            <span className="summary-stat-chip">
+                              Matching: <strong>{filteredTrials.length}</strong>
+                            </span>
+                            <span className="summary-stat-chip">
+                              Removable Syscalls: <strong style={{ color: "#fbbf24" }}>{removableList.length}</strong>
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 8 }}>
+                            {removableList.length > 0 && (
+                              <button
+                                className="secondary-button"
+                                onClick={() => {
+                                  copyToClipboard(removableList.join(", "));
+                                  setCopiedRemovables(true);
+                                  setTimeout(() => setCopiedRemovables(false), 2200);
+                                }}
+                                style={{ fontSize: 11 }}
+                              >
+                                {copiedRemovables ? <Check size={13} style={{ color: "#45d6a5" }} /> : <Copy size={13} />}
+                                {copiedRemovables ? "Copied List!" : `Copy ${removableList.length} Removable Syscalls`}
+                              </button>
+                            )}
+                            <button
+                              className="secondary-button"
+                              onClick={() => {
+                                const blob = new Blob([JSON.stringify(ledgerTrials, null, 2)], { type: "application/json" });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `povishield-ledger-${selectedLedgerTarget || "trials"}.json`;
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                                setTimeout(() => URL.revokeObjectURL(url), 1000);
                               }}
+                              style={{ fontSize: 11 }}
                             >
-                              <td className="time-cell"><code>{trial.trial_id}</code></td>
-                              <td className="process-cell"><code>{trial.ablated_syscall}</code></td>
-                              <td>
-                                <span className={`verdict-tag ${
-                                  trial.verdict?.includes("NECESSARY") || trial.verdict?.includes("REQUIRED")
-                                    ? "verdict-necessary"
-                                    : "verdict-removable"
-                                }`}>
-                                  {trial.verdict}
+                              <Download size={13} /> Export Ledger JSON
+                            </button>
+                          </div>
+                        </div>
+
+                        <section className="audit-panel">
+                          <div className="audit-header">
+                            <div>
+                              <h3>Independent Fail-Closed Ledger Audit</h3>
+                              <p>Verify cryptographic ledger records using analysis.audit_ledger</p>
+                            </div>
+                            <button
+                              className="secondary-button"
+                              onClick={() => runLedgerAudit(selectedLedgerTarget)}
+                              disabled={auditLoading || !selectedLedgerTarget}
+                            >
+                              <ShieldCheck size={16} />
+                              {auditLoading ? "Auditing…" : "Run Independent Audit"}
+                            </button>
+                          </div>
+
+                          {auditReport && (
+                            <div>
+                              <div style={{ marginTop: 10 }}>
+                                <span className={`audit-badge ${auditReport.valid ? "passed" : "failed"}`}>
+                                  {auditReport.valid ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                                  {auditReport.valid ? "AUDIT PASSED — FAIL-CLOSED VERIFIED" : "AUDIT FAILED — TAMPER OR DEFECT DETECTED"}
                                 </span>
-                              </td>
-                              <td><code>{trial.candidate_rc}</code></td>
-                              <td>
-                                <span className={trial.signal === "SIGSYS" ? "verdict-tag verdict-sigsys" : "muted"}>
-                                  {trial.signal || "—"}
-                                </span>
-                              </td>
-                              <td>{trial.output_diverged ? "Yes" : "No"}</td>
-                              <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                <code>{Array.isArray(trial.workload) ? trial.workload.join(" ") : trial.workload_str}</code>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                              </div>
+                              <div className="audit-details-grid">
+                                <div className="audit-detail-card">
+                                  <span>Total Trials Verified</span>
+                                  <strong>{auditReport.trials_total ?? 0}</strong>
+                                </div>
+                                <div className="audit-detail-card">
+                                  <span>Experimentally Required</span>
+                                  <strong style={{ color: "#78e6bc" }}>{auditReport.experimentally_required_count ?? 0}</strong>
+                                </div>
+                                <div className="audit-detail-card">
+                                  <span>Removable Syscalls</span>
+                                  <strong style={{ color: "#f4c46d" }}>{auditReport.removable_count ?? 0}</strong>
+                                </div>
+                                <div className="audit-detail-card">
+                                  <span>Audit Errors Detected</span>
+                                  <strong style={{ color: (auditReport.error_count ?? 0) === 0 ? "#78e6bc" : "#ff8696" }}>
+                                    {auditReport.error_count ?? 0}
+                                  </strong>
+                                </div>
+                              </div>
+
+                              {auditReport.errors?.length > 0 && (
+                                <div className="audit-error-list">
+                                  <strong>Audit Errors:</strong>
+                                  <ul>
+                                    {auditReport.errors.map((err, i) => (
+                                      <li key={i}>{err}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </section>
+
+                        <section className="panel">
+                          <div className="panel-heading">
+                            <div>
+                              <h3>Ablation Trials Stream ({filteredTrials.length} shown / {ledgerTotalRecords} total)</h3>
+                              <p>Click any row to inspect reproduction details and environment fingerprints</p>
+                            </div>
+                          </div>
+                          <div className="table-wrap activity-table-wrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>TRIAL ID</th>
+                                  <th>ABLATED SYSCALL</th>
+                                  <th>CATEGORY</th>
+                                  <th>VERDICT</th>
+                                  <th>RC</th>
+                                  <th>SIGNAL</th>
+                                  <th>OUTPUT DIVERGENCE</th>
+                                  <th>WORKLOAD</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredTrials.map(trial => {
+                                  const cat = getSyscallCategory(trial.ablated_syscall || "");
+                                  const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                                  return (
+                                    <tr
+                                      key={trial.trial_id}
+                                      onClick={() => setSelectedTrial(trial)}
+                                      style={{
+                                        cursor: "pointer",
+                                        background: selectedTrial?.trial_id === trial.trial_id ? "#132338" : "transparent"
+                                      }}
+                                    >
+                                      <td className="time-cell"><code>{trial.trial_id}</code></td>
+                                      <td className="process-cell"><code>{trial.ablated_syscall}</code></td>
+                                      <td><span className={`category-tag ${cls}`} style={{ fontSize: 9, padding: "1px 6px" }}>{cat}</span></td>
+                                      <td>
+                                        <span className={`verdict-tag ${
+                                          trial.verdict?.includes("NECESSARY") || trial.verdict?.includes("REQUIRED")
+                                            ? "verdict-necessary"
+                                            : "verdict-removable"
+                                        }`}>
+                                          {trial.verdict}
+                                        </span>
+                                      </td>
+                                      <td><code>{trial.candidate_rc}</code></td>
+                                      <td>
+                                        <span className={trial.signal === "SIGSYS" ? "verdict-tag verdict-sigsys" : "muted"}>
+                                          {trial.signal || "—"}
+                                        </span>
+                                      </td>
+                                      <td>{trial.output_diverged ? "Yes" : "No"}</td>
+                                      <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        <code>{Array.isArray(trial.workload) ? trial.workload.join(" ") : trial.workload_str}</code>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
+                      </>
+                    );
+                  })()}
 
                     {selectedTrial && (
                       <div className="trial-drawer">
@@ -2319,7 +2911,6 @@ function App() {
                         </div>
                       </div>
                     )}
-                  </section>
                 </>
               )}
 
@@ -2339,6 +2930,95 @@ function App() {
                       </ul>
                     </div>
                   </div>
+
+                  {approvalNotice && (
+                    <div className="notice" style={{ background: "rgba(6, 78, 59, 0.4)", borderColor: "#10b981", color: "#34d399", marginBottom: 16 }}>
+                      <CheckCircle2 size={18} />
+                      <strong>{approvalNotice}</strong>
+                    </div>
+                  )}
+
+                  {/* Pre-Enforcement Safety Gate Interactive Verifier */}
+                  <section className="safety-gate-widget">
+                    <div className="safety-gate-widget-header">
+                      <div>
+                        <h3 style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, fontSize: 15 }}>
+                          <ShieldCheck size={18} color="#34d399" />
+                          Live Pre-Enforcement Safety Gate Verifier
+                        </h3>
+                        <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
+                          Execute real-time seccomp-bpf regression checks, adversarial containment probes, and ledger audit before promoting to active enforcement
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <select
+                          value={liveGateTarget}
+                          onChange={e => setLiveGateTarget(e.target.value)}
+                          style={{ background: "#060d19", border: "1px solid #1e3a5f", color: "#38bdf8", fontSize: 11, borderRadius: 6, padding: "5px 10px", fontFamily: "var(--font-mono)" }}
+                        >
+                          {["grep.json", "sed.json", "gzip.json", "curl.json", "python.json", "node.json"].map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="primary-button"
+                          onClick={() => runLiveSafetyGate(liveGateTarget)}
+                          disabled={liveGateLoading}
+                          style={{ padding: "5px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+                        >
+                          <Play size={13} className={liveGateLoading ? "spin-icon" : ""} />
+                          {liveGateLoading ? "Verifying Gate…" : "Run Safety Gate"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {liveGateResult && (
+                      <div style={{ marginTop: 14, animation: "fadeIn 0.2s ease" }}>
+                        {liveGateResult.error ? (
+                          <div className="notice activity-error">
+                            <ShieldAlert size={18} />
+                            <div><strong>Verification failed</strong><p>{liveGateResult.error}</p></div>
+                          </div>
+                        ) : (
+                          <div style={{ background: "#050a14", border: "1px solid #142034", borderRadius: 8, padding: 12 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span className={`audit-badge ${liveGateResult.verdict === "READY_FOR_APPROVAL" ? "passed" : "failed"}`}>
+                                  {liveGateResult.verdict === "READY_FOR_APPROVAL" ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                                  VERDICT: {liveGateResult.verdict}
+                                </span>
+                                <span style={{ fontSize: 11, color: "#94a3b8" }}>Target: <code>{liveGateResult.target}</code></span>
+                              </div>
+                              <span style={{ fontSize: 10, color: "#64748b", fontFamily: "var(--font-mono)" }}>
+                                Evaluated at: {liveGateResult.timestamp ? new Date(liveGateResult.timestamp * 1000).toLocaleTimeString() : "just now"}
+                              </span>
+                            </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                              <div className="eval-metric-box">
+                                <span style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>1. Regression Gate</span>
+                                <strong style={{ color: liveGateResult.regression_tests?.status === "PASSED" ? "#34d399" : "#f87171", fontSize: 12 }}>
+                                  {liveGateResult.regression_tests?.status || "PENDING"} (RC: {liveGateResult.regression_tests?.candidate_rc ?? "—"})
+                                </strong>
+                              </div>
+                              <div className="eval-metric-box">
+                                <span style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>2. Adversarial Containment</span>
+                                <strong style={{ color: liveGateResult.adversarial_tests?.status === "CONTAINED" ? "#34d399" : "#f87171", fontSize: 12 }}>
+                                  {liveGateResult.adversarial_tests?.status || "PENDING"} ({liveGateResult.adversarial_tests?.signal || "SIGSYS"})
+                                </strong>
+                              </div>
+                              <div className="eval-metric-box">
+                                <span style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>3. Evidence Ledger Backing</span>
+                                <strong style={{ color: liveGateResult.ledger_audit?.valid ? "#34d399" : "#f87171", fontSize: 12 }}>
+                                  {liveGateResult.ledger_audit?.valid ? "VALIDATED" : "FAIL-CLOSED BLOCKED"}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </section>
 
                   {/* Pending Authorization Queue */}
                   <section className="panel" style={{
@@ -2419,52 +3099,91 @@ function App() {
                     )}
                   </section>
 
+                  {/* Approved Policy Replacement History */}
                   <section className="panel">
-                    <div className="panel-heading">
+                    <div className="panel-heading" style={{ flexWrap: "wrap", gap: 10 }}>
                       <div>
                         <h3>Approved Policy Replacement History</h3>
-                        <p>Records from results/approvals.jsonl</p>
+                        <p>Immutable audit records from results/approvals.jsonl</p>
                       </div>
-                      <FileCheck size={20} className="muted-icon" />
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#050914", border: "1px solid #1a273b", borderRadius: 6, padding: "4px 8px" }}>
+                          <Search size={13} style={{ color: "#64748b" }} />
+                          <input
+                            placeholder="Filter approvals history…"
+                            value={approvalSearch}
+                            onChange={e => setApprovalSearch(e.target.value)}
+                            style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, outline: "none", width: 160, fontFamily: "var(--font-mono)" }}
+                          />
+                        </div>
+                        <button
+                          className="secondary-button"
+                          disabled={approvalsList.length === 0}
+                          onClick={() => {
+                            const blob = new Blob([JSON.stringify(approvalsList, null, 2)], { type: "application/json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `povishield-approvals-audit-${new Date().toISOString().slice(0, 10)}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                          }}
+                          style={{ fontSize: 11 }}
+                        >
+                          <Download size={13} /> Export Audit Log
+                        </button>
+                      </div>
                     </div>
 
                     {approvalsList.length === 0 ? (
                       <p className="muted">No approval records found in results/approvals.jsonl.</p>
-                    ) : (
-                      <div className="table-wrap">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>TARGET</th>
-                              <th>STATUS</th>
-                              <th>APPROVED AT</th>
-                              <th>ORIGIN HOST / DEVICE</th>
-                              <th>WORKLOAD COMMAND</th>
-                              <th>CANDIDATE POLICY</th>
-                              <th>ACTIVE POLICY</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {approvalsList.map((appr, idx) => (
-                              <tr key={idx}>
-                                <td className="process-cell"><strong>{appr.target}</strong></td>
-                                <td><span className="verdict-tag verdict-approved">APPROVED</span></td>
-                                <td className="time-cell">{appr.timestamp || appr.approved_at || "—"}</td>
-                                <td>
-                                  <strong>{appr.hostname || "local"}</strong>
-                                  <div style={{ fontSize: 10, color: "#64748b" }}>{appr.device_id || "laptop_terminal"}</div>
-                                </td>
-                                <td>
-                                  <code style={{ fontSize: 11 }}>{Array.isArray(appr.command) ? appr.command.join(" ") : (appr.command || appr.target)}</code>
-                                </td>
-                                <td><code>{appr.candidate}</code></td>
-                                <td><code>{appr.active}</code></td>
+                    ) : (() => {
+                      const filteredApprovals = approvalsList.filter(appr => {
+                        const q = approvalSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return (appr.target || "").toLowerCase().includes(q) ||
+                          (appr.hostname || "").toLowerCase().includes(q) ||
+                          (appr.candidate || "").toLowerCase().includes(q);
+                      });
+
+                      return (
+                        <div className="table-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>TARGET</th>
+                                <th>STATUS</th>
+                                <th>APPROVED AT</th>
+                                <th>ORIGIN HOST / DEVICE</th>
+                                <th>WORKLOAD COMMAND</th>
+                                <th>CANDIDATE POLICY</th>
+                                <th>ACTIVE POLICY</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                            </thead>
+                            <tbody>
+                              {filteredApprovals.map((appr, idx) => (
+                                <tr key={idx}>
+                                  <td className="process-cell"><strong>{appr.target}</strong></td>
+                                  <td><span className="verdict-tag verdict-approved">APPROVED</span></td>
+                                  <td className="time-cell">{appr.timestamp || appr.approved_at || "—"}</td>
+                                  <td>
+                                    <strong>{appr.hostname || "local"}</strong>
+                                    <div style={{ fontSize: 10, color: "#64748b" }}>{appr.device_id || "laptop_terminal"}</div>
+                                  </td>
+                                  <td>
+                                    <code style={{ fontSize: 11 }}>{Array.isArray(appr.command) ? appr.command.join(" ") : (appr.command || appr.target)}</code>
+                                  </td>
+                                  <td><code>{appr.candidate}</code></td>
+                                  <td><code>{appr.active}</code></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </section>
                 </>
               )}
@@ -2514,61 +3233,173 @@ function App() {
                     </div>
 
                     <div style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                         <div>
                           <h4 style={{ margin: 0, fontSize: 14, color: "#f1f5f9" }}>Adversarial Escape & Confinement Matrix</h4>
                           <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b" }}>
-                            PoViShield evaluates 8 adversarial exploit vectors across 6 sandboxing security configurations.
+                            PoViShield evaluates 8 adversarial exploit vectors across 6 sandboxing security configurations. Click any vector to inspect threat mechanics.
                           </p>
                         </div>
-                        <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
-                          <span className="esc-cell-blocked">BLOCKED</span>
-                          <span className="esc-cell-denied">DENIED</span>
-                          <span className="esc-cell-killed">KILLED</span>
-                          <span className="esc-cell-escaped">ESCAPED</span>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <button
+                            className="secondary-button"
+                            onClick={() => {
+                              const headers = ["Exploit Vector", "Category", "MITRE", ...ESCAPE_CONFIGS.map(c => c.label)];
+                              const rows = ESCAPE_TEST_DEFS.map(t => {
+                                const verdicts = ESCAPE_CONFIGS.map(cfg => experiments?.escape_results?.[cfg.key]?.tests?.[t.id] || "N/A");
+                                return [t.name, t.category, t.mitre, ...verdicts];
+                              });
+                              const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+                              const blob = new Blob([csv], { type: "text/csv" });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `povishield-adversarial-escape-matrix.csv`;
+                              document.body.appendChild(a);
+                              a.click();
+                              a.remove();
+                              setTimeout(() => URL.revokeObjectURL(url), 1000);
+                            }}
+                            style={{ fontSize: 11 }}
+                          >
+                            <Download size={13} /> Export Matrix CSV
+                          </button>
+                          <div style={{ display: "flex", gap: 6, fontSize: 11 }}>
+                            <span className="esc-cell-blocked">BLOCKED</span>
+                            <span className="esc-cell-denied">DENIED</span>
+                            <span className="esc-cell-killed">KILLED</span>
+                            <span className="esc-cell-escaped">ESCAPED</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div style={{ overflowX: "auto", border: "1px solid #162438", borderRadius: 8, background: "#050914" }}>
-                        <table className="escape-matrix-table">
-                          <thead>
-                            <tr style={{ background: "#08101e" }}>
-                              <th style={{ minWidth: 200 }}>Exploit Vector</th>
-                              {ESCAPE_CONFIGS.map(cfg => {
-                                const res = experiments?.escape_results?.[cfg.key];
-                                const blocked = res?.blocked ?? 0;
-                                const total = res?.total ?? 8;
-                                return (
-                                  <th key={cfg.key} style={{ minWidth: 120 }}>
-                                    <div style={{ fontWeight: 700, color: "#f1f5f9" }}>{cfg.label}</div>
-                                    <div style={{ fontSize: 10, color: blocked === total ? "#34d399" : blocked > 0 ? "#38bdf8" : "#f87171", fontFamily: "var(--font-mono)" }}>
-                                      {blocked}/{total} Blocked
-                                    </div>
-                                  </th>
-                                );
-                              })}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ESCAPE_TEST_DEFS.map(t => (
-                              <tr key={t.id}>
-                                <td>
-                                  <div style={{ fontWeight: 600, color: "#cbd5e1" }}>{t.name}</div>
-                                  <div style={{ fontSize: 10, color: "#64748b" }}>{t.desc}</div>
-                                </td>
-                                {ESCAPE_CONFIGS.map(cfg => {
-                                  const verdict = experiments?.escape_results?.[cfg.key]?.tests?.[t.id];
-                                  return (
-                                    <td key={cfg.key}>
-                                      {renderEscapeBadge(verdict)}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="filter-bar-container">
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 200 }}>
+                          <Search size={14} style={{ color: "#64748b" }} />
+                          <input
+                            placeholder="Filter exploit vectors by name or description…"
+                            value={escapeSearch}
+                            onChange={e => setEscapeSearch(e.target.value)}
+                            style={{ background: "transparent", border: "none", color: "#f1f5f9", fontSize: 11, width: "100%", outline: "none", fontFamily: "var(--font-mono)" }}
+                          />
+                        </div>
+                        <div className="filter-pills-row">
+                          {["ALL", "Filesystem / Escape", "Process / Injection", "Network / Exfiltration", "Privilege Escalation", "Resource Abuse"].map(cat => (
+                            <button
+                              key={cat}
+                              type="button"
+                              className={`category-pill-btn ${escapeCategoryFilter === cat ? "active" : ""}`}
+                              onClick={() => setEscapeCategoryFilter(cat)}
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
                       </div>
+
+                      {(() => {
+                        const filteredDefs = ESCAPE_TEST_DEFS.filter(t => {
+                          const matchCat = escapeCategoryFilter === "ALL" || t.category === escapeCategoryFilter;
+                          const q = escapeSearch.trim().toLowerCase();
+                          const matchQuery = !q || t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q) || (t.mitre || "").toLowerCase().includes(q);
+                          return matchCat && matchQuery;
+                        });
+
+                        return (
+                          <div style={{ overflowX: "auto", border: "1px solid #162438", borderRadius: 8, background: "#050914" }}>
+                            <table className="escape-matrix-table">
+                              <thead>
+                                <tr style={{ background: "#08101e" }}>
+                                  <th style={{ minWidth: 220 }}>Exploit Vector</th>
+                                  {ESCAPE_CONFIGS.map(cfg => {
+                                    const res = experiments?.escape_results?.[cfg.key];
+                                    const blocked = res?.blocked ?? 0;
+                                    const total = res?.total ?? 8;
+                                    return (
+                                      <th key={cfg.key} style={{ minWidth: 120 }}>
+                                        <div style={{ fontWeight: 700, color: "#f1f5f9" }}>{cfg.label}</div>
+                                        <div style={{ fontSize: 10, color: blocked === total ? "#34d399" : blocked > 0 ? "#38bdf8" : "#f87171", fontFamily: "var(--font-mono)" }}>
+                                          {blocked}/{total} Blocked
+                                        </div>
+                                      </th>
+                                    );
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredDefs.map(t => (
+                                  <tr
+                                    key={t.id}
+                                    onClick={() => setSelectedExploitDef(selectedExploitDef?.id === t.id ? null : t)}
+                                    style={{
+                                      cursor: "pointer",
+                                      background: selectedExploitDef?.id === t.id ? "rgba(14, 165, 233, 0.08)" : undefined
+                                    }}
+                                  >
+                                    <td>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <span style={{ fontWeight: 600, color: "#cbd5e1" }}>{t.name}</span>
+                                        <span className="category-tag file-i-o" style={{ fontSize: 9, padding: "1px 5px" }}>{t.category}</span>
+                                      </div>
+                                      <div style={{ fontSize: 10, color: "#64748b" }}>{t.desc}</div>
+                                    </td>
+                                    {ESCAPE_CONFIGS.map(cfg => {
+                                      const verdict = experiments?.escape_results?.[cfg.key]?.tests?.[t.id];
+                                      return (
+                                        <td key={cfg.key}>
+                                          {renderEscapeBadge(verdict)}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Interactive Exploit Inspector Card */}
+                      {selectedExploitDef && (
+                        <div className="exploit-inspector-card">
+                          <div className="exploit-inspector-header">
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <h4 style={{ margin: 0, fontSize: 14, color: "#38bdf8" }}>Exploit Analysis: {selectedExploitDef.name}</h4>
+                                <span className="category-tag process" style={{ fontSize: 10 }}>{selectedExploitDef.category}</span>
+                              </div>
+                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{selectedExploitDef.desc}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedExploitDef(null)}
+                              style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16 }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div className="exploit-grid-details">
+                            <div className="exploit-detail-box">
+                              <span>MITRE ATT&CK Mapping</span>
+                              <strong>{selectedExploitDef.mitre}</strong>
+                            </div>
+                            <div className="exploit-detail-box">
+                              <span>Intercepted Syscalls</span>
+                              <strong>{selectedExploitDef.syscalls ? selectedExploitDef.syscalls.join(", ") : "—"}</strong>
+                            </div>
+                            <div className="exploit-detail-box">
+                              <span>Confinement Invariant</span>
+                              <strong style={{ color: "#34d399" }}>SCMP_ACT_KILL_PROCESS</strong>
+                            </div>
+                          </div>
+
+                          <div style={{ marginTop: 10, padding: 10, background: "#050a14", borderRadius: 6, border: "1px solid #142034", fontSize: 11, color: "#cbd5e1", lineHeight: 1.5 }}>
+                            <strong style={{ color: "#38bdf8", display: "block", marginBottom: 3 }}>Kernel Containment Rationale:</strong>
+                            {selectedExploitDef.rationale}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ marginBottom: 20 }}>
@@ -2636,12 +3467,20 @@ function App() {
 
               {page === "Settings" && (
                 <section className="panel">
-                  <div className="panel-heading">
+                  <div className="panel-heading" style={{ flexWrap: "wrap", gap: 10 }}>
                     <div>
                       <h3>Settings & Security Governance Console</h3>
                       <p>Active enforcement parameters, local privacy boundaries, and telemetry controls</p>
                     </div>
-                    <span className="badge-tag">Control Plane: Port 8000</span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="primary-button"
+                        onClick={handleDownloadAuditBundle}
+                        style={{ padding: "6px 14px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+                      >
+                        <Download size={14} /> Download Governance Audit Bundle
+                      </button>
+                    </div>
                   </div>
 
                   <div className="settings-section-grid">
@@ -2667,6 +3506,28 @@ function App() {
                       <div className="policy-row">
                         <span>API Origin Host</span>
                         <strong style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{API}</strong>
+                      </div>
+
+                      {/* Interactive Ping Latency Test */}
+                      <div style={{ marginTop: 8, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600 }}>Backend Connection Health</span>
+                          <button
+                            className="btn-filter"
+                            onClick={handlePingBackend}
+                            disabled={pingLoading}
+                            style={{ padding: "2px 8px", fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
+                          >
+                            <RefreshCw size={11} className={pingLoading ? "spin-icon" : ""} />
+                            {pingLoading ? "Pinging…" : "Test Ping"}
+                          </button>
+                        </div>
+                        {pingStatus && (
+                          <div style={{ fontSize: 11, color: pingStatus.ok ? "#34d399" : "#f87171", display: "flex", alignItems: "center", gap: 6 }}>
+                            {pingStatus.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                            <span>{pingStatus.msg}</span>
+                          </div>
+                        )}
                       </div>
                       <div style={{ marginTop: 8, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
                         <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600, display: "block", marginBottom: 4 }}>
