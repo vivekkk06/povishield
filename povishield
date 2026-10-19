@@ -16,6 +16,12 @@ Usage:
   povishield run [--mode enforce|inspect|approval-required] [--profile FILE] -- CMD...
       Execute CMD under policy-gated seccomp enforcement with live session tracking
 
+  povishield shell [--mode enforce|inspect|approval-required]
+      Interactive sandboxed terminal session live-streamed to the web console
+
+  povishield [CMD...]
+      Directly execute any system command under policy-gated kernel sandboxing
+
   povishield evaluate [--mode MODE] -- CMD...
       Pre-evaluate security policy, attack-surface reduction, and risk for CMD
 
@@ -114,7 +120,7 @@ case "$CMD" in
     agent)
         resolve_agent "$@"
         ;;
-    run|evaluate|list)
+    run|evaluate|list|shell)
         if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
             exec python3 -m analysis.runner "$CMD" "$@"
         else
@@ -140,6 +146,14 @@ case "$CMD" in
         exit 0
         ;;
     *)
+        if command -v "$CMD" >/dev/null 2>&1 || [ -x "$CMD" ]; then
+            echo "[POVISHIELD] Supervising '$CMD' under policy-gated confinement..." >&2
+            if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
+                exec python3 -m analysis.runner run -- "$CMD" "$@"
+            else
+                resolve_agent run -- "$CMD" "$@"
+            fi
+        fi
         echo "Unknown command: $CMD" >&2
         usage
         exit 2

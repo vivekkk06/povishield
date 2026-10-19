@@ -419,7 +419,10 @@ class TestMultiDeviceFleet(unittest.TestCase):
         # Execute uname under strict echo profile
         import analysis.runner as runner
         orig_find = runner.find_profile_for_target
-        runner.find_profile_for_target = lambda name, exp: Path("results/profiles/echo.json")
+        p = Path("results/profiles/echo.json")
+        if not p.is_file():
+            p = Path("deploy_data/profiles/echo.json")
+        runner.find_profile_for_target = lambda name, exp: p
         try:
             exec_result = execute_agent_task(task, {"permissions": {"allow_execution": True, "share_output": True}})
             # Normalized SIGSYS returncode is either -31 or 159

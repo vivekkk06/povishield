@@ -160,7 +160,7 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
     loadHistory();
     const interval = setInterval(() => {
       loadHistory();
-    }, 2500);
+    }, 1500);
     return () => clearInterval(interval);
   }, [autoFollow]);
 

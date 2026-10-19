@@ -100,6 +100,12 @@ class ExecutionSession:
     decision: Optional[Dict[str, Any]] = None
     events_path: Optional[str] = None
     timeline: List[Dict[str, str]] = field(default_factory=list)
+    device_id: Optional[str] = "laptop_terminal"
+    hostname: Optional[str] = None
+    host_target: Optional[str] = None
+    is_terminal_cli: bool = True
+    is_remote: bool = False
+    syscalls: List[str] = field(default_factory=list)
 
     def add_event(self, phase: str, detail: str) -> None:
         self.timeline.append({
@@ -140,6 +146,11 @@ def find_profile_for_target(target_name: str, explicit_profile: Optional[str] = 
         p = Path(explicit_profile).resolve()
         if p.is_file():
             return p
+        if (ROOT / explicit_profile).is_file():
+            return (ROOT / explicit_profile).resolve()
+        alt = (ROOT / "deploy_data" / "profiles" / Path(explicit_profile).name).resolve()
+        if alt.is_file():
+            return alt
         raise FileNotFoundError(f"Specified profile not found: {explicit_profile}")
 
     candidates = [
@@ -147,6 +158,10 @@ def find_profile_for_target(target_name: str, explicit_profile: Optional[str] = 
         PROFILES_DIR / f"{target_name}.json",
         PROFILES_DIR / f"{target_name}_baseline.json",
         RESULTS_DIR / f"{target_name}.json",
+        ROOT / "deploy_data" / "profiles" / f"{target_name}_counterfactual.json",
+        ROOT / "deploy_data" / "profiles" / f"{target_name}.json",
+        ROOT / "deploy_data" / "profiles" / f"{target_name}_baseline.json",
+        ROOT / "deploy_data" / f"{target_name}.json",
     ]
     for c in candidates:
         if c.is_file():
@@ -179,8 +194,16 @@ def is_approval_present(target_name: str, profile_path: Optional[Path]) -> bool:
 
 def load_profile_syscalls(profile_path: Path) -> List[str]:
     """Reads the syscalls array from a profile JSON file."""
+    p = Path(profile_path)
+    if not p.is_file():
+        if (ROOT / p).is_file():
+            p = ROOT / p
+        else:
+            alt = ROOT / "deploy_data" / "profiles" / p.name
+            if alt.is_file():
+                p = alt
     try:
-        with profile_path.open("r", encoding="utf-8") as f:
+        with p.open("r", encoding="utf-8") as f:
             data = json.load(f)
             return sorted(list(data.get("syscalls", [])))
     except Exception as e:
@@ -462,12 +485,19 @@ def execute_session(
     explicit_profile: Optional[str] = None,
     timeout_seconds: float = 30.0,
     record_events: bool = True,
+    is_terminal_cli: bool = True,
+    device_id: Optional[str] = None,
+    hostname: Optional[str] = None,
+    host_target: Optional[str] = None,
 ) -> ExecutionSession:
     """Executes a target command through the full policy evaluation & sandboxing pipeline."""
     ensure_sessions_dir()
     session_id = f"run-{uuid.uuid4().hex[:8]}"
     resolved_exe, full_cmd = validate_command(command)
     target_name = Path(resolved_exe).name
+    host = hostname or socket.gethostname()
+    dev_id = device_id or "laptop_terminal"
+    h_target = host_target or (f"Local Terminal ({host})" if is_terminal_cli else f"Local System ({host})")
 
     session = ExecutionSession(
         id=session_id,
@@ -475,12 +505,19 @@ def execute_session(
         mode=mode,
         target=target_name,
         started_at=datetime.now(timezone.utc).isoformat(),
+        device_id=dev_id,
+        hostname=host,
+        host_target=h_target,
+        is_terminal_cli=is_terminal_cli,
+        is_remote=False,
     )
     session.add_event("COMMAND_VALIDATED", f"Target executable resolved: {resolved_exe}")
 
     # 1. Pre-execution evaluation
     decision = evaluate_execution(full_cmd, mode=mode, explicit_profile=explicit_profile)
     session.decision = asdict(decision)
+    if decision.allowed_syscalls:
+        session.syscalls = list(decision.allowed_syscalls)
     session.add_event("POLICY_EVALUATED", f"Decision: {decision.action} ({decision.enforcement_mechanism})")
 
     if not decision.allowed:
@@ -495,6 +532,8 @@ def execute_session(
             if approved:
                 decision = evaluate_execution(full_cmd, mode=mode, explicit_profile=explicit_profile)
                 session.decision = asdict(decision)
+                if decision.allowed_syscalls:
+                    session.syscalls = list(decision.allowed_syscalls)
                 session.add_event("OPERATOR_APPROVAL_GRANTED", f"Operator granted permission for target '{target_name}' via Safety Gate")
 
         if not decision.allowed:
@@ -514,6 +553,10 @@ def execute_session(
         session.events_path = str(events_file.relative_to(ROOT))
 
     profile_path = ROOT / decision.profile_path if decision.profile_path else None
+    if profile_path and not profile_path.is_file():
+        alt = (ROOT / "deploy_data" / "profiles" / Path(decision.profile_path).name).resolve()
+        if alt.is_file():
+            profile_path = alt
 
     # Check tracer binary
     if not TRACER_BIN.is_file():
@@ -618,9 +661,47 @@ def execute_session(
     return session
 
 
+def _enrich_session_metadata(session: ExecutionSession) -> None:
+    hostname = socket.gethostname()
+    if not session.hostname:
+        session.hostname = hostname
+    if not session.device_id:
+        session.device_id = "laptop_terminal"
+    if not session.host_target:
+        session.host_target = f"Local Terminal ({session.hostname})" if session.is_terminal_cli else f"Local System ({session.hostname})"
+
+    # Populate syscalls
+    if not session.syscalls:
+        if session.decision and isinstance(session.decision, dict):
+            session.syscalls = list(session.decision.get("allowed_syscalls") or [])
+        if not session.syscalls and session.events_path:
+            ep = ROOT / session.events_path
+            if ep.is_file():
+                try:
+                    with ep.open("r", encoding="utf-8") as ef:
+                        for line in ef:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            ev = json.loads(line)
+                            sc = ev.get("syscall")
+                            if sc and sc not in session.syscalls:
+                                session.syscalls.append(sc)
+                except Exception:
+                    pass
+        if not session.syscalls and session.target:
+            prof = find_profile_for_target(session.target)
+            if prof:
+                try:
+                    session.syscalls = load_profile_syscalls(prof)
+                except Exception:
+                    pass
+
+
 def _persist_session(session: ExecutionSession) -> None:
     """Saves session metadata to results/sessions/{session_id}.json and syncs telemetry."""
     ensure_sessions_dir()
+    _enrich_session_metadata(session)
     dest = SESSIONS_DIR / f"{session.id}.json"
     try:
         with dest.open("w", encoding="utf-8") as f:
@@ -635,32 +716,13 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
     """Syncs terminal execution session and observed syscalls to PoViShield dashboard."""
     try:
         events_file = RESULTS_DIR / "syscall-events.jsonl"
-        syscalls: List[str] = []
-        if session.decision and isinstance(session.decision, dict):
-            syscalls = list(session.decision.get("allowed_syscalls") or [])
-
-        # Also inspect event stream if produced
-        if session.events_path:
-            ep = ROOT / session.events_path
-            if ep.is_file():
-                try:
-                    with ep.open("r", encoding="utf-8") as ef:
-                        for line in ef:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            ev = json.loads(line)
-                            sc = ev.get("syscall")
-                            if sc and sc not in syscalls:
-                                syscalls.append(sc)
-                except Exception:
-                    pass
+        syscalls: List[str] = list(session.syscalls or [])
 
         # Determine target server URL, token, device_id, and hostname from config first
         server_url = os.environ.get("POVI_SERVER_URL") or os.environ.get("POVISHIELD_SERVER")
         token = None
-        device_id = None
-        hostname = socket.gethostname()
+        device_id = session.device_id or "laptop_terminal"
+        hostname = session.hostname or socket.gethostname()
 
         for cfg_path in [Path.home() / ".povishield" / "agent.json", Path("/etc/povishield/agent.json")]:
             if cfg_path.is_file():
@@ -678,8 +740,7 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
                 except Exception:
                     pass
 
-        dev_id = device_id or "laptop_terminal"
-        is_remote = (dev_id != "laptop_terminal")
+        is_remote = (device_id != "laptop_terminal")
 
         # Write to local events_file for live monitor
         if syscalls:
@@ -689,7 +750,7 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
                     for sc in syscalls[:15]:
                         ef.write(json.dumps({
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "device_id": dev_id,
+                            "device_id": device_id,
                             "hostname": hostname,
                             "target": session.target,
                             "syscall": sc,
@@ -700,12 +761,12 @@ def _sync_session_telemetry(session: ExecutionSession) -> None:
 
         # Prepare payload for dashboard API sync
         data = asdict(session)
-        data["is_terminal_cli"] = True
+        data["is_terminal_cli"] = session.is_terminal_cli
         data["is_remote"] = is_remote
         data["hostname"] = hostname
-        data["device_id"] = dev_id
+        data["device_id"] = device_id
         data["syscalls"] = syscalls
-        data["host_target"] = f"{hostname} ({dev_id})" if is_remote else f"Local Terminal ({hostname})"
+        data["host_target"] = session.host_target or (f"{hostname} ({device_id})" if is_remote else f"Local Terminal ({hostname})")
 
         if not server_url:
             server_url = "http://127.0.0.1:8000"
@@ -731,12 +792,32 @@ def list_sessions(limit: int = 50) -> List[Dict[str, Any]]:
         key=lambda p: p.stat().st_mtime,
         reverse=True
     )
+    hostname = socket.gethostname()
     for p in files[:limit]:
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
                 if not data.get("started_at"):
                     data["started_at"] = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat()
+                if data.get("is_terminal_cli") is None:
+                    data["is_terminal_cli"] = not data.get("is_remote", False)
+                if not data.get("hostname"):
+                    data["hostname"] = hostname
+                if not data.get("device_id"):
+                    data["device_id"] = "laptop_terminal" if not data.get("is_remote") else "remote"
+                if not data.get("host_target"):
+                    data["host_target"] = f"Local Terminal ({data['hostname']})" if not data.get("is_remote") else f"Remote Host ({data['hostname']})"
+                if not data.get("syscalls"):
+                    dec = data.get("decision") or {}
+                    if isinstance(dec, dict) and dec.get("allowed_syscalls"):
+                        data["syscalls"] = dec["allowed_syscalls"]
+                    elif data.get("target"):
+                        prof = find_profile_for_target(data["target"])
+                        if prof:
+                            try:
+                                data["syscalls"] = load_profile_syscalls(prof)
+                            except Exception:
+                                pass
                 results.append(data)
         except Exception:
             continue
@@ -809,6 +890,97 @@ def format_terminal_output(session: ExecutionSession) -> str:
     return "\n".join(lines)
 
 
+def run_interactive_shell(mode: str = "enforce") -> int:
+    """Runs an interactive sandboxed terminal session synced to the web terminal."""
+    hostname = socket.gethostname()
+    current_mode = mode
+
+    print("╔══════════════════════════════════════════════════════════════════════════════╗")
+    print("║             PoViShield Interactive Terminal & Sandbox Console                ║")
+    print("╚══════════════════════════════════════════════════════════════════════════════╝")
+    print(f"[*] Local Host: {hostname} | Status: Confinement Active & Synced to Web Console")
+    print("[*] Every command executed here is policy-confined and streamed to the dashboard.")
+    print("[*] Commands: 'mode <enforce|inspect|approval-required>', 'status', 'help', 'exit'")
+    print("────────────────────────────────────────────────────────────────────────────────")
+
+    import shlex
+    while True:
+        try:
+            line = input(f"povishield [{current_mode}] > ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nExiting PoViShield terminal.")
+            break
+
+        if not line:
+            continue
+
+        if line in ("exit", "quit", "q"):
+            print("Session closed.")
+            break
+
+        if line == "help":
+            print("Interactive PoViShield Terminal:")
+            print("  Run any system command: e.g. 'echo hello', 'ls /tmp', 'uname -a', 'cat /etc/os-release'")
+            print("  mode <enforce|inspect|approval-required>  - Switch confinement mode")
+            print("  status                                   - View current supervisor status")
+            print("  clear                                    - Clear screen")
+            print("  exit                                     - Exit this terminal")
+            continue
+
+        if line == "clear":
+            os.system("clear")
+            continue
+
+        if line.startswith("mode "):
+            new_mode = line.split(" ", 1)[1].strip().lower()
+            if new_mode in ("enforce", "inspect", "approval-required"):
+                current_mode = new_mode
+                print(f"[MODE] Confinement mode switched to: {current_mode.upper()}")
+            else:
+                print("[ERROR] Valid modes are: enforce, inspect, approval-required")
+            continue
+
+        if line == "status":
+            print(f"[STATUS] Mode: {current_mode.upper()} | Host: {hostname} | Web Sync: Active")
+            continue
+
+        try:
+            cmd_tokens = shlex.split(line)
+        except Exception:
+            cmd_tokens = line.split()
+
+        if not cmd_tokens:
+            continue
+
+        try:
+            session = execute_session(
+                command=cmd_tokens,
+                mode=current_mode,
+                is_terminal_cli=True,
+                hostname=hostname,
+                device_id="laptop_terminal",
+                host_target=f"Local Terminal ({hostname})"
+            )
+            if session.stdout:
+                sys.stdout.write(session.stdout)
+                if not session.stdout.endswith("\n"):
+                    sys.stdout.write("\n")
+                sys.stdout.flush()
+            if session.stderr:
+                sys.stderr.write(session.stderr)
+                if not session.stderr.endswith("\n"):
+                    sys.stderr.write("\n")
+                sys.stderr.flush()
+
+            if session.violation_detected:
+                print(f"[ALERT] {session.violation_detail}")
+            print(f"[{session.status.upper()}] Exit: {session.exit_code} | Duration: {session.duration_ms}ms | Synced to Web Terminal")
+        except Exception as err:
+            print(f"[ERROR] {err}")
+
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="povishield",
@@ -824,6 +996,10 @@ def main() -> int:
     run_parser.add_argument("--timeout", type=float, default=30.0, help="Max execution timeout in seconds")
     run_parser.add_argument("--json", action="store_true", help="Output session report in JSON format")
     run_parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to execute after '--'")
+
+    # Shell subcommand
+    shell_parser = subparsers.add_parser("shell", help="Interactive terminal session with real-time web console sync")
+    shell_parser.add_argument("--mode", choices=["enforce", "inspect", "approval-required"], default="enforce")
 
     # Evaluate subcommand
     eval_parser = subparsers.add_parser("evaluate", help="Pre-evaluate policy decision for a command without executing")
@@ -841,6 +1017,9 @@ def main() -> int:
     if not args.subcommand:
         parser.print_help()
         return 2
+
+    if args.subcommand == "shell":
+        return run_interactive_shell(mode=args.mode)
 
     if args.subcommand == "list":
         sessions = list_sessions(limit=args.limit)

@@ -504,6 +504,9 @@ def run_execution_endpoint(payload: ExecutionRunRequest, request: Request):
             explicit_profile=payload.profile,
             timeout_seconds=float(payload.timeout_seconds),
             record_events=True,
+            is_terminal_cli=False,
+            device_id="gateway",
+            host_target=f"Local Gateway ({socket.gethostname()})"
         )
         return asdict(session)
     except Exception as exc:
@@ -542,11 +545,26 @@ def list_executions_endpoint(request: Request, limit: int = 50, device_id: Optio
         if clean_tid:
             seen_ids.add(f"run-remote-{clean_tid}")
 
+        # Ensure terminal metadata is present
+        if s.get("is_terminal_cli") is None:
+            s["is_terminal_cli"] = not s.get("is_remote", False)
+        if not s.get("hostname"):
+            s["hostname"] = socket.gethostname()
+        if not s.get("device_id"):
+            s["device_id"] = "laptop_terminal" if not s.get("is_remote") else "remote"
+        if not s.get("host_target"):
+            s["host_target"] = f"Local Terminal ({s['hostname']})" if not s.get("is_remote") else f"Remote Host ({s['hostname']})"
+
         # Ensure syscalls is populated
         if not s.get("syscalls"):
             dec = s.get("decision") or {}
             if isinstance(dec, dict) and dec.get("allowed_syscalls"):
                 s["syscalls"] = dec["allowed_syscalls"]
+            else:
+                target = s.get("target") or (s.get("command") or ["unknown"])[0]
+                prof_path = find_profile_for_target(Path(target).name)
+                if prof_path:
+                    s["syscalls"] = load_profile_syscalls(prof_path)
 
         # Filter by device_id if specified
         if device_id:
