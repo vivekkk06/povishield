@@ -33,7 +33,18 @@ function parseCommandArgs(cmdStr) {
   });
 }
 
-export default function TerminalExecutionConsole({ API, health, devices = [], activeDeviceId = "gateway", setActiveDeviceId, refreshTick }) {
+export default function TerminalExecutionConsole({
+  API,
+  health,
+  devices = [],
+  activeDeviceId = "gateway",
+  setActiveDeviceId,
+  refreshTick,
+  pendingApprovals = [],
+  onGrantApproval,
+  onDenyApproval,
+  onRefreshApprovals
+}) {
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Hello from PoViShield'");
   const [mode, setMode] = useState("enforce");
   const [targetType, setTargetType] = useState(() => {
@@ -49,6 +60,47 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
   const [decision, setDecision] = useState(null);
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [decisionError, setDecisionError] = useState("");
+
+  const [requestingApproval, setRequestingApproval] = useState(false);
+  const [approvalFeedback, setApprovalFeedback] = useState("");
+
+  const currentArgs = parseCommandArgs(commandInput);
+  const currentTarget = currentArgs[0] ? currentArgs[0].split("/").pop() : "";
+  const activePendingRequest = pendingApprovals.find(r =>
+    (currentTarget && r.target === currentTarget) ||
+    (Array.isArray(r.command) && r.command.join(" ") === currentArgs.join(" ")) ||
+    (typeof r.command === "string" && r.command === commandInput.trim())
+  );
+
+  const handleRequestSafetyGateApproval = async () => {
+    if (!currentArgs.length) return;
+    setRequestingApproval(true);
+    setApprovalFeedback("");
+    try {
+      const res = await fetch(`${API}/approvals/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: currentTarget || "custom_command",
+          command: currentArgs,
+          mode: mode,
+          device_id: "laptop_terminal",
+          rationale: `Interactive execution authorization requested from Terminal Console for '${currentArgs.join(" ")}'`
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApprovalFeedback(`Authorization request ${data.id} submitted. Awaiting operator grant...`);
+        if (onRefreshApprovals) await onRefreshApprovals();
+      } else {
+        setApprovalFeedback("Failed to submit approval request");
+      }
+    } catch (err) {
+      setApprovalFeedback(`Error: ${err.message}`);
+    } finally {
+      setRequestingApproval(false);
+    }
+  };
 
   const [running, setRunning] = useState(false);
   const [currentSession, setCurrentSession] = useState(null);
@@ -899,6 +951,93 @@ export default function TerminalExecutionConsole({ API, health, devices = [], ac
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Safety Gate Interactive Approval Card */}
+              {decision.action === "APPROVAL_REQUIRED" && (
+                <div className="terminal-approval-card">
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <ShieldAlert size={20} color="#fb923c" />
+                      <div>
+                        <strong style={{ fontSize: 13, color: "#fed7aa", display: "flex", alignItems: "center", gap: 6 }}>
+                          {activePendingRequest ? "⚠️ Approval Request Pending in Safety Gate" : "🔒 Safety Gate Authorization Required"}
+                        </strong>
+                        <p style={{ margin: "2px 0 0", fontSize: 11, color: "#cbd5e1" }}>
+                          {activePendingRequest
+                            ? `Request ID: ${activePendingRequest.id} · Awaiting operator sign-off.`
+                            : "Target execution is locked until approved in the safety gate ledger (results/approvals.jsonl)."}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {activePendingRequest ? (
+                        <>
+                          <button
+                            className="primary-button"
+                            onClick={async () => {
+                              await onGrantApproval?.(activePendingRequest.id);
+                              await evaluatePolicy(commandInput, mode);
+                            }}
+                            style={{
+                              background: "#059669",
+                              borderColor: "#10b981",
+                              color: "#fff",
+                              padding: "6px 14px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 5
+                            }}
+                          >
+                            <Check size={14} /> Grant & Unlock
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={async () => {
+                              await onDenyApproval?.(activePendingRequest.id);
+                              await evaluatePolicy(commandInput, mode);
+                            }}
+                            style={{
+                              borderColor: "#7f1d1d",
+                              color: "#f87171",
+                              padding: "6px 12px",
+                              fontSize: 11
+                            }}
+                          >
+                            Deny
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="primary-button"
+                          onClick={handleRequestSafetyGateApproval}
+                          disabled={requestingApproval}
+                          style={{
+                            background: "#ea580c",
+                            borderColor: "#f97316",
+                            color: "#fff",
+                            padding: "6px 14px",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6
+                          }}
+                        >
+                          {requestingApproval ? <RefreshCw size={13} className="spin" /> : <ShieldCheck size={14} />}
+                          Request Safety Gate Permission
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {approvalFeedback && (
+                    <div style={{ fontSize: 11, color: "#fdba74", marginTop: 4 }}>
+                      {approvalFeedback}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

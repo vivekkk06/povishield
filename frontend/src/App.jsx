@@ -18,10 +18,14 @@ import FleetDeviceConsole from "./components/FleetDeviceConsole.jsx";
 import RemoteWatchGuidePanel from "./components/RemoteWatchGuidePanel.jsx";
 import PolicyExplorer from "./components/PolicyExplorer.jsx";
 
+function isLocalHostname(host) {
+  return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host === "[::1]" || (typeof host === "string" && host.endsWith(".local"));
+}
+
 function getInitialApiUrl() {
   if (typeof window !== "undefined") {
     const custom = localStorage.getItem("povishield_custom_api_url");
-    if (custom && custom.trim()) {
+    if (custom && custom.trim() && custom.trim() !== "/api") {
       let u = custom.trim().replace(/\/+$/, "");
       if (!u.endsWith("/api")) u = `${u}/api`;
       return u;
@@ -32,15 +36,38 @@ function getInitialApiUrl() {
     return u;
   }
   if (typeof window !== "undefined") {
-    const port = window.location.port;
-    if (port === "5173" || port === "5174" || port === "5175" || port === "5176" || port === "5177" || port === "4173") {
-      return `${window.location.protocol}//${window.location.hostname}:8000/api`;
+    const hostname = window.location.hostname;
+    if (isLocalHostname(hostname) || !hostname) {
+      const proto = window.location.protocol === "https:" ? "http:" : (window.location.protocol || "http:");
+      return `${proto}//${hostname || "127.0.0.1"}:8000/api`;
     }
     if (window.location.protocol !== "file:") {
       return "/api";
     }
   }
   return "http://127.0.0.1:8000/api";
+}
+
+function playSecurityChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.18);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.38);
+  } catch (e) {
+    // Autoplay policy before user gesture
+  }
 }
 
 const API = getInitialApiUrl();
@@ -307,6 +334,10 @@ function App() {
   const [ledgersList, setLedgersList] = useState([]);
   const [approvalsList, setApprovalsList] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [serverOnline, setServerOnline] = useState(true);
+  const [serverLatency, setServerLatency] = useState(null);
+  const [toastDismissedIds, setToastDismissedIds] = useState(new Set());
+  const prevPendingCount = useRef(0);
 
   // Activity Monitor state
   const [eventsData, setEventsData] = useState(null);
@@ -413,6 +444,7 @@ function App() {
   async function loadData() {
     setLoading(true);
     setError("");
+    const t0 = performance.now();
     try {
       const [oRes, pRes, eRes, hRes] = await Promise.allSettled([
         getJSON("/overview"),
@@ -422,8 +454,12 @@ function App() {
       ]);
 
       if (hRes.status === "rejected" && oRes.status === "rejected") {
+        setServerOnline(false);
         throw new Error(hRes.reason?.message || oRes.reason?.message || "Failed to reach backend API");
       }
+
+      setServerOnline(true);
+      setServerLatency(Math.max(1, Math.round(performance.now() - t0)));
 
       if (oRes.status === "fulfilled") setOverview(oRes.value);
       if (pRes.status === "fulfilled") {
@@ -479,6 +515,7 @@ function App() {
       } catch {}
 
     } catch (err) {
+      setServerOnline(false);
       setError(`${err.message}. Check that the FastAPI server is running on port 8000.`);
     } finally {
       setLoading(false);
@@ -513,7 +550,25 @@ function App() {
   const fetchPendingApprovals = async () => {
     try {
       const pAppr = await getJSON("/approvals/pending");
-      setPendingApprovals(pAppr.pending ?? []);
+      const list = pAppr.pending ?? [];
+      if (list.length > prevPendingCount.current) {
+        playSecurityChime();
+        if (typeof window !== "undefined" && "Notification" in window) {
+          if (Notification.permission === "granted") {
+            const newest = list[0];
+            try {
+              new Notification("PoViShield Safety Gate Authorization Required", {
+                body: `Target '${newest.target}' requires operator approval (${Array.isArray(newest.command) ? newest.command.join(" ") : newest.target})`,
+                icon: "/favicon.ico"
+              });
+            } catch {}
+          } else if (Notification.permission === "default") {
+            Notification.requestPermission();
+          }
+        }
+      }
+      prevPendingCount.current = list.length;
+      setPendingApprovals(list);
     } catch {}
   };
 
@@ -1057,6 +1112,19 @@ function App() {
               </select>
             </div>
 
+            <div
+              className={`server-status-chip ${serverOnline ? "online" : "offline"}`}
+              title={`Active API endpoint: ${API} · Click to configure`}
+              onClick={() => setPage("Settings")}
+              style={{ cursor: "pointer" }}
+            >
+              <span className="live-pulse-dot" style={{ background: serverOnline ? "#10b981" : "#ef4444" }} />
+              <span>SERVER:</span>
+              <strong style={{ color: serverOnline ? "#34d399" : "#f87171" }}>
+                {serverOnline ? `127.0.0.1:8000 (${serverLatency ?? 0}ms)` : "DISCONNECTED"}
+              </strong>
+            </div>
+
             {activeDeviceId === "broadcast" ? (
               <div className="telemetry-chip" style={{ borderColor: "#0284c7" }}>
                 <span className="live-pulse-dot" style={{ background: "#38bdf8" }} />
@@ -1123,6 +1191,89 @@ function App() {
         </header>
 
         <div className="page-content">
+          {/* Real-time Floating Safety Gate Authorization Toast */}
+          {pendingApprovals && pendingApprovals.filter(r => !toastDismissedIds.has(r.id)).length > 0 && (
+            <aside className="floating-approval-toast" role="alert" aria-live="assertive">
+              <div className="floating-approval-toast-header">
+                <div className="floating-approval-toast-title">
+                  <ShieldAlert size={16} color="#fb923c" />
+                  <span>Safety Gate Permission Required ({pendingApprovals.filter(r => !toastDismissedIds.has(r.id)).length})</span>
+                </div>
+                <button
+                  className="icon-button"
+                  style={{ padding: 4, height: "auto" }}
+                  onClick={() => {
+                    setToastDismissedIds(new Set([...pendingApprovals.map(r => r.id)]));
+                  }}
+                  title="Dismiss Notification Toast"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              {pendingApprovals.filter(r => !toastDismissedIds.has(r.id)).slice(0, 1).map((req) => (
+                <div key={req.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11 }}>
+                    <span style={{ color: "#38bdf8", fontFamily: "var(--font-mono)" }}>
+                      💻 {req.hostname || "local"} ({req.device_id || "laptop_terminal"})
+                    </span>
+                    <span style={{ color: "#fdba74", fontFamily: "var(--font-mono)", fontSize: 10 }}>
+                      {req.mode?.toUpperCase() || "APPROVAL-REQUIRED"}
+                    </span>
+                  </div>
+                  <div style={{
+                    background: "#030712",
+                    border: "1px solid #1f2937",
+                    borderRadius: 4,
+                    padding: "6px 8px",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                    color: "#f8fafc",
+                    overflowX: "auto"
+                  }}>
+                    $ {Array.isArray(req.command) ? req.command.join(" ") : req.target}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                    {req.rationale || "Interactive execution permission requested"} · ID: <code style={{ color: "#fdba74" }}>{req.id}</code>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <button
+                      className="primary-button"
+                      onClick={() => handleGrantApproval(req.id)}
+                      style={{
+                        background: "#059669",
+                        borderColor: "#10b981",
+                        color: "#fff",
+                        padding: "6px 12px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4
+                      }}
+                    >
+                      <Check size={13} /> Grant Approval
+                    </button>
+                    <button
+                      className="secondary-button"
+                      onClick={() => handleDenyApproval(req.id)}
+                      style={{
+                        borderColor: "#7f1d1d",
+                        color: "#f87171",
+                        padding: "6px 10px",
+                        fontSize: 11,
+                        fontWeight: 600
+                      }}
+                    >
+                      Deny
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </aside>
+          )}
+
           <div className="page-heading">
             <div>
               <div className="eyebrow">COUNTERFACTUAL PERMISSION VERIFICATION</div>
@@ -1841,6 +1992,10 @@ function App() {
                   activeDeviceId={activeDeviceId}
                   setActiveDeviceId={setActiveDeviceId}
                   refreshTick={refreshTick}
+                  pendingApprovals={pendingApprovals}
+                  onGrantApproval={handleGrantApproval}
+                  onDenyApproval={handleDenyApproval}
+                  onRefreshApprovals={fetchPendingApprovals}
                 />
               )}
 
