@@ -806,6 +806,31 @@ def record_terminal_execution_endpoint(payload: dict[str, Any], request: Request
     return {"status": "recorded", "session_id": session_id}
 
 
+@app.post("/api/executions/prune")
+@app.post("/executions/prune")
+def prune_executions_endpoint(request: Request):
+    """Purges past local execution sessions and temporary telemetry buffers."""
+    _require_local_request(request)
+    sessions_dir = RESULTS / "sessions"
+    deleted = 0
+    if sessions_dir.is_dir():
+        for p in sessions_dir.glob("*.json"):
+            if not p.name.endswith("-profile.json"):
+                try:
+                    p.unlink()
+                    deleted += 1
+                except Exception:
+                    pass
+        for p in sessions_dir.glob("*-events.jsonl"):
+            try:
+                p.unlink()
+            except Exception:
+                pass
+    with MONITOR_LOCK:
+        MONITOR_SESSIONS.clear()
+    return {"status": "ok", "pruned_sessions_count": deleted}
+
+
 def _cloud_trace_emitter(sid: str, pid: int, events_path: Path, profile_path: Path, syscalls: list[str], target_name: str):
     import json, time
     seq = 1
