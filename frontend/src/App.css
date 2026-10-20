@@ -2239,6 +2239,75 @@ input:checked + .toggle-slider:before {
   background-color: #34d399;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-feedback-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 10px;
+  animation: fadeIn 0.2s ease;
+}
+.settings-feedback-banner.success {
+  background: #062a1c;
+  border: 1px solid #059669;
+  color: #34d399;
+}
+.settings-feedback-banner.error {
+  background: #2d0b10;
+  border: 1px solid #b91c1c;
+  color: #f87171;
+}
+.settings-feedback-banner.info {
+  background: #0c1e38;
+  border: 1px solid #1d4ed8;
+  color: #60a5fa;
+}
+
+.settings-btn-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-scope-pill {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  background: #0d1726;
+  border: 1px solid #1e293b;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.settings-scope-pill:hover {
+  border-color: #38bdf8;
+  color: #f1f5f9;
+}
+.settings-scope-pill.active {
+  background: #0369a1;
+  border-color: #38bdf8;
+  color: #fff;
+  font-weight: 600;
+}
+
+.settings-diag-box {
+  margin-top: 10px;
+  padding: 12px;
+  background: #050914;
+  border: 1px solid #162438;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 
 @media (max-width: 1200px) {

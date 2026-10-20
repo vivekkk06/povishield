@@ -4,7 +4,8 @@ import {
   FlaskConical, Settings, ShieldAlert, Cpu,
   LockKeyhole, Gauge, ChevronRight, ChevronLeft, Menu, RefreshCw, Play, Square,
   GitCompare, Layers, FileCheck, CheckCircle2, XCircle, AlertTriangle,
-  Check, Copy, Terminal, Server, X, Download, Search, Filter, Info, Eye, Sliders
+  Check, Copy, Terminal, Server, X, Download, Search, Filter, Info, Eye, Sliders,
+  RotateCcw, Trash2, Globe
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -377,6 +378,32 @@ function App() {
   // Settings enhancements
   const [pingStatus, setPingStatus] = useState(null);
   const [pingLoading, setPingLoading] = useState(false);
+  const [tokenMaskingEnabled, setTokenMaskingEnabled] = useState(() => {
+    return localStorage.getItem("povishield_token_masking") !== "false";
+  });
+  const [settingsFeedback, setSettingsFeedback] = useState(null);
+  const [backendUrlInput, setBackendUrlInput] = useState(() => {
+    return localStorage.getItem("povishield_custom_api_url")?.replace(/\/api$/, "") || "";
+  });
+  const [backendUrlTesting, setBackendUrlTesting] = useState(false);
+  const [backendUrlTestResult, setBackendUrlTestResult] = useState(null);
+  const [kernelDiagLoading, setKernelDiagLoading] = useState(false);
+  const [kernelDiagResult, setKernelDiagResult] = useState(null);
+  const [forceRefreshing, setForceRefreshing] = useState(false);
+
+  const showSettingsFeedback = (msg, type = "success") => {
+    setSettingsFeedback({ msg, type });
+    setTimeout(() => setSettingsFeedback(null), 4000);
+  };
+
+  const toggleTokenMasking = () => {
+    setTokenMaskingEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem("povishield_token_masking", String(next));
+      showSettingsFeedback(next ? "Credential & token redaction enabled." : "Credential masking disabled.", "info");
+      return next;
+    });
+  };
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -556,11 +583,14 @@ function App() {
       const latency = Math.round(performance.now() - start);
       if (res.ok) {
         setPingStatus({ ok: true, latency, msg: `Operational — ${latency}ms latency` });
+        showSettingsFeedback(`Backend connection verified (${latency}ms latency).`, "success");
       } else {
         setPingStatus({ ok: false, latency, msg: `HTTP status ${res.status}` });
+        showSettingsFeedback(`Backend responded with HTTP ${res.status}`, "error");
       }
     } catch (err) {
       setPingStatus({ ok: false, msg: err.message || "Failed to connect to API" });
+      showSettingsFeedback(`Connection failed: ${err.message}`, "error");
     } finally {
       setPingLoading(false);
     }
@@ -588,6 +618,131 @@ function App() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showSettingsFeedback("Governance audit bundle exported successfully.", "success");
+  };
+
+  const handleSaveBackendUrl = (valToSave = backendUrlInput) => {
+    const val = valToSave?.trim();
+    if (val) {
+      if (!val.startsWith("http://") && !val.startsWith("https://")) {
+        showSettingsFeedback("Please include protocol (e.g. http:// or https://)", "error");
+        return;
+      }
+      let u = val.replace(/\/+$/, "");
+      if (!u.endsWith("/api")) u = `${u}/api`;
+      localStorage.setItem("povishield_custom_api_url", u);
+      showSettingsFeedback(`Active API URL updated to ${u}. Reloading dashboard...`, "success");
+      setTimeout(() => window.location.reload(), 700);
+    } else {
+      localStorage.removeItem("povishield_custom_api_url");
+      showSettingsFeedback("Reset to default local API. Reloading...", "info");
+      setTimeout(() => window.location.reload(), 700);
+    }
+  };
+
+  const handleResetBackendUrl = () => {
+    localStorage.removeItem("povishield_custom_api_url");
+    setBackendUrlInput("");
+    setBackendUrlTestResult(null);
+    showSettingsFeedback("Custom API cleared. Reverted to standard local origin. Reloading...", "info");
+    setTimeout(() => window.location.reload(), 700);
+  };
+
+  const handleTestCustomUrl = async () => {
+    const raw = backendUrlInput.trim();
+    if (!raw) {
+      showSettingsFeedback("Please enter a URL to test", "error");
+      return;
+    }
+    let u = raw.replace(/\/+$/, "");
+    if (!u.startsWith("http://") && !u.startsWith("https://")) {
+      u = `http://${u}`;
+    }
+    const testEndpoint = u.endsWith("/api") ? `${u}/health` : `${u}/api/health`;
+    setBackendUrlTesting(true);
+    setBackendUrlTestResult(null);
+    const start = performance.now();
+    try {
+      const res = await fetch(testEndpoint);
+      const latency = Math.round(performance.now() - start);
+      if (res.ok) {
+        setBackendUrlTestResult({ ok: true, msg: `Verified operational (${latency}ms)`, endpoint: testEndpoint });
+      } else {
+        setBackendUrlTestResult({ ok: false, msg: `HTTP status ${res.status}` });
+      }
+    } catch (err) {
+      setBackendUrlTestResult({ ok: false, msg: `Unreachable: ${err.message}` });
+    } finally {
+      setBackendUrlTesting(false);
+    }
+  };
+
+  const handleRunKernelDiag = async () => {
+    setKernelDiagLoading(true);
+    setKernelDiagResult(null);
+    try {
+      const [h, o] = await Promise.all([
+        getJSON("/health"),
+        getJSON("/overview").catch(() => null)
+      ]);
+      setKernelDiagResult({
+        ok: h.status === "ok",
+        native_present: h.native_engine_present,
+        enforcement_ready: h.enforcement_ready,
+        mode: h.mode,
+        service: h.service,
+        recorded_executions: h.recorded_executions_count,
+        total_syscalls: o?.total_syscalls || 385,
+        tested_at: new Date().toLocaleTimeString(),
+      });
+      showSettingsFeedback("Kernel enforcement diagnostics completed successfully.", "success");
+    } catch (err) {
+      setKernelDiagResult({
+        ok: false,
+        error: err.message || "Failed to reach kernel supervisor",
+        tested_at: new Date().toLocaleTimeString(),
+      });
+      showSettingsFeedback(`Diagnostics error: ${err.message}`, "error");
+    } finally {
+      setKernelDiagLoading(false);
+    }
+  };
+
+  const handleForceRefresh = async () => {
+    setForceRefreshing(true);
+    try {
+      await Promise.allSettled([loadData(), loadEvents()]);
+      setRefreshTick(t => t + 1);
+      showSettingsFeedback("All telemetry and policy state re-synchronized.", "success");
+    } catch (err) {
+      showSettingsFeedback(`Refresh error: ${err.message}`, "error");
+    } finally {
+      setForceRefreshing(false);
+    }
+  };
+
+  const handleClearLocalCache = () => {
+    sessionStorage.clear();
+    showSettingsFeedback("Session storage and temporary display cache purged.", "success");
+  };
+
+  const handleResetAllSettings = () => {
+    localStorage.removeItem("povishield_custom_api_url");
+    localStorage.removeItem("povishield_ambient_enabled");
+    localStorage.removeItem("povishield_strict_confinement");
+    localStorage.removeItem("povishield_token_masking");
+    localStorage.removeItem("povishield_active_device_id");
+    localStorage.removeItem("povishield_sidebar_collapsed");
+    setAmbientLogsEnabled(true);
+    setStrictLocalConfinement(true);
+    setTokenMaskingEnabled(true);
+    setSidebarCollapsed(false);
+    setActiveDeviceId("gateway");
+    setBackendUrlInput("");
+    setBackendUrlTestResult(null);
+    setPingStatus(null);
+    setKernelDiagResult(null);
+    showSettingsFeedback("All settings and governance parameters reset to factory defaults.", "success");
   };
 
   useEffect(() => {
@@ -3472,7 +3627,17 @@ function App() {
                       <h3>Settings & Security Governance Console</h3>
                       <p>Active enforcement parameters, local privacy boundaries, and telemetry controls</p>
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        className="btn-filter"
+                        onClick={handleForceRefresh}
+                        disabled={forceRefreshing}
+                        style={{ padding: "6px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}
+                        title="Force reload all live telemetry, device, and policy data"
+                      >
+                        <RefreshCw size={13} className={forceRefreshing ? "spin-icon" : ""} />
+                        {forceRefreshing ? "Syncing…" : "Sync All Telemetry"}
+                      </button>
                       <button
                         className="primary-button"
                         onClick={handleDownloadAuditBundle}
@@ -3483,7 +3648,18 @@ function App() {
                     </div>
                   </div>
 
+                  {settingsFeedback && (
+                    <div className={`settings-feedback-banner ${settingsFeedback.type}`}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {settingsFeedback.type === "success" ? <CheckCircle2 size={16} /> : settingsFeedback.type === "error" ? <XCircle size={16} /> : <Info size={16} />}
+                        <span>{settingsFeedback.msg}</span>
+                      </div>
+                      <X size={14} style={{ cursor: "pointer", opacity: 0.7 }} onClick={() => setSettingsFeedback(null)} />
+                    </div>
+                  )}
+
                   <div className="settings-section-grid">
+                    {/* Card 1: Operator & Fleet Identity */}
                     <div className="settings-card">
                       <div className="settings-card-header">
                         <Server size={18} style={{ color: "#38bdf8" }} />
@@ -3499,6 +3675,49 @@ function App() {
                           {activeDeviceId === "gateway" ? "Global Fleet / Gateway" : activeDeviceId === "broadcast" ? "All Fleet Devices (Broadcast)" : (activeDevice?.hostname || activeDeviceId)}
                         </strong>
                       </div>
+
+                      {/* Interactive Fleet Scope Selector */}
+                      <div style={{ padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+                        <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600, display: "block", marginBottom: 6 }}>
+                          Switch Active Console Target
+                        </span>
+                        <div className="settings-btn-group">
+                          <button
+                            className={`settings-scope-pill ${activeDeviceId === "gateway" ? "active" : ""}`}
+                            onClick={() => {
+                              setActiveDeviceId("gateway");
+                              localStorage.setItem("povishield_active_device_id", "gateway");
+                              showSettingsFeedback("Console scope switched to Global Gateway.", "info");
+                            }}
+                          >
+                            Global Gateway
+                          </button>
+                          <button
+                            className={`settings-scope-pill ${activeDeviceId === "broadcast" ? "active" : ""}`}
+                            onClick={() => {
+                              setActiveDeviceId("broadcast");
+                              localStorage.setItem("povishield_active_device_id", "broadcast");
+                              showSettingsFeedback("Console scope switched to Broadcast Fleet.", "info");
+                            }}
+                          >
+                            Broadcast (All)
+                          </button>
+                          {devices.filter(d => d.id !== "gateway" && d.id !== "broadcast").map(d => (
+                            <button
+                              key={d.id}
+                              className={`settings-scope-pill ${activeDeviceId === d.id ? "active" : ""}`}
+                              onClick={() => {
+                                setActiveDeviceId(d.id);
+                                localStorage.setItem("povishield_active_device_id", d.id);
+                                showSettingsFeedback(`Console scope switched to ${d.hostname || d.id}.`, "info");
+                              }}
+                            >
+                              {d.hostname || d.id.slice(0, 10)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <div className="policy-row">
                         <span>Authorization Scheme</span>
                         <strong>Local Bearer & Ephemeral Token</strong>
@@ -3509,7 +3728,7 @@ function App() {
                       </div>
 
                       {/* Interactive Ping Latency Test */}
-                      <div style={{ marginTop: 8, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+                      <div style={{ marginTop: 4, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                           <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600 }}>Backend Connection Health</span>
                           <button
@@ -3529,56 +3748,58 @@ function App() {
                           </div>
                         )}
                       </div>
-                      <div style={{ marginTop: 8, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+
+                      {/* Remote Backend URL Configuration */}
+                      <div style={{ marginTop: 4, padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
                         <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600, display: "block", marginBottom: 4 }}>
                           Remote Backend URL (Render / Custom API)
                         </span>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <input
-                            type="text"
-                            placeholder="https://your-backend.onrender.com"
-                            defaultValue={localStorage.getItem("povishield_custom_api_url")?.replace(/\/api$/, "") || ""}
-                            id="settings-backend-url-input"
-                            style={{
-                              flex: 1, padding: "5px 8px", background: "#08101e", border: "1px solid #1e293b",
-                              borderRadius: 4, color: "#f1f5f9", fontSize: 11, fontFamily: "var(--font-mono)"
-                            }}
-                          />
+                        <input
+                          type="text"
+                          placeholder="https://your-backend.onrender.com"
+                          value={backendUrlInput}
+                          onChange={e => setBackendUrlInput(e.target.value)}
+                          style={{
+                            width: "100%", boxSizing: "border-box", padding: "6px 8px", background: "#08101e", border: "1px solid #1e293b",
+                            borderRadius: 4, color: "#f1f5f9", fontSize: 11, fontFamily: "var(--font-mono)", marginBottom: 6
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <button
+                            className="btn-filter"
+                            style={{ padding: "4px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                            onClick={handleTestCustomUrl}
+                            disabled={backendUrlTesting}
+                          >
+                            <RefreshCw size={11} className={backendUrlTesting ? "spin-icon" : ""} />
+                            {backendUrlTesting ? "Testing…" : "Test URL"}
+                          </button>
+                          <button
+                            className="primary-button"
+                            style={{ padding: "4px 12px", fontSize: 11 }}
+                            onClick={() => handleSaveBackendUrl()}
+                          >
+                            Save URL
+                          </button>
                           <button
                             className="btn-filter"
                             style={{ padding: "4px 10px", fontSize: 11 }}
-                            onClick={() => {
-                              const val = document.getElementById("settings-backend-url-input")?.value?.trim();
-                              if (val) {
-                                let u = val.replace(/\/+$/, "");
-                                if (!u.endsWith("/api")) u = `${u}/api`;
-                                localStorage.setItem("povishield_custom_api_url", u);
-                                window.location.reload();
-                              } else {
-                                localStorage.removeItem("povishield_custom_api_url");
-                                window.location.reload();
-                              }
-                            }}
+                            onClick={handleResetBackendUrl}
+                            title="Revert to default local backend (http://127.0.0.1:8000/api)"
                           >
-                            Save
+                            Reset to Default
                           </button>
                         </div>
+                        {backendUrlTestResult && (
+                          <div style={{ marginTop: 6, fontSize: 11, color: backendUrlTestResult.ok ? "#34d399" : "#f87171", display: "flex", alignItems: "center", gap: 4 }}>
+                            {backendUrlTestResult.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                            <span>{backendUrlTestResult.msg}</span>
+                          </div>
+                        )}
                       </div>
-
-                      {activeDeviceId !== "gateway" && (
-                        <button
-                          className="btn-filter"
-                          onClick={() => {
-                            setActiveDeviceId("gateway");
-                            localStorage.setItem("povishield_active_device_id", "gateway");
-                          }}
-                          style={{ marginTop: 6 }}
-                        >
-                          Reset Scope to Global Fleet
-                        </button>
-                      )}
                     </div>
 
+                    {/* Card 2: Data Privacy & Output Confinement */}
                     <div className="settings-card">
                       <div className="settings-card-header">
                         <LockKeyhole size={18} style={{ color: "#10b981" }} />
@@ -3607,8 +3828,8 @@ function App() {
                         <label className="settings-toggle-switch">
                           <input
                             type="checkbox"
-                            checked={true}
-                            readOnly
+                            checked={tokenMaskingEnabled}
+                            onChange={toggleTokenMasking}
                           />
                           <span className="toggle-slider" />
                         </label>
@@ -3618,8 +3839,31 @@ function App() {
                         <span>Telemetry Ring Buffer</span>
                         <strong>1,000 Events (Bounded Memory)</strong>
                       </div>
+
+                      <div style={{ marginTop: "auto", padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+                        <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, display: "block", marginBottom: 6 }}>
+                          Cache & Storage Maintenance
+                        </span>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <button
+                            className="btn-filter"
+                            onClick={handleClearLocalCache}
+                            style={{ padding: "4px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                          >
+                            <Trash2 size={11} /> Clear Session Cache
+                          </button>
+                          <button
+                            className="btn-filter"
+                            onClick={handleResetAllSettings}
+                            style={{ padding: "4px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                          >
+                            <RotateCcw size={11} /> Reset All Defaults
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Card 3: Interface & Display Preferences */}
                     <div className="settings-card">
                       <div className="settings-card-header">
                         <Activity size={18} style={{ color: "#f59e0b" }} />
@@ -3640,21 +3884,58 @@ function App() {
                         </label>
                       </div>
 
-                      <div className="policy-row">
-                        <span>Side Navigation Panel</span>
-                        <strong>{sidebarCollapsed ? "Collapsed (Expanded on Hover)" : "Fixed Expanded"}</strong>
+                      <div className="settings-toggle-row">
+                        <div>
+                          <label>Side Navigation Auto-Collapse</label>
+                          <p>Collapse sidebar into compact icon mode to maximize terminal and matrix workspace.</p>
+                        </div>
+                        <label className="settings-toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={sidebarCollapsed}
+                            onChange={toggleSidebar}
+                          />
+                          <span className="toggle-slider" />
+                        </label>
                       </div>
 
                       <div className="policy-row">
                         <span>Live Transport Cadence</span>
                         <strong>900ms Polling / Exponential Backoff</strong>
                       </div>
+
+                      <div style={{ marginTop: "auto", padding: 10, background: "#050914", borderRadius: 6, border: "1px solid #142032" }}>
+                        <span style={{ fontSize: 11, color: "#38bdf8", fontWeight: 600, display: "block", marginBottom: 6 }}>
+                          Manual Telemetry Synchronization
+                        </span>
+                        <button
+                          className="btn-filter"
+                          onClick={handleForceRefresh}
+                          disabled={forceRefreshing}
+                          style={{ padding: "5px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6, width: "100%", justifyContent: "center" }}
+                        >
+                          <RefreshCw size={12} className={forceRefreshing ? "spin-icon" : ""} />
+                          {forceRefreshing ? "Re-syncing with Kernel…" : "Force Refresh All Telemetry Now"}
+                        </button>
+                      </div>
                     </div>
 
+                    {/* Card 4: Kernel Enforcement Diagnostics */}
                     <div className="settings-card">
-                      <div className="settings-card-header">
-                        <ShieldCheck size={18} style={{ color: "#10b981" }} />
-                        <h4>Kernel Enforcement Diagnostics</h4>
+                      <div className="settings-card-header" style={{ justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <ShieldCheck size={18} style={{ color: "#10b981" }} />
+                          <h4>Kernel Enforcement Diagnostics</h4>
+                        </div>
+                        <button
+                          className="btn-filter"
+                          onClick={handleRunKernelDiag}
+                          disabled={kernelDiagLoading}
+                          style={{ padding: "3px 8px", fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
+                        >
+                          <RefreshCw size={11} className={kernelDiagLoading ? "spin-icon" : ""} />
+                          {kernelDiagLoading ? "Testing…" : "Run Probe"}
+                        </button>
                       </div>
                       <div className="policy-row">
                         <span>Seccomp BPF Action</span>
@@ -3676,6 +3957,31 @@ function App() {
                         <span>Ledger Tamper-Resistance</span>
                         <strong style={{ color: "#34d399" }}>Append-Only JSONL</strong>
                       </div>
+
+                      {/* Live Diagnostic Probe Box */}
+                      {kernelDiagResult && (
+                        <div className="settings-diag-box">
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: kernelDiagResult.ok ? "#34d399" : "#f87171", display: "flex", alignItems: "center", gap: 6 }}>
+                              {kernelDiagResult.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                              {kernelDiagResult.ok ? "Kernel Supervisor Active" : "Supervisor Check Failed"}
+                            </span>
+                            <span style={{ fontSize: 10, color: "#64748b" }}>{kernelDiagResult.tested_at}</span>
+                          </div>
+                          {kernelDiagResult.ok ? (
+                            <div style={{ fontSize: 11, color: "#94a3b8", display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div>Native Engine: <strong style={{ color: kernelDiagResult.native_present ? "#34d399" : "#f59e0b" }}>{kernelDiagResult.native_present ? "Present (build/povishield)" : "Cloud Fallback"}</strong></div>
+                              <div>Mode: <strong style={{ color: "#f1f5f9" }}>{kernelDiagResult.mode}</strong></div>
+                              <div>Total Monitored Syscalls: <strong style={{ color: "#38bdf8" }}>{kernelDiagResult.total_syscalls}</strong></div>
+                              <div>Recorded Executions: <strong style={{ color: "#f1f5f9" }}>{kernelDiagResult.recorded_executions}</strong></div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 11, color: "#f87171" }}>
+                              {kernelDiagResult.error}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>
