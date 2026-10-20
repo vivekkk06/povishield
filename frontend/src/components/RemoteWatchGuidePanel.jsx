@@ -13,8 +13,17 @@ export default function RemoteWatchGuidePanel({
 }) {
   const [serverUrl, setServerUrl] = useState(() => {
     if (defaultServerUrl) return defaultServerUrl.replace(/\/$/, "");
-    if (typeof window !== "undefined" && window.location) {
-      return window.location.origin.replace(/\/$/, "");
+    if (API && (API.startsWith("http://") || API.startsWith("https://"))) {
+      return API.replace(/\/api$/, "").replace(/\/$/, "");
+    }
+    if (typeof window !== "undefined") {
+      const custom = localStorage.getItem("povishield_custom_api_url");
+      if (custom && (custom.startsWith("http://") || custom.startsWith("https://"))) {
+        return custom.replace(/\/api$/, "").replace(/\/$/, "");
+      }
+      if (window.location && !window.location.hostname.includes("vercel")) {
+        return window.location.origin.replace(/\/$/, "");
+      }
     }
     return "http://localhost:8000";
   });
@@ -80,15 +89,15 @@ export default function RemoteWatchGuidePanel({
     }
   };
 
-  const step1Curl = `curl -sSL ${serverUrl}/download/povishield -o povishield`;
-  const step2Chmod = `chmod +x povishield`;
   const codeParam = pairingCode || "<PAIRING_CODE>";
+  const step1Curl = `if [ -d "povishield" ]; then cd povishield; else curl -sSL ${serverUrl}/download/povishield -o povishield && chmod +x povishield; fi`;
+  const step2Chmod = `chmod +x povishield 2>/dev/null || true`;
   const step3Connect = `./povishield connect ${serverUrl} --code ${codeParam}`;
   const step3Sudo = `sudo ./povishield connect ${serverUrl} --code ${codeParam}`;
   const step4Watch = `./povishield watch`;
   const step4Monitor = `./povishield monitor`;
 
-  const allInOneScript = `${step1Curl} && ${step2Chmod} && ${step3Connect} && ${step4Watch}`;
+  const allInOneScript = `if [ -d "povishield" ]; then cd povishield; else curl -sSL ${serverUrl}/download/povishield -o povishield && chmod +x povishield; fi && ./povishield connect ${serverUrl} --code ${codeParam} && ./povishield watch`;
 
   return (
     <div className="remote-watch-guide-card" style={{

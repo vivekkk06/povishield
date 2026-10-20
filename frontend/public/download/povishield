@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# PoViShield - Intelligent Linux Application Sandboxing & Security Research Platform
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+BIN="${SCRIPT_DIR}/build/povishield"
+
+usage() {
+    cat <<EOF
+PoViShield v0.1.0 — Linux Application Sandboxing & Security Research Platform
+
+Usage:
+  povishield connect [SERVER_URL] [--code CODE] [--name NAME]
+      Directly link and enroll this device/laptop to the PoViShield platform (supports sudo/root)
+
+  povishield run [--mode enforce|inspect|approval-required] [--profile FILE] -- CMD...
+      Execute CMD under policy-gated seccomp enforcement with live session tracking
+
+  povishield shell [--mode enforce|inspect|approval-required]
+      Interactive sandboxed terminal session live-streamed to the web console
+
+  povishield [CMD...]
+      Directly execute any system command under policy-gated kernel sandboxing
+
+  povishield evaluate [--mode MODE] -- CMD...
+      Pre-evaluate security policy, attack-surface reduction, and risk for CMD
+
+  povishield list
+      List recent execution sessions and audit logs
+
+  povishield monitor [--follow]
+      Live cybersecurity terminal monitor streaming all executions, tasks, and syscalls on this device
+
+  povishield watch
+      Alias for 'povishield monitor --follow'
+
+  povishield logs [-f] [--limit N]
+      View past and streaming execution session logs on this device
+
+  povishield agent probe|pair|start|status|connect|monitor|logs
+      Manage local Linux endpoint security agent and pairing
+
+  povishield hook [install|status]
+      Install or check shell integration hook to audit all local PC terminal commands
+
+Low-level commands:
+  povishield learn   [-o profile.json] [--events events.jsonl] -- CMD...
+      Trace CMD using ptrace and generate observed syscall profile
+
+  povishield enforce -p profile.json [--audit] -- CMD...
+      Execute CMD directly under compiled seccomp filter
+
+  povishield container [--mem MB] [--pids N] [--cpu PCT] [--rootfs DIR] -- CMD...
+      Run CMD with full Linux container namespaces and cgroups v2 (root)
+
+  povishield info total-syscalls
+      Display total system calls recognized on this architecture
+
+Examples:
+  povishield connect
+  sudo povishield connect
+  povishield monitor
+  povishield watch
+  povishield logs -f
+  povishield connect --server https://your-backend.onrender.com --code PVS-XXXX
+  povishield run -- /usr/bin/echo "Hello from PoViShield"
+  povishield run --mode inspect -- /usr/bin/cat /dev/null
+  povishield run --mode approval-required -- /usr/bin/grep "root" /etc/passwd
+  povishield evaluate -- /usr/bin/ls /tmp
+  povishield agent probe
+  povishield agent pair --server http://localhost:8000 --code PVS-XXXX
+EOF
+}
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 2
+fi
+
+CMD="$1"
+shift
+
+resolve_agent() {
+    if [ -f "${SCRIPT_DIR}/agent/povishield_agent.py" ]; then
+        PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m agent.povishield_agent "$@"
+    elif [ -f "${HOME}/.povishield/povishield_agent.py" ]; then
+        exec python3 "${HOME}/.povishield/povishield_agent.py" "$@"
+    else
+        INSTALL_DIR="${HOME}/.povishield"
+        mkdir -p "$INSTALL_DIR"
+        SERVER_URL="${POVI_SERVER_URL:-http://localhost:8000}"
+        if [ -f "${INSTALL_DIR}/agent.json" ]; then
+            SAVED_URL=$(grep -o '"server_url": *"[^"]*"' "${INSTALL_DIR}/agent.json" | head -n1 | cut -d'"' -f4 || true)
+            if [ -n "$SAVED_URL" ]; then
+                SERVER_URL="$SAVED_URL"
+            fi
+        fi
+        for arg in "$@"; do
+            if [[ "$arg" == http://* || "$arg" == https://* ]]; then
+                SERVER_URL="$arg"
+                break
+            fi
+        done
+        SERVER_URL="${SERVER_URL%/}"
+        echo "[SETUP] Downloading PoViShield remote agent core from ${SERVER_URL}..." >&2
+        if curl -sSL --retry 2 "${SERVER_URL}/api/agent/script" -o "$INSTALL_DIR/povishield_agent.py" 2>/dev/null && [ -s "$INSTALL_DIR/povishield_agent.py" ]; then
+            exec python3 "$INSTALL_DIR/povishield_agent.py" "$@"
+        else
+            echo "[ERROR] Could not find or download agent/povishield_agent.py." >&2
+            echo "To link this PC, run: ./povishield connect <SERVER_URL> --code <PAIRING_CODE>" >&2
+            exit 1
+        fi
+    fi
+}
+
+case "$CMD" in
+    connect)
+        resolve_agent connect "$@"
+        ;;
+    monitor|watch|logs|probe|pair|start|status|stop)
+        resolve_agent "$CMD" "$@"
+        ;;
+    agent)
+        resolve_agent "$@"
+        ;;
+    hook)
+        HOOK_FILE="${SCRIPT_DIR}/scripts/povishield_shell_hook.sh"
+        ACTION="${1:-status}"
+        case "$ACTION" in
+            install)
+                if ! grep -q "povishield_shell_hook.sh" "${HOME}/.bashrc" 2>/dev/null; then
+                    echo "" >> "${HOME}/.bashrc"
+                    echo "# PoViShield Terminal Security & Execution Audit Integration" >> "${HOME}/.bashrc"
+                    echo "if [ -f \"${HOOK_FILE}\" ]; then" >> "${HOME}/.bashrc"
+                    echo "    source \"${HOOK_FILE}\"" >> "${HOME}/.bashrc"
+                    echo "fi" >> "${HOME}/.bashrc"
+                    echo "[OK] PoViShield shell hook installed to ~/.bashrc"
+                else
+                    echo "[OK] PoViShield shell hook is already installed in ~/.bashrc"
+                fi
+                ;;
+            status)
+                if grep -q "povishield_shell_hook.sh" "${HOME}/.bashrc" 2>/dev/null; then
+                    echo "[ACTIVE] PoViShield shell hook is enabled in ~/.bashrc"
+                else
+                    echo "[INACTIVE] Hook not found in ~/.bashrc. Run: ./povishield hook install"
+                fi
+                ;;
+            *)
+                echo "Usage: ./povishield hook [install|status]"
+                ;;
+        esac
+        exit 0
+        ;;
+    run|evaluate|list|shell)
+        if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
+            PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m analysis.runner "$CMD" "$@"
+        else
+            resolve_agent "$CMD" "$@"
+        fi
+        ;;
+    learn|enforce|info)
+        if [ ! -x "$BIN" ]; then
+            echo "Building PoViShield tracer: make" >&2
+            make -C "$SCRIPT_DIR" povishield >/dev/null
+        fi
+        exec "$BIN" "$CMD" "$@"
+        ;;
+    container)
+        if [ ! -x "$BIN" ]; then
+            echo "Building PoViShield runtime: make" >&2
+            make -C "$SCRIPT_DIR" povishield >/dev/null
+        fi
+        exec "$BIN" run "$@"
+        ;;
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    *)
+        if command -v "$CMD" >/dev/null 2>&1 || [ -x "$CMD" ]; then
+            echo "[POVISHIELD] Supervising '$CMD' under policy-gated confinement..." >&2
+            if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
+                PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m analysis.runner run -- "$CMD" "$@"
+            else
+                resolve_agent run -- "$CMD" "$@"
+            fi
+        fi
+        echo "Unknown command: $CMD" >&2
+        usage
+        exit 2
+        ;;
+esac

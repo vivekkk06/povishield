@@ -1843,15 +1843,15 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 <div>
                   <div style={{ color: "#64748b", marginBottom: 4 }}>1. Download via Terminal:</div>
                   <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#38bdf8", wordBreak: "break-all" }}>
-                    curl -sSL {typeof window !== "undefined" ? window.location.origin : ""}/download/povishield -o povishield && chmod +x povishield
-                    <button className="icon-button" onClick={() => copyText(`curl -sSL ${window.location.origin}/download/povishield -o povishield && chmod +x povishield`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                    if [ -d "povishield" ]; then cd povishield; else curl -sSL {API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}/download/povishield -o povishield && chmod +x povishield; fi
+                    <button className="icon-button" onClick={() => copyText(`if [ -d "povishield" ]; then cd povishield; else curl -sSL ${API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}/download/povishield -o povishield && chmod +x povishield; fi`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
                   </div>
                 </div>
                 <div>
                   <div style={{ color: "#64748b", marginBottom: 4 }}>2. Connect & enroll this machine:</div>
                   <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#cbd5e1", wordBreak: "break-all" }}>
-                    ./povishield connect {typeof window !== "undefined" ? window.location.origin : ""}
-                    <button className="icon-button" onClick={() => copyText(`./povishield connect ${window.location.origin}`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                    ./povishield connect {API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}
+                    <button className="icon-button" onClick={() => copyText(`./povishield connect ${API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
                   </div>
                 </div>
                 <div>
