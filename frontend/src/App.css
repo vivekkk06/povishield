@@ -1020,6 +1020,101 @@ h1 {
   text-overflow: ellipsis;
 }
 
+/* --- Enterprise Terminal Forensic & Audit Enhancements --- */
+.forensic-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid #1e293b;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+.audit-seal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.audit-seal-chip:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: #38bdf8;
+}
+
+.syscall-category-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.syscall-search-input {
+  background: #090d16;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: #f1f5f9;
+  outline: none;
+  width: 140px;
+}
+.syscall-search-input:focus {
+  border-color: #38bdf8;
+}
+
+.history-search-input {
+  width: 100%;
+  background: #050912;
+  border: 1px solid #1e293b;
+  border-radius: 5px;
+  padding: 6px 10px 6px 28px;
+  font-size: 11px;
+  color: #e2e8f0;
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.history-search-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.card-action-btn {
+  background: transparent;
+  border: 1px solid #1e293b;
+  color: #94a3b8;
+  border-radius: 4px;
+  padding: 3px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  transition: all 0.15s;
+}
+.card-action-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
 /* --- Tables & Lists --- */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
