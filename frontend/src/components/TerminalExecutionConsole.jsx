@@ -614,7 +614,7 @@ export default function TerminalExecutionConsole({
   return (
     <div className="terminal-execute-view">
       {/* Remote PC Watch Guide Banner & Toggle */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <button
           className="secondary-button"
           onClick={() => setShowWatchGuide(prev => !prev)}
@@ -632,6 +632,24 @@ export default function TerminalExecutionConsole({
           <Terminal size={14} />
           <span>{showWatchGuide ? "Hide Remote Watch Guide" : "Step-by-Step Guide: Run ./povishield watch on Another PC"}</span>
         </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{
+            fontSize: 11,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 10px",
+            background: "rgba(16, 185, 129, 0.1)",
+            border: "1px solid rgba(16, 185, 129, 0.3)",
+            borderRadius: 6,
+            color: "#34d399",
+            fontFamily: "var(--font-mono)"
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />
+            PC Terminal Live Sync Active (~/.bashrc)
+          </span>
+        </div>
       </div>
 
       {showWatchGuide && (

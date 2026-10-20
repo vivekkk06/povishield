@@ -46,6 +46,9 @@ Usage:
   povishield agent probe|pair|start|status|connect|monitor|logs
       Manage local Linux endpoint security agent and pairing
 
+  povishield hook [install|status]
+      Install or check shell integration hook to audit all local PC terminal commands
+
 Low-level commands:
   povishield learn   [-o profile.json] [--events events.jsonl] -- CMD...
       Trace CMD using ptrace and generate observed syscall profile
@@ -125,6 +128,35 @@ case "$CMD" in
         ;;
     agent)
         resolve_agent "$@"
+        ;;
+    hook)
+        HOOK_FILE="${SCRIPT_DIR}/scripts/povishield_shell_hook.sh"
+        ACTION="${1:-status}"
+        case "$ACTION" in
+            install)
+                if ! grep -q "povishield_shell_hook.sh" "${HOME}/.bashrc" 2>/dev/null; then
+                    echo "" >> "${HOME}/.bashrc"
+                    echo "# PoViShield Terminal Security & Execution Audit Integration" >> "${HOME}/.bashrc"
+                    echo "if [ -f \"${HOOK_FILE}\" ]; then" >> "${HOME}/.bashrc"
+                    echo "    source \"${HOOK_FILE}\"" >> "${HOME}/.bashrc"
+                    echo "fi" >> "${HOME}/.bashrc"
+                    echo "[OK] PoViShield shell hook installed to ~/.bashrc"
+                else
+                    echo "[OK] PoViShield shell hook is already installed in ~/.bashrc"
+                fi
+                ;;
+            status)
+                if grep -q "povishield_shell_hook.sh" "${HOME}/.bashrc" 2>/dev/null; then
+                    echo "[ACTIVE] PoViShield shell hook is enabled in ~/.bashrc"
+                else
+                    echo "[INACTIVE] Hook not found in ~/.bashrc. Run: ./povishield hook install"
+                fi
+                ;;
+            *)
+                echo "Usage: ./povishield hook [install|status]"
+                ;;
+        esac
+        exit 0
         ;;
     run|evaluate|list|shell)
         if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
