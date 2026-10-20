@@ -125,7 +125,23 @@ class TrialRecord:
 class EvidenceLedger:
     def __init__(self, target: str, ledger_path: Optional[Path] = None):
         self.target = target
-        self.ledger_path = ledger_path or (ROOT / "results" / "ledgers" / f"{target}.jsonl")
+        if ledger_path:
+            p = Path(ledger_path)
+            if not p.is_file():
+                if (ROOT / p).is_file():
+                    p = ROOT / p
+                elif (ROOT / "deploy_data" / "ledgers" / p.name).is_file():
+                    p = ROOT / "deploy_data" / "ledgers" / p.name
+                elif (ROOT / "results" / "ledgers" / p.name).is_file():
+                    p = ROOT / "results" / "ledgers" / p.name
+            self.ledger_path = p
+        else:
+            default_p = ROOT / "results" / "ledgers" / f"{target}.jsonl"
+            deploy_p = ROOT / "deploy_data" / "ledgers" / f"{target}.jsonl"
+            if not default_p.exists() and deploy_p.exists():
+                self.ledger_path = deploy_p
+            else:
+                self.ledger_path = default_p
         self.trials: List[TrialRecord] = []
         if self.ledger_path.exists():
             self._load()
