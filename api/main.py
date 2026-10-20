@@ -15,6 +15,7 @@ import socket
 
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.responses import PlainTextResponse, Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 import api.database as db
@@ -449,7 +450,11 @@ def health():
 
 
 @app.get("/")
-def root():
+def root(request: Request):
+    accept = request.headers.get("accept", "")
+    dist_index = ROOT / "frontend" / "dist" / "index.html"
+    if ("text/html" in accept or "application/json" not in accept) and dist_index.is_file():
+        return FileResponse(str(dist_index))
     return {
         "status": "ok",
         "service": "PoViShield Security Research API",
@@ -2406,3 +2411,24 @@ def agent_overview_endpoint(request: Request, device_id: Optional[str] = None):
         "events": events,
         "pending_approvals": pending
     }
+
+
+# --- Static Frontend Console Serving & SPA Fallback ---
+_DIST_DIR = ROOT / "frontend" / "dist"
+if _DIST_DIR.is_dir():
+    if (_DIST_DIR / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_DIST_DIR / "assets")), name="assets")
+    if (_DIST_DIR / "download").is_dir():
+        app.mount("/download", StaticFiles(directory=str(_DIST_DIR / "download")), name="download")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend_spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=404, detail="API route not found")
+        target_file = _DIST_DIR / full_path
+        if target_file.is_file():
+            return FileResponse(str(target_file))
+        index_file = _DIST_DIR / "index.html"
+        if index_file.is_file():
+            return FileResponse(str(index_file))
+        raise HTTPException(status_code=404, detail="Frontend console not built")

@@ -7,7 +7,24 @@ import {
 } from "lucide-react";
 import RemoteWatchGuidePanel from "./RemoteWatchGuidePanel.jsx";
 
+function getEffectiveBackendUrl(api) {
+  if (api && (api.startsWith("http://") || api.startsWith("https://"))) {
+    return api.replace(/\/api$/, "").replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const custom = localStorage.getItem("povishield_custom_api_url");
+    if (custom && (custom.startsWith("http://") || custom.startsWith("https://"))) {
+      return custom.replace(/\/api$/, "").replace(/\/+$/, "");
+    }
+    if (window.location.hostname && !window.location.hostname.includes("vercel")) {
+      return window.location.origin.replace(/\/+$/, "");
+    }
+  }
+  return "http://localhost:8000";
+}
+
 export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDeviceId, refreshTick }) {
+  const effectiveBackend = getEffectiveBackendUrl(API);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1697,6 +1714,15 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                   </div>
                 )}
 
+                {typeof window !== "undefined" && window.location.hostname.includes("vercel") && !localStorage.getItem("povishield_custom_api_url") && (
+                  <div style={{
+                    background: "rgba(245, 158, 11, 0.12)", border: "1px solid rgba(245, 158, 11, 0.35)",
+                    borderRadius: 6, padding: "8px 12px", marginBottom: 14, fontSize: 11, color: "#fde68a"
+                  }}>
+                    <strong>Notice:</strong> This web dashboard is running on Vercel. Connect your machine to your local backend at <strong style={{ color: "#38bdf8" }}>http://localhost:8000</strong>, or open <a href="http://localhost:8000" target="_blank" rel="noopener noreferrer" style={{ color: "#38bdf8", fontWeight: 700 }}>http://localhost:8000</a> directly.
+                  </div>
+                )}
+
                 <div style={{ marginBottom: 18 }}>
                   <span style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 600, display: "block", marginBottom: 6 }}>
                     Option A: Run this on target Linux machines (One-liner install):
@@ -1706,11 +1732,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                     borderRadius: 6, padding: "10px 42px 10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "#34d399"
                   }}>
                     <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                      {pairingData.install_command}
+                      {`curl -sSL ${(pairingData.server_url && !pairingData.server_url.includes("vercel")) ? pairingData.server_url : effectiveBackend}/install.sh | bash -s -- --code ${pairingData.code} --server ${(pairingData.server_url && !pairingData.server_url.includes("vercel")) ? pairingData.server_url : effectiveBackend} --start`}
                     </pre>
                     <button
                       className="icon-button"
-                      onClick={() => copyText(pairingData.install_command)}
+                      onClick={() => copyText(`curl -sSL ${(pairingData.server_url && !pairingData.server_url.includes("vercel")) ? pairingData.server_url : effectiveBackend}/install.sh | bash -s -- --code ${pairingData.code} --server ${(pairingData.server_url && !pairingData.server_url.includes("vercel")) ? pairingData.server_url : effectiveBackend} --start`)}
                       style={{ position: "absolute", right: 8, top: 8 }}
                       title="Copy install command"
                     >
@@ -1728,11 +1754,11 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                     borderRadius: 6, padding: "10px 42px 10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "#38bdf8"
                   }}>
                     <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                      {`./povishield connect ${pairingData.server_url} --code ${pairingData.code}`}
+                      {`./povishield connect ${(pairingData.server_url && !pairingData.server_url.includes("vercel")) ? pairingData.server_url : effectiveBackend} --code ${pairingData.code}`}
                     </pre>
                     <button
                       className="icon-button"
-                      onClick={() => copyText(`./povishield connect ${pairingData.server_url} --code ${pairingData.code}`)}
+                      onClick={() => copyText(`./povishield connect ${(pairingData.server_url && !pairingData.server_url.includes("vercel")) ? pairingData.server_url : effectiveBackend} --code ${pairingData.code}`)}
                       style={{ position: "absolute", right: 8, top: 8 }}
                       title="Copy CLI command"
                     >
@@ -1843,15 +1869,15 @@ export default function FleetDeviceConsole({ API, activeDeviceId, setActiveDevic
                 <div>
                   <div style={{ color: "#64748b", marginBottom: 4 }}>1. Download via Terminal:</div>
                   <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#38bdf8", wordBreak: "break-all" }}>
-                    if [ -d "povishield" ]; then cd povishield; else curl -sSL {API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}/download/povishield -o povishield && chmod +x povishield; fi
-                    <button className="icon-button" onClick={() => copyText(`if [ -d "povishield" ]; then cd povishield; else curl -sSL ${API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}/download/povishield -o povishield && chmod +x povishield; fi`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                    if [ -d "povishield" ]; then cd povishield; else curl -sSL {effectiveBackend}/download/povishield -o povishield && chmod +x povishield; fi
+                    <button className="icon-button" onClick={() => copyText(`if [ -d "povishield" ]; then cd povishield; else curl -sSL ${effectiveBackend}/download/povishield -o povishield && chmod +x povishield; fi`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
                   </div>
                 </div>
                 <div>
                   <div style={{ color: "#64748b", marginBottom: 4 }}>2. Connect & enroll this machine:</div>
                   <div style={{ position: "relative", background: "#090d16", padding: "8px 36px 8px 10px", borderRadius: 6, color: "#cbd5e1", wordBreak: "break-all" }}>
-                    ./povishield connect {API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}
-                    <button className="icon-button" onClick={() => copyText(`./povishield connect ${API && API.startsWith("http") ? API.replace(/\/api$/, "") : (typeof window !== "undefined" ? window.location.origin : "")}`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
+                    ./povishield connect {effectiveBackend}
+                    <button className="icon-button" onClick={() => copyText(`./povishield connect ${effectiveBackend}`)} style={{ position: "absolute", right: 6, top: 6 }}><Copy size={13} /></button>
                   </div>
                 </div>
                 <div>
