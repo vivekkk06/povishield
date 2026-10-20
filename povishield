@@ -2,7 +2,13 @@
 # PoViShield - Intelligent Linux Application Sandboxing & Security Research Platform
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 BIN="${SCRIPT_DIR}/build/povishield"
 
 usage() {
@@ -122,7 +128,7 @@ case "$CMD" in
         ;;
     run|evaluate|list|shell)
         if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
-            exec python3 -m analysis.runner "$CMD" "$@"
+            PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m analysis.runner "$CMD" "$@"
         else
             resolve_agent "$CMD" "$@"
         fi
@@ -149,7 +155,7 @@ case "$CMD" in
         if command -v "$CMD" >/dev/null 2>&1 || [ -x "$CMD" ]; then
             echo "[POVISHIELD] Supervising '$CMD' under policy-gated confinement..." >&2
             if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
-                exec python3 -m analysis.runner run -- "$CMD" "$@"
+                PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m analysis.runner run -- "$CMD" "$@"
             else
                 resolve_agent run -- "$CMD" "$@"
             fi

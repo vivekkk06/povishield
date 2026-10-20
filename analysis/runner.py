@@ -218,8 +218,16 @@ def synthesize_minimal_profile(target_name: str, dest_path: Path) -> List[str]:
         "openat", "pread64", "prlimit64", "read", "rseq", "set_robust_list",
         "set_tid_address", "write"
     ]
-    if target_name in ("echo", "true", "false", "pwd", "date", "whoami", "id"):
+    if target_name in ("echo", "true", "false"):
         pass
+    elif target_name in ("pwd",):
+        minimal_syscalls.extend(["getcwd"])
+    elif target_name in ("whoami",):
+        minimal_syscalls.extend(["geteuid", "lseek"])
+    elif target_name in ("id",):
+        minimal_syscalls.extend(["geteuid", "getuid", "getgid", "getegid", "getgroups", "lseek"])
+    elif target_name in ("date",):
+        minimal_syscalls.extend(["clock_gettime", "lseek"])
     elif target_name in ("ls", "cat", "stat"):
         minimal_syscalls.extend(["getdents64", "ioctl", "lseek", "statx", "fstat"])
     elif target_name in ("grep", "wc", "head", "tail"):
