@@ -31,10 +31,10 @@ __povishield_record_cmd() {
 
     # Filter internal shell builtins, navigation, and prompt hooks
     case "$raw_cmd" in
-        *"__povi"*|*"PROMPT_COMMAND"*|"cd "*|"cd"|"pwd"|"clear"|"history"*|"exit"|"logout"|"true"|"false")
+        *"__povi"*|*"PROMPT_COMMAND"*|"cd "*|"cd"|"pwd"|"clear"|"history"*|"exit"|"logout"|"true"|"false"|"source "*|"source"|". "*)
             return 0
             ;;
-        *"povishield"*|*"pv "*)
+        *"povishield "*|*"pv "*)
             # Handled directly by povishield CLI wrapper
             return 0
             ;;

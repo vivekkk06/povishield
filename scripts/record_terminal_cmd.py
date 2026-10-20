@@ -27,7 +27,8 @@ EVENTS_FILE = REPO_ROOT / "results" / "syscall-events.jsonl"
 
 IGNORED_EXECUTABLES = {
     "__povi_pre", "__povi_post", "__povishield_debug_trap", "__povishield_prompt_hook",
-    "cd", "pwd", "clear", "history", "exit", "logout", "true", "false", "test", "["
+    "cd", "pwd", "clear", "history", "exit", "logout", "true", "false", "test", "[",
+    "source", "."
 }
 
 
