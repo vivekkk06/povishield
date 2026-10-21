@@ -178,6 +178,25 @@ function parseCommandArgs(cmdStr) {
   });
 }
 
+function resolveWebSocketUrl(apiBase) {
+  if (typeof window === "undefined") return "ws://127.0.0.1:8000/api/ws/events";
+  const custom = localStorage.getItem("povishield_custom_api_url");
+  if (custom && custom.trim() && custom.trim() !== "/api") {
+    let u = custom.trim().replace(/\/+$/, "").replace(/\/api$/, "");
+    return u.replace(/^http/, "ws") + "/api/ws/events";
+  }
+  const hostname = window.location.hostname;
+  if (!hostname || hostname === "localhost" || hostname === "127.0.0.1") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${hostname || "127.0.0.1"}:8000/api/ws/events`;
+  }
+  if (hostname.includes("vercel.app") || hostname.includes("onrender.com")) {
+    return "wss://povishield.onrender.com/api/ws/events";
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/api/ws/events`;
+}
+
 export default function TerminalExecutionConsole({
   API,
   health,
@@ -190,6 +209,8 @@ export default function TerminalExecutionConsole({
   onDenyApproval,
   onRefreshApprovals
 }) {
+  const [streamConnected, setStreamConnected] = useState(false);
+  const [streamType, setStreamType] = useState("WS");
   const [commandInput, setCommandInput] = useState("/usr/bin/echo 'Hello from PoViShield'");
   const [mode, setMode] = useState("enforce");
   const [targetType, setTargetType] = useState(() => {
@@ -315,52 +336,99 @@ export default function TerminalExecutionConsole({
     setSelectedDeviceIds(new Set());
   };
 
-  // Load past execution history
+  // Load past execution history and live events
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`${API}/executions?limit=50`);
-      if (res.ok) {
-        const data = await res.json();
-        const execs = data.executions || [];
-        setHistory(execs);
+      const [resExec, resLive] = await Promise.allSettled([
+        fetch(`${API}/executions?limit=50`),
+        fetch(`${API}/events/live?limit=50`)
+      ]);
 
-        if (execs.length > 0) {
-          const newest = execs[0];
-          if (!currentSession) {
+      let combined = [];
+      if (resExec.status === "fulfilled" && resExec.value.ok) {
+        const data = await resExec.value.json();
+        combined.push(...(data.executions || []));
+      }
+      if (resLive.status === "fulfilled" && resLive.value.ok) {
+        const liveData = await resLive.value.json();
+        for (const ev of (liveData.events || [])) {
+          combined.push({
+            id: ev.id,
+            command: ev.command || [ev.target],
+            mode: ev.policy_decision?.mode || "enforce",
+            status: ev.exit_code === 0 ? "completed" : (ev.exit_code === 159 || ev.exit_code === -31 ? "killed_by_seccomp" : "failed"),
+            exit_code: ev.exit_code ?? 0,
+            duration_ms: ev.duration_ms ?? 0,
+            stdout: ev.stdout || "",
+            stderr: ev.stderr || "",
+            host_target: ev.device_name ? `${ev.device_name} (Local Terminal)` : (ev.hostname ? `Terminal (${ev.hostname})` : "Local Terminal"),
+            is_terminal_cli: true,
+            is_remote: false,
+            started_at: ev.timestamp || ev.created_at,
+            syscalls: ev.policy_decision?.allowed_syscalls || [],
+            decision: ev.policy_decision || {
+              action: ev.exit_code === 0 ? "PERMIT_WITH_RESTRICTIONS" : "FAILED",
+              allowed: ev.exit_code === 0,
+              enforcement_mechanism: "Linux Seccomp-BPF",
+              allowed_syscalls: []
+            },
+            timeline: [
+              { timestamp: ev.timestamp || ev.created_at, phase: "TERMINAL_EXECUTION", detail: `Observed local terminal execution from PID ${ev.pid || "local"} (PPID ${ev.ppid || "shell"})` },
+              { timestamp: ev.timestamp || ev.created_at, phase: "POLICY_ENFORCED", detail: `Linux Seccomp-BPF Policy: ${ev.policy_decision?.action || "PERMITTED"}` },
+              { timestamp: ev.timestamp || ev.created_at, phase: ev.exit_code === 0 ? "PROCESS_EXITED" : "PROCESS_FAILED", detail: `Process exited with code ${ev.exit_code ?? 0}` }
+            ]
+          });
+        }
+      }
+
+      // Deduplicate by ID and sort newest first
+      const seen = new Set();
+      const execs = [];
+      combined.sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0));
+      for (const item of combined) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          execs.push(item);
+        }
+      }
+
+      setHistory(execs);
+
+      if (execs.length > 0) {
+        const newest = execs[0];
+        if (!currentSession) {
+          setCurrentSession(newest);
+          lastSeenLatestId.current = newest.id;
+        } else {
+          const isNewRun = lastSeenLatestId.current && newest.id !== lastSeenLatestId.current;
+          lastSeenLatestId.current = newest.id;
+
+          if (isNewRun && autoFollow) {
             setCurrentSession(newest);
-            lastSeenLatestId.current = newest.id;
           } else {
-            const isNewRun = lastSeenLatestId.current && newest.id !== lastSeenLatestId.current;
-            lastSeenLatestId.current = newest.id;
-
-            if (isNewRun && autoFollow) {
-              setCurrentSession(newest);
-            } else {
-              // Synchronize currentSession in-place if its properties updated on backend
-              setCurrentSession(prev => {
-                if (!prev) return newest;
-                const match = execs.find(e =>
-                  e.id === prev.id ||
-                  (e.task_id && e.task_id === prev.id) ||
-                  (prev.task_id && (e.id === prev.task_id || e.task_id === prev.task_id))
-                );
-                if (match) {
-                  if (
-                    match.status !== prev.status ||
-                    match.exit_code !== prev.exit_code ||
-                    match.duration_ms !== prev.duration_ms ||
-                    match.stdout !== prev.stdout ||
-                    match.stderr !== prev.stderr ||
-                    (match.syscalls?.length !== prev.syscalls?.length) ||
-                    (match.timeline?.length !== prev.timeline?.length)
-                  ) {
-                    return match;
-                  }
+            setCurrentSession(prev => {
+              if (!prev) return newest;
+              const match = execs.find(e =>
+                e.id === prev.id ||
+                (e.task_id && e.task_id === prev.id) ||
+                (prev.task_id && (e.id === prev.task_id || e.task_id === prev.task_id))
+              );
+              if (match) {
+                if (
+                  match.status !== prev.status ||
+                  match.exit_code !== prev.exit_code ||
+                  match.duration_ms !== prev.duration_ms ||
+                  match.stdout !== prev.stdout ||
+                  match.stderr !== prev.stderr ||
+                  (match.syscalls?.length !== prev.syscalls?.length) ||
+                  (match.timeline?.length !== prev.timeline?.length)
+                ) {
+                  return match;
                 }
-                return prev;
-              });
-            }
+              }
+              return prev;
+            });
           }
         }
       }
@@ -371,11 +439,175 @@ export default function TerminalExecutionConsole({
     }
   };
 
+  // Real-time WebSocket and SSE subscription for live events & terminal runs
+  useEffect(() => {
+    let ws = null;
+    let sse = null;
+    let reconnectTimeout = null;
+    let isCleanedUp = false;
+
+    const connectWebSocket = () => {
+      try {
+        const wsUrl = resolveWebSocketUrl(API);
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          if (isCleanedUp) return;
+          setStreamConnected(true);
+          setStreamType("WS");
+        };
+
+        ws.onmessage = (event) => {
+          if (isCleanedUp) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "event" || data.id || data.event_type) {
+              const ev = data.payload || data;
+              if (ev.command || ev.target) {
+                const sessionObj = {
+                  id: ev.id || `evt-${Date.now()}`,
+                  command: ev.command || [ev.target],
+                  mode: ev.policy_decision?.mode || "enforce",
+                  status: ev.exit_code === 0 ? "completed" : (ev.exit_code === 159 || ev.exit_code === -31 ? "killed_by_seccomp" : "failed"),
+                  exit_code: ev.exit_code ?? 0,
+                  duration_ms: ev.duration_ms ?? 0,
+                  stdout: ev.stdout || "",
+                  stderr: ev.stderr || "",
+                  host_target: ev.device_name ? `${ev.device_name} (Local Terminal)` : (ev.hostname ? `Terminal (${ev.hostname})` : "Local Terminal"),
+                  is_terminal_cli: true,
+                  is_remote: false,
+                  started_at: ev.timestamp || new Date().toISOString(),
+                  syscalls: ev.policy_decision?.allowed_syscalls || [],
+                  decision: ev.policy_decision || {
+                    action: ev.exit_code === 0 ? "PERMIT_WITH_RESTRICTIONS" : "FAILED",
+                    allowed: ev.exit_code === 0,
+                    enforcement_mechanism: "Linux Seccomp-BPF",
+                    allowed_syscalls: []
+                  },
+                  timeline: [
+                    { timestamp: ev.timestamp || new Date().toISOString(), phase: "TERMINAL_EXECUTION", detail: `Observed terminal command from PID ${ev.pid || "local"} (PPID ${ev.ppid || "shell"})` },
+                    { timestamp: ev.timestamp || new Date().toISOString(), phase: "POLICY_VERIFIED", detail: `Linux Seccomp-BPF: ${ev.policy_decision?.action || "PROCESSED"}` },
+                    { timestamp: ev.timestamp || new Date().toISOString(), phase: ev.exit_code === 0 ? "PROCESS_EXITED" : "PROCESS_FAILED", detail: `Process completed with exit code ${ev.exit_code ?? 0}` }
+                  ]
+                };
+                setHistory(prev => [sessionObj, ...prev.filter(x => x.id !== sessionObj.id)]);
+                if (autoFollow) {
+                  setCurrentSession(sessionObj);
+                }
+              }
+            } else if (data.type === "command_update" || data.command) {
+              const req = data;
+              setHistory(prev => prev.map(s => {
+                if (s.id === req.id) {
+                  return {
+                    ...s,
+                    status: req.status === "approved" ? "running" : req.status,
+                    stdout: req.result?.stdout || s.stdout,
+                    stderr: req.result?.stderr || s.stderr,
+                    exit_code: req.result?.exit_code ?? s.exit_code,
+                    duration_ms: req.result?.duration_ms ?? s.duration_ms,
+                    syscalls: req.result?.syscalls || s.syscalls
+                  };
+                }
+                return s;
+              }));
+              setCurrentSession(prev => {
+                if (prev && prev.id === req.id) {
+                  return {
+                    ...prev,
+                    status: req.status === "approved" ? "running" : req.status,
+                    stdout: req.result?.stdout || prev.stdout,
+                    stderr: req.result?.stderr || prev.stderr,
+                    exit_code: req.result?.exit_code ?? prev.exit_code,
+                    duration_ms: req.result?.duration_ms ?? prev.duration_ms,
+                    syscalls: req.result?.syscalls || prev.syscalls
+                  };
+                }
+                return prev;
+              });
+            }
+          } catch (e) {}
+        };
+
+        ws.onerror = () => {
+          if (isCleanedUp) return;
+          connectSSE();
+        };
+
+        ws.onclose = () => {
+          if (isCleanedUp) return;
+          setStreamConnected(false);
+          reconnectTimeout = setTimeout(connectWebSocket, 4000);
+        };
+      } catch (err) {
+        connectSSE();
+      }
+    };
+
+    const connectSSE = () => {
+      if (typeof window === "undefined" || !window.EventSource) return;
+      try {
+        if (sse) sse.close();
+        const sseUrl = `${API}/events/stream`;
+        sse = new EventSource(sseUrl);
+        sse.onopen = () => {
+          if (isCleanedUp) return;
+          setStreamConnected(true);
+          setStreamType("SSE");
+        };
+        sse.onmessage = (event) => {
+          if (isCleanedUp) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.command || data.target) {
+              const sessionObj = {
+                id: data.id || `evt-${Date.now()}`,
+                command: data.command || [data.target],
+                mode: data.policy_decision?.mode || "enforce",
+                status: data.exit_code === 0 ? "completed" : "failed",
+                exit_code: data.exit_code ?? 0,
+                duration_ms: data.duration_ms ?? 0,
+                stdout: data.stdout || "",
+                stderr: data.stderr || "",
+                host_target: data.device_name ? `${data.device_name} (Local Terminal)` : "Local Terminal",
+                is_terminal_cli: true,
+                is_remote: false,
+                started_at: data.timestamp || new Date().toISOString(),
+                syscalls: data.policy_decision?.allowed_syscalls || [],
+                decision: data.policy_decision || {},
+                timeline: [
+                  { timestamp: data.timestamp || new Date().toISOString(), phase: "TERMINAL_EXECUTION", detail: `Observed terminal command` }
+                ]
+              };
+              setHistory(prev => [sessionObj, ...prev.filter(x => x.id !== sessionObj.id)]);
+              if (autoFollow) {
+                setCurrentSession(sessionObj);
+              }
+            }
+          } catch (e) {}
+        };
+        sse.onerror = () => {
+          if (isCleanedUp) return;
+          setStreamConnected(false);
+        };
+      } catch (e) {}
+    };
+
+    connectWebSocket();
+
+    return () => {
+      isCleanedUp = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+      if (sse) sse.close();
+    };
+  }, [API, autoFollow]);
+
   useEffect(() => {
     loadHistory();
     const interval = setInterval(() => {
       loadHistory();
-    }, 1500);
+    }, 2000);
     return () => clearInterval(interval);
   }, [autoFollow]);
 
@@ -1511,8 +1743,32 @@ export default function TerminalExecutionConsole({
         <div className="terminal-timeline-panel">
           <div className="panel-heading" style={{ marginBottom: 10 }}>
             <div>
-              <h3>Execution Audit Sessions</h3>
-              <p>Auditable terminal runs ({filteredHistory.length})</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h3 style={{ margin: 0 }}>Execution Audit Sessions</h3>
+                <span style={{
+                  fontSize: 10,
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: streamConnected ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                  color: streamConnected ? "#34d399" : "#fbbf24",
+                  border: streamConnected ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(245, 158, 11, 0.3)",
+                  fontFamily: "var(--font-mono)",
+                  fontWeight: 600
+                }}>
+                  <span style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: streamConnected ? "#10b981" : "#f59e0b",
+                    boxShadow: streamConnected ? "0 0 6px #10b981" : "none"
+                  }} />
+                  {streamConnected ? `LIVE (${streamType})` : "STREAM SYNC"}
+                </span>
+              </div>
+              <p style={{ marginTop: 2 }}>Auditable terminal runs ({filteredHistory.length})</p>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <button

@@ -122,6 +122,55 @@ def init_db() -> None:
                 """)
 
                 conn.execute("""
+                    CREATE TABLE IF NOT EXISTS live_events (
+                        id TEXT PRIMARY KEY,
+                        device_id TEXT NOT NULL,
+                        device_name TEXT NOT NULL,
+                        event_type TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        target TEXT NOT NULL,
+                        command_json TEXT NOT NULL,
+                        pid INTEGER,
+                        ppid INTEGER,
+                        exit_code INTEGER,
+                        duration_ms REAL,
+                        stdout TEXT,
+                        stderr TEXT,
+                        policy_decision_json TEXT,
+                        risk_classification TEXT,
+                        delivery_status TEXT NOT NULL DEFAULT 'delivered',
+                        is_live INTEGER NOT NULL DEFAULT 1,
+                        payload_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS command_requests (
+                        id TEXT PRIMARY KEY,
+                        device_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        command_json TEXT NOT NULL,
+                        working_dir TEXT NOT NULL DEFAULT '',
+                        requested_privileges TEXT NOT NULL DEFAULT 'user',
+                        reason TEXT NOT NULL DEFAULT '',
+                        mode TEXT NOT NULL DEFAULT 'enforce',
+                        local_consent_required INTEGER NOT NULL DEFAULT 1,
+                        web_approval_required INTEGER NOT NULL DEFAULT 0,
+                        local_consent_status TEXT NOT NULL DEFAULT 'pending',
+                        web_approval_status TEXT NOT NULL DEFAULT 'approved',
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        created_at TEXT NOT NULL,
+                        expires_at TEXT NOT NULL,
+                        completed_at TEXT,
+                        result_json TEXT,
+                        FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    );
+                """)
+
+                conn.execute("""
                     CREATE TABLE IF NOT EXISTS pairing_rate_limits (
                         ip_address TEXT NOT NULL,
                         attempt_time REAL NOT NULL
@@ -134,6 +183,11 @@ def init_db() -> None:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_device ON device_tasks(device_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON device_tasks(device_id, status);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_events_device ON device_events(device_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_live_events_device ON live_events(device_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_live_events_timestamp ON live_events(timestamp);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_live_events_type ON live_events(event_type);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_cmd_req_device ON command_requests(device_id, status);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_cmd_req_status ON command_requests(status);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_rate_ip_time ON pairing_rate_limits(ip_address, attempt_time);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_pairing_uses_code ON pairing_code_uses(code);")
 
@@ -630,3 +684,349 @@ def check_pairing_rate_limit(ip_address: str, max_attempts: int = 6, window_seco
                 return True
         finally:
             conn.close()
+
+
+# --- Live Telemetry & Event Persistence ---
+
+def record_live_event(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Persists a live telemetry event from a local terminal hook, agent, or tracer."""
+    import uuid
+    event_id = str(event.get("id") or f"evt_{uuid.uuid4().hex[:12]}")
+    now = datetime.now(timezone.utc).isoformat()
+    ts = str(event.get("timestamp") or now)
+    device_id = str(event.get("device_id") or "laptop_terminal")
+    device_name = str(event.get("device_name") or event.get("hostname") or "Local Terminal")
+    event_type = str(event.get("event_type") or "local_shell_cmd")
+    source = str(event.get("source") or "terminal_hook")
+    target = str(event.get("target") or "")
+    command = event.get("command") or []
+    if isinstance(command, str):
+        command = [command]
+    if not target and command:
+        target = Path(str(command[0])).name
+
+    pid = event.get("pid")
+    ppid = event.get("ppid")
+    exit_code = event.get("exit_code")
+    duration_ms = float(event.get("duration_ms") or 0.0)
+    stdout = str(event.get("stdout") or "")
+    stderr = str(event.get("stderr") or "")
+    policy_dec = event.get("policy_decision") or event.get("decision") or {}
+    risk_class = str(event.get("risk_classification") or policy_dec.get("action") or "UNKNOWN")
+    delivery_status = str(event.get("delivery_status") or "delivered")
+    is_live = 1 if event.get("is_live", True) else 0
+
+    record = {
+        "id": event_id,
+        "device_id": device_id,
+        "device_name": device_name,
+        "event_type": event_type,
+        "source": source,
+        "timestamp": ts,
+        "target": target,
+        "command": command,
+        "pid": pid,
+        "ppid": ppid,
+        "exit_code": exit_code,
+        "duration_ms": duration_ms,
+        "stdout": stdout,
+        "stderr": stderr,
+        "policy_decision": policy_dec,
+        "risk_classification": risk_class,
+        "delivery_status": delivery_status,
+        "is_live": bool(is_live),
+        "created_at": now,
+    }
+
+    with _LOCK:
+        conn = get_connection()
+        try:
+            with conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO live_events (
+                        id, device_id, device_name, event_type, source, timestamp,
+                        target, command_json, pid, ppid, exit_code, duration_ms,
+                        stdout, stderr, policy_decision_json, risk_classification,
+                        delivery_status, is_live, payload_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    event_id, device_id, device_name, event_type, source, ts,
+                    target, json.dumps(command), pid, ppid, exit_code, duration_ms,
+                    stdout, stderr, json.dumps(policy_dec), risk_class,
+                    delivery_status, is_live, json.dumps(event), now
+                ))
+            return record
+        finally:
+            conn.close()
+
+
+def list_live_events(
+    device_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+    limit: int = 50,
+    since_id: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Retrieves live telemetry events in reverse chronological order."""
+    conn = get_connection()
+    try:
+        query = "SELECT * FROM live_events WHERE 1=1"
+        params: List[Any] = []
+        if device_id and device_id != "all":
+            query += " AND (device_id = ? OR device_name = ?)"
+            params.extend([device_id, device_id])
+        if event_type and event_type != "all":
+            query += " AND event_type = ?"
+            params.append(event_type)
+        if since_id:
+            query += " AND id != ?"
+            params.append(since_id)
+
+        query += " ORDER BY timestamp DESC, rowid DESC LIMIT ?"
+        params.append(max(1, min(limit, 200)))
+
+        rows = conn.execute(query, params).fetchall()
+        results = []
+        for r in rows:
+            item = dict(r)
+            item["command"] = json.loads(item.pop("command_json", "[]"))
+            item["policy_decision"] = json.loads(item.pop("policy_decision_json", "{}"))
+            item["payload"] = json.loads(item.pop("payload_json", "{}"))
+            item["is_live"] = bool(item.get("is_live", 1))
+            results.append(item)
+        return results
+    finally:
+        conn.close()
+
+
+def get_live_event(event_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single live event by its unique ID."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM live_events WHERE id = ?", (event_id,)).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["command"] = json.loads(item.pop("command_json", "[]"))
+        item["policy_decision"] = json.loads(item.pop("policy_decision_json", "{}"))
+        item["payload"] = json.loads(item.pop("payload_json", "{}"))
+        item["is_live"] = bool(item.get("is_live", 1))
+        return item
+    finally:
+        conn.close()
+
+
+# --- Consent-Gated Command Requests ---
+
+def create_command_request(
+    device_id: str,
+    command: List[str],
+    user_id: str = "usr_operator",
+    working_dir: str = "",
+    requested_privileges: str = "user",
+    reason: str = "",
+    mode: str = "enforce",
+    local_consent_required: bool = True,
+    web_approval_required: bool = False,
+    expiry_seconds: int = 120
+) -> Dict[str, Any]:
+    """Creates a new structured command request requiring explicit local/web consent."""
+    import uuid
+    req_id = f"cmd_req_{uuid.uuid4().hex[:12]}"
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(seconds=expiry_seconds)).isoformat()
+
+    web_status = "pending" if web_approval_required else "approved"
+    local_status = "pending" if local_consent_required else "approved"
+    overall_status = "pending"
+
+    record = {
+        "id": req_id,
+        "device_id": device_id,
+        "user_id": user_id,
+        "command": command,
+        "working_dir": working_dir,
+        "requested_privileges": requested_privileges,
+        "reason": reason,
+        "mode": mode,
+        "local_consent_required": local_consent_required,
+        "web_approval_required": web_approval_required,
+        "local_consent_status": local_status,
+        "web_approval_status": web_status,
+        "status": overall_status,
+        "created_at": now,
+        "expires_at": expires_at,
+        "completed_at": None,
+        "result": None,
+    }
+
+    with _LOCK:
+        conn = get_connection()
+        try:
+            with conn:
+                conn.execute("""
+                    INSERT INTO command_requests (
+                        id, device_id, user_id, command_json, working_dir,
+                        requested_privileges, reason, mode, local_consent_required,
+                        web_approval_required, local_consent_status, web_approval_status,
+                        status, created_at, expires_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    req_id, device_id, user_id, json.dumps(command), working_dir,
+                    requested_privileges, reason, mode,
+                    1 if local_consent_required else 0,
+                    1 if web_approval_required else 0,
+                    local_status, web_status, overall_status, now, expires_at
+                ))
+            return record
+        finally:
+            conn.close()
+
+
+def get_command_request(request_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves command request details and checks for expiry."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM command_requests WHERE id = ?", (request_id,)).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["command"] = json.loads(item.pop("command_json", "[]"))
+        item["result"] = json.loads(item.pop("result_json", "null")) if item.get("result_json") else None
+        item["local_consent_required"] = bool(item.get("local_consent_required", 1))
+        item["web_approval_required"] = bool(item.get("web_approval_required", 0))
+
+        # Check if expired
+        if item["status"] in ("pending", "approved") and item["expires_at"]:
+            now = datetime.now(timezone.utc).isoformat()
+            if now > item["expires_at"]:
+                with _LOCK:
+                    with conn:
+                        conn.execute("UPDATE command_requests SET status = 'expired' WHERE id = ?", (request_id,))
+                item["status"] = "expired"
+        return item
+    finally:
+        conn.close()
+
+
+def update_command_request_local_consent(
+    request_id: str,
+    consent: str,  # 'approved' or 'denied'
+    local_user: str = "local_operator"
+) -> Optional[Dict[str, Any]]:
+    """Records local Linux operator consent decision."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _LOCK:
+        conn = get_connection()
+        try:
+            with conn:
+                req = conn.execute("SELECT * FROM command_requests WHERE id = ?", (request_id,)).fetchone()
+                if not req:
+                    return None
+                if req["status"] in ("completed", "failed", "denied", "expired"):
+                    return None
+                if now > req["expires_at"]:
+                    conn.execute("UPDATE command_requests SET status = 'expired' WHERE id = ?", (request_id,))
+                    return None
+
+                new_local_status = "approved" if consent.lower() in ("approved", "yes", "grant") else "denied"
+                if new_local_status == "denied":
+                    new_status = "denied"
+                else:
+                    new_status = "approved" if req["web_approval_status"] == "approved" else "pending"
+
+                conn.execute("""
+                    UPDATE command_requests
+                    SET local_consent_status = ?, status = ?
+                    WHERE id = ?
+                """, (new_local_status, new_status, request_id))
+            return get_command_request(request_id)
+        finally:
+            conn.close()
+
+
+def update_command_request_web_approval(
+    request_id: str,
+    approval: str  # 'approved' or 'denied'
+) -> Optional[Dict[str, Any]]:
+    """Records dashboard operator approval decision."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _LOCK:
+        conn = get_connection()
+        try:
+            with conn:
+                req = conn.execute("SELECT * FROM command_requests WHERE id = ?", (request_id,)).fetchone()
+                if not req:
+                    return None
+                if req["status"] in ("completed", "failed", "denied", "expired"):
+                    return None
+                if now > req["expires_at"]:
+                    conn.execute("UPDATE command_requests SET status = 'expired' WHERE id = ?", (request_id,))
+                    return None
+
+                new_web_status = "approved" if approval.lower() in ("approved", "grant") else "denied"
+                if new_web_status == "denied":
+                    new_status = "denied"
+                else:
+                    new_status = "approved" if req["local_consent_status"] == "approved" else "pending"
+
+                conn.execute("""
+                    UPDATE command_requests
+                    SET web_approval_status = ?, status = ?
+                    WHERE id = ?
+                """, (new_web_status, new_status, request_id))
+            return get_command_request(request_id)
+        finally:
+            conn.close()
+
+
+def update_command_request_result(
+    request_id: str,
+    result: Dict[str, Any],
+    status: str = "completed"
+) -> Optional[Dict[str, Any]]:
+    """Records execution outcome for an approved command request."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _LOCK:
+        conn = get_connection()
+        try:
+            with conn:
+                conn.execute("""
+                    UPDATE command_requests
+                    SET result_json = ?, status = ?, completed_at = ?
+                    WHERE id = ?
+                """, (json.dumps(result), status, now, request_id))
+            return get_command_request(request_id)
+        finally:
+            conn.close()
+
+
+def list_command_requests(
+    device_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50
+) -> List[Dict[str, Any]]:
+    """Lists recent command requests."""
+    conn = get_connection()
+    try:
+        query = "SELECT * FROM command_requests WHERE 1=1"
+        params: List[Any] = []
+        if device_id:
+            query += " AND device_id = ?"
+            params.append(device_id)
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(query, params).fetchall()
+        results = []
+        for r in rows:
+            item = dict(r)
+            item["command"] = json.loads(item.pop("command_json", "[]"))
+            item["result"] = json.loads(item.pop("result_json", "null")) if item.get("result_json") else None
+            results.append(item)
+        return results
+    finally:
+        conn.close()

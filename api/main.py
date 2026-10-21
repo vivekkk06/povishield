@@ -1,23 +1,26 @@
-import json
-from dataclasses import asdict
-from pathlib import Path
-from typing import Any, Optional, Union
+import asyncio
 import ipaddress
+import json
 import os
+import re
 import signal
+import socket
 import subprocess
+import sys
 import threading
 import time
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
-import sys
-import socket
+from pathlib import Path
+from typing import Any, Optional, Union
 
-from fastapi import FastAPI, HTTPException, Request, Header
-from fastapi.responses import PlainTextResponse, Response, FileResponse
+from fastapi import FastAPI, HTTPException, Request, Header, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse, Response, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from fastapi.middleware.cors import CORSMiddleware
+
 import api.database as db
 from api.auth import get_current_user, get_authenticated_device, hash_token, generate_device_token
 
@@ -168,6 +171,165 @@ class PolicySaveRequest(BaseModel):
     syscalls: list[str] = Field(min_length=1)
     command: Optional[str] = "custom"
     schema_version: Optional[int] = 1
+
+
+class LiveEventRecordRequest(BaseModel):
+    id: Optional[str] = None
+    device_id: Optional[str] = None
+    device_name: Optional[str] = None
+    hostname: Optional[str] = None
+    event_type: str = Field(default="local_shell_cmd")
+    source: str = Field(default="terminal_hook")
+    timestamp: Optional[str] = None
+    target: Optional[str] = None
+    command: list[str] = Field(default_factory=list)
+    pid: Optional[int] = None
+    ppid: Optional[int] = None
+    exit_code: Optional[int] = None
+    duration_ms: Optional[float] = 0.0
+    stdout: Optional[str] = ""
+    stderr: Optional[str] = ""
+    policy_decision: Optional[dict[str, Any]] = None
+    risk_classification: Optional[str] = None
+    delivery_status: Optional[str] = "delivered"
+    is_live: Optional[bool] = True
+
+
+class CommandRequestCreate(BaseModel):
+    command: list[str] = Field(min_length=1, max_length=16)
+    working_dir: Optional[str] = ""
+    requested_privileges: Optional[str] = "user"
+    reason: Optional[str] = "Remote administrative action"
+    mode: Optional[str] = "enforce"
+    local_consent_required: Optional[bool] = True
+    web_approval_required: Optional[bool] = False
+    expiry_seconds: Optional[int] = Field(default=120, ge=10, le=3600)
+
+
+class LocalConsentSubmit(BaseModel):
+    consent: str = Field(description="'approved' or 'denied'")
+    local_user: Optional[str] = "local_operator"
+
+
+class WebApprovalSubmit(BaseModel):
+    approval: str = Field(description="'approved' or 'denied'")
+
+
+class CommandResultSubmit(BaseModel):
+    status: str = Field(default="completed")
+    exit_code: Optional[int] = 0
+    duration_ms: Optional[float] = 0.0
+    stdout: Optional[str] = ""
+    stderr: Optional[str] = ""
+    violation_detected: Optional[bool] = False
+    violation_detail: Optional[str] = None
+    syscalls: Optional[list[str]] = None
+
+
+# --- Real-Time Connection Manager & Secret Redaction ---
+
+SENSITIVE_PATTERNS = [
+    re.compile(r'(?i)(?:password|passwd|pwd|secret|token|api[_-]?key|bearer|auth|authorization|private[_-]?key)\s*[:=]\s*([^\s,;]+)'),
+    re.compile(r'(?i)(?:--password|--token|--key|--secret|-p)\s+([^\s]+)'),
+    re.compile(r'pvs_agent_[0-9a-fA-F]{20,}'),
+    re.compile(r'-----BEGIN [A-Z ]+ PRIVATE KEY-----[^-]+-----END [A-Z ]+ PRIVATE KEY-----'),
+]
+
+def redact_secrets(val: Any) -> Any:
+    """Recursively redacts passwords, tokens, API keys, and private keys from strings, arrays, or dicts."""
+    if isinstance(val, str):
+        res = val
+        for pat in SENSITIVE_PATTERNS:
+            res = pat.sub("[REDACTED]", res)
+        return res
+    elif isinstance(val, list):
+        return [redact_secrets(x) for x in val]
+    elif isinstance(val, dict):
+        return {k: redact_secrets(v) for k, v in val.items()}
+    return val
+
+
+class ConnectionManager:
+    """Manages active WebSocket connections for dashboards and paired Linux endpoint agents."""
+    def __init__(self):
+        self.dashboard_websockets: set[WebSocket] = set()
+        self.agent_websockets: dict[str, WebSocket] = {}
+        self._lock = threading.Lock()
+
+    async def connect_dashboard(self, websocket: WebSocket):
+        await websocket.accept()
+        with self._lock:
+            self.dashboard_websockets.add(websocket)
+
+    def disconnect_dashboard(self, websocket: WebSocket):
+        with self._lock:
+            self.dashboard_websockets.discard(websocket)
+
+    async def connect_agent(self, device_id: str, websocket: WebSocket):
+        await websocket.accept()
+        with self._lock:
+            self.agent_websockets[device_id] = websocket
+
+    def disconnect_agent(self, device_id: str, websocket: WebSocket):
+        with self._lock:
+            if self.agent_websockets.get(device_id) == websocket:
+                del self.agent_websockets[device_id]
+
+    async def broadcast_event(self, event_data: dict[str, Any]):
+        with self._lock:
+            targets = list(self.dashboard_websockets)
+        if not targets:
+            return
+        message = json.dumps({"type": "live_event", "event": event_data})
+        dead = []
+        for ws in targets:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.append(ws)
+        if dead:
+            with self._lock:
+                for ws in dead:
+                    self.dashboard_websockets.discard(ws)
+
+    async def broadcast_command_update(self, command_data: dict[str, Any]):
+        with self._lock:
+            targets = list(self.dashboard_websockets)
+        if not targets:
+            return
+        message = json.dumps({"type": "command_update", "command": command_data})
+        dead = []
+        for ws in targets:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.append(ws)
+        if dead:
+            with self._lock:
+                for ws in dead:
+                    self.dashboard_websockets.discard(ws)
+
+    async def dispatch_to_agent(self, device_id: str, payload: dict[str, Any]) -> bool:
+        with self._lock:
+            ws = self.agent_websockets.get(device_id)
+        if not ws:
+            return False
+        try:
+            await ws.send_text(json.dumps(payload))
+            return True
+        except Exception:
+            with self._lock:
+                if self.agent_websockets.get(device_id) == ws:
+                    del self.agent_websockets[device_id]
+            return False
+
+    def is_agent_connected(self, device_id: str) -> bool:
+        with self._lock:
+            return device_id in self.agent_websockets
+
+
+manager = ConnectionManager()
+
 
 # --- who is really calling? ------------------------------------------------------------------------------------
 # A web page in your browser also connects from 127.0.0.1, so the TCP peer proves nothing about the caller.
@@ -1201,10 +1363,389 @@ def events(limit: int = 100):
     }
 
 
+# ===============================================================================================
+# REAL-TIME LIVE TELEMETRY, WEBSOCKETS & CONSENT-GATED COMMAND PIPELINE
+# ===============================================================================================
+
+@app.post("/api/events/record")
+@app.post("/events/record")
+async def record_live_event_endpoint(payload: dict[str, Any], request: Request):
+    """Ingests, redacts, persists, and real-time broadcasts a local terminal or agent telemetry event."""
+    # 1. Resolve authenticating device if bearer token provided
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        try:
+            dev = get_authenticated_device(request, authorization=auth_header)
+            payload["device_id"] = dev["id"]
+            payload["device_name"] = dev["name"]
+            payload["hostname"] = dev["hostname"]
+        except Exception:
+            pass
+
+    # 2. Redact sensitive values (passwords, tokens, API keys, private keys)
+    clean_payload = redact_secrets(payload)
+
+    # 3. Ensure event metadata defaults
+    if not clean_payload.get("id"):
+        clean_payload["id"] = f"evt_{uuid.uuid4().hex[:12]}"
+    if not clean_payload.get("timestamp"):
+        clean_payload["timestamp"] = datetime.now(timezone.utc).isoformat()
+    if not clean_payload.get("device_id"):
+        clean_payload["device_id"] = "laptop_terminal"
+    if not clean_payload.get("device_name"):
+        clean_payload["device_name"] = clean_payload.get("hostname") or socket.gethostname()
+    if not clean_payload.get("event_type"):
+        clean_payload["event_type"] = "local_shell_cmd"
+    if not clean_payload.get("source"):
+        clean_payload["source"] = "terminal_hook"
+    clean_payload["is_live"] = True
+    clean_payload["delivery_status"] = "delivered"
+
+    # Normalize command
+    cmd = clean_payload.get("command") or []
+    if isinstance(cmd, str):
+        cmd = [cmd]
+    clean_payload["command"] = cmd
+
+    # Infer policy decision and risk classification if not provided
+    target_name = clean_payload.get("target") or (Path(cmd[0]).name if cmd else "unknown")
+    clean_payload["target"] = target_name
+    if not clean_payload.get("policy_decision"):
+        prof = find_profile_for_target(target_name)
+        sc = load_profile_syscalls(prof) if prof else []
+        clean_payload["policy_decision"] = {
+            "action": "PERMIT_WITH_RESTRICTIONS" if clean_payload.get("exit_code", 0) == 0 else "TERMINATED_OR_FAILED",
+            "allowed_syscalls_count": len(sc),
+            "attack_surface_reduction_pct": 95.0 if sc else 0.0,
+            "target": target_name
+        }
+    if not clean_payload.get("risk_classification"):
+        clean_payload["risk_classification"] = "LOW" if clean_payload.get("exit_code", 0) == 0 else "MEDIUM"
+
+    # 4. Persist to SQLite database
+    saved = db.record_live_event(clean_payload)
+
+    # 5. Broadcast to connected dashboard WebSockets in real time
+    asyncio.create_task(manager.broadcast_event(saved))
+    return saved
+
+
+@app.get("/api/events/live")
+@app.get("/events/live")
+def list_live_events_endpoint(
+    device_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+    limit: int = 50,
+    since_id: Optional[str] = None
+):
+    """Returns authentic live telemetry events distinctly separated from recorded historical traces."""
+    if limit < 1 or limit > 200:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
+    events_list = db.list_live_events(
+        device_id=device_id,
+        event_type=event_type,
+        limit=limit,
+        since_id=since_id
+    )
+    return {
+        "events": events_list,
+        "count": len(events_list),
+        "data_type": "live_telemetry",
+        "live": True,
+        "connected_agents_count": len(manager.agent_websockets),
+        "active_devices": list(manager.agent_websockets.keys()),
+    }
+
+
+@app.get("/api/events/stream")
+@app.get("/events/stream")
+async def events_sse_stream_endpoint(request: Request):
+    """Server-Sent Events (SSE) stream for browsers and environments where WebSockets are buffered."""
+    async def event_generator():
+        last_id = None
+        while True:
+            if await request.is_disconnected():
+                break
+            events = db.list_live_events(limit=5, since_id=last_id)
+            if events:
+                last_id = events[0]["id"]
+                for ev in reversed(events):
+                    yield f"data: {json.dumps({'type': 'live_event', 'event': ev})}\n\n"
+            await asyncio.sleep(1.5)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@app.websocket("/api/ws/events")
+@app.websocket("/ws/events")
+async def websocket_dashboard_endpoint(websocket: WebSocket):
+    """Live bidirectional WebSocket telemetry stream for the PoViShield web dashboard."""
+    await manager.connect_dashboard(websocket)
+    try:
+        # Send initial confirmation and state
+        await websocket.send_text(json.dumps({
+            "type": "connected",
+            "is_live": True,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "connected_agents": list(manager.agent_websockets.keys())
+        }))
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await websocket.send_text(json.dumps({"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}))
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        manager.disconnect_dashboard(websocket)
+    except Exception:
+        manager.disconnect_dashboard(websocket)
+
+
+@app.websocket("/api/ws/agent/{device_id}")
+@app.websocket("/ws/agent/{device_id}")
+async def websocket_agent_endpoint(websocket: WebSocket, device_id: str, token: Optional[str] = None):
+    """Secure outbound WebSocket connection maintained by the local PoViShield Linux agent."""
+    # Authenticate device token
+    if not token:
+        # Check subprotocols or query params
+        token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4401)
+        return
+
+    thash = hash_token(token)
+    device = db.get_device_by_token_hash(thash)
+    if not device or device["id"] != device_id:
+        await websocket.close(code=4401)
+        return
+    if device.get("status") == "revoked":
+        await websocket.close(code=4403)
+        return
+
+    await manager.connect_agent(device_id, websocket)
+    db.update_device_heartbeat(device_id, status="online")
+    asyncio.create_task(manager.broadcast_command_update({
+        "type": "device_status",
+        "device_id": device_id,
+        "status": "online",
+        "name": device.get("name")
+    }))
+
+    try:
+        # Acknowledge connection
+        await websocket.send_text(json.dumps({
+            "type": "agent_connected",
+            "device_id": device_id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }))
+
+        while True:
+            text = await websocket.receive_text()
+            try:
+                msg = json.loads(text)
+                msg_type = msg.get("type")
+
+                if msg_type == "heartbeat":
+                    db.update_device_heartbeat(device_id, status="online")
+                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
+
+                elif msg_type == "local_event":
+                    ev = redact_secrets(msg.get("event", {}))
+                    ev["device_id"] = device_id
+                    ev["device_name"] = device.get("name") or device.get("hostname")
+                    ev["is_live"] = True
+                    saved = db.record_live_event(ev)
+                    asyncio.create_task(manager.broadcast_event(saved))
+                    await websocket.send_text(json.dumps({"type": "event_ack", "event_id": saved.get("id")}))
+
+                elif msg_type == "command_consent":
+                    req_id = msg.get("request_id")
+                    consent = msg.get("consent", "denied")
+                    updated = db.update_command_request_local_consent(req_id, consent, local_user=msg.get("local_user", "operator"))
+                    if updated:
+                        asyncio.create_task(manager.broadcast_command_update(updated))
+
+                elif msg_type == "command_result":
+                    req_id = msg.get("request_id")
+                    result = msg.get("result", {})
+                    updated = db.update_command_request_result(req_id, result, status=msg.get("status", "completed"))
+                    if updated:
+                        asyncio.create_task(manager.broadcast_command_update(updated))
+                        # Create an audit live event for command completion
+                        cmd_ev = {
+                            "device_id": device_id,
+                            "device_name": device.get("name"),
+                            "event_type": "remote_cmd_completion",
+                            "source": "agent_supervisor",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "command": updated.get("command"),
+                            "exit_code": result.get("exit_code", 0),
+                            "duration_ms": result.get("duration_ms", 0.0),
+                            "stdout": result.get("stdout", ""),
+                            "stderr": result.get("stderr", ""),
+                            "policy_decision": {"action": "COMPLETED", "enforcement": "Linux Seccomp-BPF"},
+                            "risk_classification": "LOW" if result.get("exit_code") == 0 else "MEDIUM",
+                            "is_live": True,
+                        }
+                        saved_ev = db.record_live_event(cmd_ev)
+                        asyncio.create_task(manager.broadcast_event(saved_ev))
+
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        manager.disconnect_agent(device_id, websocket)
+        db.update_device_heartbeat(device_id, status="offline")
+        asyncio.create_task(manager.broadcast_command_update({
+            "type": "device_status",
+            "device_id": device_id,
+            "status": "offline"
+        }))
+    except Exception:
+        manager.disconnect_agent(device_id, websocket)
+
+
+# --- Consent-Gated Remote Command Management ---
+
+@app.post("/api/devices/{device_id}/command-requests")
+async def create_device_command_request_endpoint(
+    device_id: str,
+    payload: CommandRequestCreate,
+    request: Request
+):
+    """Submits a structured command request requiring local consent before execution on the device."""
+    user = get_current_user(request)
+    device = db.get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device.get("status") == "revoked":
+        raise HTTPException(status_code=403, detail="Device authorization is revoked")
+
+    # Validate command arguments
+    clean_cmd = [str(arg) for arg in payload.command if str(arg).strip()]
+    if not clean_cmd:
+        raise HTTPException(status_code=400, detail="Command cannot be empty")
+
+    cmd_req = db.create_command_request(
+        device_id=device_id,
+        command=clean_cmd,
+        user_id=user["id"],
+        working_dir=payload.working_dir or "",
+        requested_privileges=payload.requested_privileges or "user",
+        reason=payload.reason or "Administrative command dispatched from PoViShield Console",
+        mode=payload.mode or "enforce",
+        local_consent_required=payload.local_consent_required if payload.local_consent_required is not None else True,
+        web_approval_required=payload.web_approval_required or False,
+        expiry_seconds=payload.expiry_seconds or 120
+    )
+
+    # Dispatch to connected agent via WebSocket if active
+    dispatched = await manager.dispatch_to_agent(device_id, {
+        "type": "command_request",
+        "request": cmd_req
+    })
+    cmd_req["dispatched_live"] = dispatched
+
+    # Also notify dashboards
+    asyncio.create_task(manager.broadcast_command_update(cmd_req))
+    return cmd_req
+
+
+@app.get("/api/devices/{device_id}/command-requests")
+def list_device_command_requests_endpoint(device_id: str, limit: int = 50):
+    """Lists command requests for a specific device."""
+    return {"requests": db.list_command_requests(device_id=device_id, limit=limit)}
+
+
+@app.get("/api/command-requests")
+def list_all_command_requests_endpoint(status: Optional[str] = None, limit: int = 50):
+    """Lists all command requests across the fleet."""
+    return {"requests": db.list_command_requests(status=status, limit=limit)}
+
+
+@app.get("/api/command-requests/{request_id}")
+def get_command_request_endpoint(request_id: str):
+    """Gets status and consent records for a command request."""
+    req = db.get_command_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Command request not found")
+    return req
+
+
+@app.post("/api/command-requests/{request_id}/local-consent")
+async def submit_local_consent_endpoint(
+    request_id: str,
+    payload: LocalConsentSubmit,
+    request: Request
+):
+    """Submits local operator consent decision (approved/denied)."""
+    updated = db.update_command_request_local_consent(request_id, payload.consent, payload.local_user or "operator")
+    if not updated:
+        raise HTTPException(status_code=400, detail="Cannot update local consent (request not found or expired)")
+
+    asyncio.create_task(manager.broadcast_command_update(updated))
+    return updated
+
+
+@app.post("/api/command-requests/{request_id}/web-approval")
+async def submit_web_approval_endpoint(
+    request_id: str,
+    payload: WebApprovalSubmit,
+    request: Request
+):
+    """Submits website user approval decision."""
+    get_current_user(request)
+    updated = db.update_command_request_web_approval(request_id, payload.approval)
+    if not updated:
+        raise HTTPException(status_code=400, detail="Cannot update web approval (request not found or expired)")
+
+    asyncio.create_task(manager.broadcast_command_update(updated))
+    return updated
+
+
+@app.post("/api/command-requests/{request_id}/result")
+async def submit_command_result_endpoint(
+    request_id: str,
+    payload: CommandResultSubmit,
+    request: Request
+):
+    """Submits execution outcome after command completes under least-privilege seccomp."""
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        get_authenticated_device(request, authorization=auth_header)
+
+    result_dict = {
+        "status": payload.status,
+        "exit_code": payload.exit_code,
+        "duration_ms": payload.duration_ms,
+        "stdout": payload.stdout,
+        "stderr": payload.stderr,
+        "violation_detected": payload.violation_detected,
+        "violation_detail": payload.violation_detail,
+        "syscalls": payload.syscalls or []
+    }
+    updated = db.update_command_request_result(request_id, result_dict, status=payload.status)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Command request not found")
+
+    asyncio.create_task(manager.broadcast_command_update(updated))
+    return updated
+
+
 @app.get("/api/policies")
 def policies():
     items = []
     seen_names = set()
+
 
     search_dirs = [
         RESULTS,

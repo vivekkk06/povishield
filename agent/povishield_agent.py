@@ -5,10 +5,14 @@ receives policy-gated execution tasks, enforces seccomp sandbox boundaries,
 and streams telemetry and security events back to the dashboard.
 """
 import argparse
+import asyncio
 import ctypes
+import glob
 import json
 import os
 import platform
+import random
+import select
 import signal
 import socket
 import subprocess
@@ -23,6 +27,18 @@ from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+# Dynamically resolve websockets from virtual environment if present
+try:
+    import websockets
+except ImportError:
+    site_pkgs = glob.glob(str(ROOT / "api" / ".venv" / "lib" / "python*" / "site-packages"))
+    if site_pkgs:
+        sys.path.insert(0, site_pkgs[0])
+    try:
+        import websockets
+    except ImportError:
+        websockets = None
 
 DEFAULT_CONFIG_PATH = Path.home() / ".povishield" / "agent.json"
 
@@ -565,6 +581,193 @@ def execute_agent_task(task: Dict[str, Any], config: Dict[str, Any]) -> Dict[str
 
 
 
+def prompt_local_consent(request: Dict[str, Any], timeout_seconds: Optional[float] = None) -> bool:
+    """Interactively prompts the local Linux operator for consent before executing a remote command.
+
+    Adheres strictly to least-privilege security:
+    - Displays exact command arguments, working directory, privileges, requester, and policy mode.
+    - Fails closed on rejection, EOF, non-interactive environment without TTY, or timeout.
+    """
+    auto_consent = os.environ.get("POVISHIELD_AUTO_CONSENT", "").strip().lower()
+    if auto_consent in ("approve", "approved", "allow", "yes", "true", "1"):
+        print(f"[SECURITY CONSENT] POVISHIELD_AUTO_CONSENT={auto_consent} active: Automatically authorizing command.")
+        return True
+    elif auto_consent in ("deny", "denied", "block", "no", "false", "0"):
+        print(f"[SECURITY CONSENT] POVISHIELD_AUTO_CONSENT={auto_consent} active: Automatically denying command (fail closed).")
+        return False
+
+    req_id = request.get("id") or request.get("request_id") or "req_unknown"
+    cmd_raw = request.get("command") or []
+    cmd_str = " ".join(cmd_raw) if isinstance(cmd_raw, list) else str(cmd_raw)
+    cwd = request.get("working_dir") or os.getcwd()
+    priv = request.get("requested_privileges") or "user"
+    reason = request.get("reason") or "Remote command execution requested from PoViShield Console"
+    mode = request.get("mode") or "enforce"
+
+    if timeout_seconds is None:
+        timeout_seconds = 120.0
+        expires_at = request.get("expires_at")
+        if expires_at:
+            try:
+                exp_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                diff = (exp_dt - datetime.now(timezone.utc)).total_seconds()
+                if diff > 0:
+                    timeout_seconds = min(diff, 300.0)
+            except Exception:
+                pass
+
+    USE_COLOR = sys.stdout.isatty()
+    C_RED = "\033[91m" if USE_COLOR else ""
+    C_YELLOW = "\033[93m" if USE_COLOR else ""
+    C_CYAN = "\033[96m" if USE_COLOR else ""
+    C_BOLD = "\033[1m" if USE_COLOR else ""
+    C_RESET = "\033[0m" if USE_COLOR else ""
+
+    print(f"\n{C_YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗{C_RESET}")
+    print(f"{C_YELLOW}║         ⚠️   POVISHIELD REMOTE COMMAND EXECUTION CONSENT REQUIRED            ║{C_RESET}")
+    print(f"{C_YELLOW}╚══════════════════════════════════════════════════════════════════════════════╝{C_RESET}")
+    print(f"  {C_BOLD}Request ID:{C_RESET}         {req_id}")
+    print(f"  {C_BOLD}Command to Run:{C_RESET}     {C_CYAN}$ {cmd_str}{C_RESET}")
+    print(f"  {C_BOLD}Working Directory:{C_RESET}  {cwd}")
+    print(f"  {C_BOLD}Privilege Level:{C_RESET}    {priv} (PR_SET_NO_NEW_PRIVS)")
+    print(f"  {C_BOLD}Seccomp Policy:{C_RESET}     {mode.upper()} mode")
+    print(f"  {C_BOLD}Requester Reason:{C_RESET}   {reason}")
+    print(f"  {C_BOLD}Approval Window:{C_RESET}    {int(timeout_seconds)}s remaining")
+    print(f"{C_YELLOW}────────────────────────────────────────────────────────────────────────────────{C_RESET}")
+    print(f"{C_BOLD}Authorize this command to execute on your local Linux machine? [y/N]: {C_RESET}", end="", flush=True)
+
+    input_fd = None
+    tty_obj = None
+    if sys.stdin.isatty():
+        input_fd = sys.stdin.fileno()
+    else:
+        try:
+            tty_obj = open("/dev/tty", "r")
+            input_fd = tty_obj.fileno()
+        except Exception:
+            input_fd = None
+
+    if input_fd is None:
+        print(f"\n{C_RED}[SECURITY CONSENT] Non-interactive environment without controlling TTY. Denying remote execution (FAIL CLOSED).{C_RESET}")
+        return False
+
+    try:
+        r, _, _ = select.select([input_fd], [], [], timeout_seconds)
+        if not r:
+            print(f"\n{C_RED}[SECURITY CONSENT] Authorization timed out after {int(timeout_seconds)}s. Denying remote execution (FAIL CLOSED).{C_RESET}")
+            return False
+
+        line = os.read(input_fd, 1024).decode("utf-8", errors="replace").strip().lower()
+        if line in ("y", "yes"):
+            print(f"{C_CYAN}[SECURITY CONSENT] Consent GRANTED by local operator. Proceeding to sandboxed execution...{C_RESET}")
+            return True
+        else:
+            print(f"\n{C_RED}[SECURITY CONSENT] Consent DENIED by local operator (FAIL CLOSED).{C_RESET}")
+            return False
+    except Exception as exc:
+        print(f"\n{C_RED}[SECURITY CONSENT] Error reading input ({exc}). Denying execution (FAIL CLOSED).{C_RESET}")
+        return False
+    finally:
+        if tty_obj:
+            try:
+                tty_obj.close()
+            except Exception:
+                pass
+
+
+def handle_command_request_lifecycle(
+    req: Dict[str, Any],
+    config: Dict[str, Any],
+    token: Optional[str] = None,
+    ws: Any = None
+) -> Dict[str, Any]:
+    """Prompts local operator, submits consent decision, and executes under seccomp if granted."""
+    req_id = req.get("id") or req.get("request_id")
+    server_url = config.get("server_url", "http://127.0.0.1:8000").rstrip("/")
+    auth_token = token or config.get("token")
+
+    # 1. Prompt interactive consent
+    authorized = prompt_local_consent(req)
+    consent_decision = "approved" if authorized else "denied"
+    local_user = os.environ.get("USER") or "operator"
+
+    # 2. Report local consent decision
+    if ws is not None:
+        try:
+            ws_send_coro = ws.send(json.dumps({
+                "type": "command_consent",
+                "request_id": req_id,
+                "consent": consent_decision,
+                "local_user": local_user
+            }))
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(ws_send_coro)
+            except RuntimeError:
+                pass
+        except Exception:
+            pass
+
+    consent_url = f"{server_url}/api/command-requests/{req_id}/local-consent"
+    make_api_request(consent_url, method="POST", data={"consent": consent_decision, "local_user": local_user}, token=auth_token)
+
+    # 3. If authorized, execute under least-privilege seccomp confinement
+    if authorized:
+        print(f"[EXECUTING] Running command request {req_id} under seccomp confinement...")
+        task_dict = {
+            "id": req_id,
+            "command": req.get("command", []),
+            "mode": req.get("mode", "enforce"),
+            "working_dir": req.get("working_dir")
+        }
+        res = execute_agent_task(task_dict, config)
+        outcome_status = res.get("status", "completed")
+    else:
+        print(f"[DENIED] Command request {req_id} denied by local operator. Failing closed.")
+        res = {
+            "status": "denied",
+            "exit_code": 126,
+            "duration_ms": 0.0,
+            "stdout": "",
+            "stderr": "Execution blocked: Local operator rejected authorization or request timed out.",
+            "violation_detected": True,
+            "violation_detail": "Local consent denied",
+            "syscalls": []
+        }
+        outcome_status = "denied"
+
+    # 4. Report execution result
+    if ws is not None:
+        try:
+            ws_res_coro = ws.send(json.dumps({
+                "type": "command_result",
+                "request_id": req_id,
+                "status": outcome_status,
+                "result": res
+            }))
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(ws_res_coro)
+            except RuntimeError:
+                pass
+        except Exception:
+            pass
+
+    res_url = f"{server_url}/api/command-requests/{req_id}/result"
+    make_api_request(res_url, method="POST", data={
+        "status": outcome_status,
+        "exit_code": res.get("exit_code", 0),
+        "duration_ms": res.get("duration_ms", 0.0),
+        "stdout": res.get("stdout", ""),
+        "stderr": res.get("stderr", ""),
+        "violation_detected": res.get("violation_detected", False),
+        "violation_detail": res.get("violation_detail"),
+        "syscalls": res.get("syscalls", [])
+    }, token=auth_token)
+
+    return res
+
+
 def stop_agent(config_path: Path = DEFAULT_CONFIG_PATH) -> None:
     pid_path = config_path.parent / "agent.pid"
     if not pid_path.is_file():
@@ -580,6 +783,52 @@ def stop_agent(config_path: Path = DEFAULT_CONFIG_PATH) -> None:
         pid_path.unlink(missing_ok=True)
     except Exception as exc:
         print(f"[ERROR] Could not stop agent: {exc}")
+
+
+def start_websocket_listener_thread(config: Dict[str, Any], on_command_request_callback: Any) -> Optional[Any]:
+    """Establishes an outbound persistent WebSocket link to receive instant command requests."""
+    if websockets is None:
+        return None
+
+    import threading
+    server_url = config.get("server_url", "http://127.0.0.1:8000").rstrip("/")
+    device_id = config.get("device_id")
+    token = config.get("token")
+    if not device_id or not token:
+        return None
+
+    ws_url = server_url.replace("https://", "wss://").replace("http://", "ws://") + f"/api/ws/agent/{device_id}?token={token}"
+
+    def _ws_runner():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        async def _client():
+            backoff = 1.0
+            while True:
+                try:
+                    async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10) as ws:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] [WS CONNECTED] Outbound WebSocket channel live to {ws_url}")
+                        backoff = 1.0
+                        await ws.send(json.dumps({"type": "heartbeat"}))
+                        while True:
+                            raw = await ws.recv()
+                            msg = json.loads(raw)
+                            mtype = msg.get("type")
+                            if mtype == "command_request":
+                                req = msg.get("request", {})
+                                on_command_request_callback(req, ws)
+                            elif mtype == "heartbeat_ack":
+                                pass
+                except Exception:
+                    await asyncio.sleep(backoff + random.uniform(0.1, 0.4))
+                    backoff = min(backoff * 1.5, 12.0)
+
+        loop.run_until_complete(_client())
+
+    th = threading.Thread(target=_ws_runner, daemon=True, name="PoViShield-Agent-WS")
+    th.start()
+    return th
 
 
 def run_agent_loop(
@@ -617,6 +866,12 @@ def run_agent_loop(
     print(f"[AGENT]  Permissions:  Execution={config.get('permissions', {}).get('allow_execution')} | Enforcement=True")
     print(f"[AGENT]  Loop active. Press Ctrl+C to terminate.")
     print("────────────────────────────────────────────────────────────────────────────────")
+
+    # Start live outbound WebSocket connection in background if available
+    def _on_cmd_req(req, ws):
+        handle_command_request_lifecycle(req, config, token=token, ws=ws)
+
+    start_websocket_listener_thread(config, _on_cmd_req)
 
     iteration = 0
     consecutive_errors = 0
@@ -675,6 +930,17 @@ def run_agent_loop(
                     token=token
                 )
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] [TASK COMPLETE] {task_id} -> exit {result.get('exit_code')} ({result.get('status')})")
+
+            # 3. Check for pending consent-gated command requests (fallback / sync)
+            try:
+                c_url = f"{server_url}/api/devices/{device_id}/command-requests"
+                c_code, c_data = make_api_request(c_url, method="GET", token=token, timeout=3.0)
+                if c_code == 200:
+                    for req in c_data.get("requests", []):
+                        if req.get("local_consent_status") == "pending" and req.get("status") == "pending":
+                            handle_command_request_lifecycle(req, config, token=token)
+            except Exception:
+                pass
 
             time.sleep(poll_interval)
     finally:
@@ -791,6 +1057,19 @@ def monitor_device_terminal(
                         if e_id not in seen_ids:
                             seen_ids.add(e_id)
                             _render_task_item(exc, is_exec=True)
+
+                # 4. Check for pending consent-gated command requests
+                try:
+                    c_url = f"{server_url}/api/devices/{device_id}/command-requests"
+                    c_code, c_data = make_api_request(c_url, method="GET", token=token, timeout=2.0)
+                    if c_code == 200:
+                        for req in c_data.get("requests", []):
+                            r_id = req.get("id")
+                            if req.get("local_consent_status") == "pending" and req.get("status") == "pending" and r_id not in seen_ids:
+                                seen_ids.add(r_id)
+                                handle_command_request_lifecycle(req, config, token=token)
+                except Exception:
+                    pass
 
             if not follow:
                 break

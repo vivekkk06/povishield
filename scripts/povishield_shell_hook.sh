@@ -46,6 +46,8 @@ __povishield_record_cmd() {
             --cmd "$raw_cmd" \
             --exit-code "$exit_code" \
             --duration "$duration_ms" \
+            --pid "$$" \
+            --ppid "$PPID" \
             --server "$POVISHIELD_API" >/dev/null 2>&1 &
         disown $! 2>/dev/null || true
     fi
