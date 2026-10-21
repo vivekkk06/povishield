@@ -1022,6 +1022,38 @@ def record_terminal_execution_endpoint(payload: dict[str, Any], request: Request
             "hostname": hostname
         }
 
+    # Also persist as a live event and broadcast via WebSocket
+    try:
+        live_evt = {
+            "id": f"evt_{session_id.replace('run-cli-', '')}",
+            "device_id": payload.get("device_id") or "laptop_terminal",
+            "device_name": payload.get("device_name") or f"{hostname} (Terminal)",
+            "hostname": hostname,
+            "event_type": "local_shell_cmd",
+            "source": "terminal_hook",
+            "timestamp": payload.get("started_at") or datetime.now(timezone.utc).isoformat(),
+            "target": target_name,
+            "command": payload.get("command") or [target_name],
+            "pid": payload.get("pid"),
+            "ppid": payload.get("ppid"),
+            "exit_code": payload.get("exit_code", 0),
+            "duration_ms": payload.get("duration_ms", 0.0),
+            "stdout": payload.get("stdout", ""),
+            "stderr": payload.get("stderr", ""),
+            "policy_decision": payload.get("decision"),
+            "risk_classification": "LOW" if payload.get("exit_code", 0) == 0 else "MEDIUM",
+            "delivery_status": "delivered",
+            "is_live": True
+        }
+        db.record_live_event(live_evt)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(manager.broadcast_event(live_evt))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
+
     return {"status": "recorded", "session_id": session_id}
 
 

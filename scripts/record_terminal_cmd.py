@@ -258,13 +258,25 @@ def main():
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    targets_to_notify = [server_url]
-    if server_url != "http://127.0.0.1:8000" and not server_url.startswith("http://localhost"):
-        # Also notify local daemon if running
-        targets_to_notify.append("http://127.0.0.1:8000")
+    targets_to_notify = ["http://127.0.0.1:8000"]
+    if args.server and args.server.strip():
+        targets_to_notify.append(args.server.strip().rstrip("/"))
+    if os.environ.get("POVISHIELD_API"):
+        targets_to_notify.append(os.environ.get("POVISHIELD_API").strip().rstrip("/"))
+    if agent_cfg.get("server_url"):
+        targets_to_notify.append(agent_cfg.get("server_url").strip().rstrip("/"))
+    # Always notify the central cloud coordinator so cloud dashboards remain in sync
+    targets_to_notify.append("https://povishield.onrender.com")
 
-    for s_url in set(targets_to_notify):
-        base = s_url.rstrip("/")
+    seen_urls = set()
+    unique_targets = []
+    for u in targets_to_notify:
+        clean_u = u.rstrip("/")
+        if clean_u and clean_u not in seen_urls:
+            seen_urls.add(clean_u)
+            unique_targets.append(clean_u)
+
+    for base in unique_targets:
         # Dispatch to live event stream
         try:
             ev_req = urllib.request.Request(
@@ -273,7 +285,7 @@ def main():
                 headers=headers,
                 method="POST"
             )
-            with urllib.request.urlopen(ev_req, timeout=1.5) as _:
+            with urllib.request.urlopen(ev_req, timeout=2.0) as _:
                 pass
         except Exception:
             pass
@@ -286,7 +298,7 @@ def main():
                 headers=headers,
                 method="POST"
             )
-            with urllib.request.urlopen(exec_req, timeout=1.5) as _:
+            with urllib.request.urlopen(exec_req, timeout=2.0) as _:
                 pass
         except Exception:
             pass

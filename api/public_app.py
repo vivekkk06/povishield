@@ -7,6 +7,8 @@ execution tracing, pairing, and research data on cloud platforms.
 import os
 import re
 
+os.environ.setdefault("POVISHIELD_ALLOW_REMOTE", "1")
+
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse

@@ -8,7 +8,10 @@
 #    and stream them in real time to the PoViShield Security Console.
 # 3. Enables interactive seccomp-bpf sandboxed shell via 'pv shell'.
 
-POVISHIELD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
+POVISHIELD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")"/.. 2>/dev/null && pwd)"
+if [ -z "${POVISHIELD_API:-}" ] && [ -f "${HOME}/.povishield/agent.json" ]; then
+    POVISHIELD_API=$(grep -o '"server_url": *"[^"]*"' "${HOME}/.povishield/agent.json" 2>/dev/null | head -n1 | cut -d'"' -f4 || true)
+fi
 POVISHIELD_API="${POVISHIELD_API:-http://127.0.0.1:8000}"
 
 # 1. Ensure povishield binaries are on PATH
@@ -53,33 +56,32 @@ __povishield_record_cmd() {
     fi
 }
 
-# 3. Bash DEBUG trap and prompt hook
-__povishield_debug_trap() {
-    local cmd="$BASH_COMMAND"
-    if [[ -z "$cmd" || "$cmd" == *"__povi"* || "$cmd" == *"PROMPT_COMMAND"* ]]; then
-        return 0
-    fi
-    __POVISHIELD_ACTIVE_CMD="$cmd"
-    __POVISHIELD_START_TIME=$(date +%s%3N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo "0")
-}
-
-__povishield_prompt_hook() {
-    local last_exit=$?
-    if [[ -n "${__POVISHIELD_ACTIVE_CMD:-}" ]]; then
-        local end_time=$(date +%s%3N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo "0")
-        local dur=0
-        if [[ "$end_time" -gt "$__POVISHIELD_START_TIME" && "$__POVISHIELD_START_TIME" -gt 0 ]]; then
-            dur=$(( end_time - __POVISHIELD_START_TIME ))
-        fi
-        local to_record="$__POVISHIELD_ACTIVE_CMD"
-        unset __POVISHIELD_ACTIVE_CMD
-        unset __POVISHIELD_START_TIME
-        __povishield_record_cmd "$to_record" "$last_exit" "$dur"
-    fi
-}
-
-# Attach hook to interactive Bash sessions
+# 3. Shell integration traps (Bash & Zsh)
 if [ -n "${BASH_VERSION:-}" ]; then
+    __povishield_debug_trap() {
+        local cmd="$BASH_COMMAND"
+        if [[ -z "$cmd" || "$cmd" == *"__povi"* || "$cmd" == *"PROMPT_COMMAND"* ]]; then
+            return 0
+        fi
+        __POVISHIELD_ACTIVE_CMD="$cmd"
+        __POVISHIELD_START_TIME=$(date +%s%3N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo "0")
+    }
+
+    __povishield_prompt_hook() {
+        local last_exit=$?
+        if [[ -n "${__POVISHIELD_ACTIVE_CMD:-}" ]]; then
+            local end_time=$(date +%s%3N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo "0")
+            local dur=0
+            if [[ "$end_time" -gt "$__POVISHIELD_START_TIME" && "$__POVISHIELD_START_TIME" -gt 0 ]]; then
+                dur=$(( end_time - __POVISHIELD_START_TIME ))
+            fi
+            local to_record="$__POVISHIELD_ACTIVE_CMD"
+            unset __POVISHIELD_ACTIVE_CMD
+            unset __POVISHIELD_START_TIME
+            __povishield_record_cmd "$to_record" "$last_exit" "$dur"
+        fi
+    }
+
     set +o functrace 2>/dev/null || true
     trap '__povishield_debug_trap' DEBUG
     if [[ "${PROMPT_COMMAND:-}" != *"__povishield_prompt_hook"* ]]; then
@@ -89,4 +91,26 @@ if [ -n "${BASH_VERSION:-}" ]; then
             PROMPT_COMMAND="__povishield_prompt_hook"
         fi
     fi
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    __povishield_zsh_preexec() {
+        __POVISHIELD_ACTIVE_CMD="$1"
+        __POVISHIELD_START_TIME=$(date +%s%3N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo "0")
+    }
+    __povishield_zsh_precmd() {
+        local last_exit=$?
+        if [[ -n "${__POVISHIELD_ACTIVE_CMD:-}" ]]; then
+            local end_time=$(date +%s%3N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo "0")
+            local dur=0
+            if [[ "$end_time" -gt "$__POVISHIELD_START_TIME" && "$__POVISHIELD_START_TIME" -gt 0 ]]; then
+                dur=$(( end_time - __POVISHIELD_START_TIME ))
+            fi
+            local to_record="$__POVISHIELD_ACTIVE_CMD"
+            unset __POVISHIELD_ACTIVE_CMD
+            unset __POVISHIELD_START_TIME
+            __povishield_record_cmd "$to_record" "$last_exit" "$dur"
+        fi
+    }
+    autoload -Uz add-zsh-hook 2>/dev/null
+    add-zsh-hook preexec __povishield_zsh_preexec 2>/dev/null || preexec_functions+=(__povishield_zsh_preexec)
+    add-zsh-hook precmd __povishield_zsh_precmd 2>/dev/null || precmd_functions+=(__povishield_zsh_precmd)
 fi
