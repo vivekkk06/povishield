@@ -41,6 +41,9 @@ function getInitialApiUrl() {
       const proto = window.location.protocol === "https:" ? "http:" : (window.location.protocol || "http:");
       return `${proto}//${hostname || "127.0.0.1"}:8000/api`;
     }
+    if (hostname.includes("vercel.app") || hostname.includes("onrender.com")) {
+      return "https://povishield.onrender.com/api";
+    }
     if (window.location.protocol !== "file:") {
       return "/api";
     }

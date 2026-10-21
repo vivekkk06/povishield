@@ -1,4 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://povishield.onrender.com/api/$1"
+    },
+    {
+      "source": "/api",
+      "destination": "https://povishield.onrender.com/api"
+    },
+    {
+      "source": "/install.sh",
+      "destination": "https://povishield.onrender.com/install.sh"
+    }
+  ]
 }
