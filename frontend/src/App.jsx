@@ -17,6 +17,7 @@ import TerminalExecutionConsole from "./components/TerminalExecutionConsole.jsx"
 import FleetDeviceConsole from "./components/FleetDeviceConsole.jsx";
 import RemoteWatchGuidePanel from "./components/RemoteWatchGuidePanel.jsx";
 import PolicyExplorer from "./components/PolicyExplorer.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 
 function isLocalHostname(host) {
   return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host === "[::1]" || (typeof host === "string" && host.endsWith(".local"));
@@ -439,6 +440,8 @@ function App() {
   const [showMarkdownReport, setShowMarkdownReport] = useState(false);
   const [chartMetric, setChartMetric] = useState("coverage_reduction");
   const [evalSearch, setEvalSearch] = useState("");
+  const [noisyTargetSearch, setNoisyTargetSearch] = useState("");
+  const [baselineTargetSearch, setBaselineTargetSearch] = useState("");
 
   // Activity Monitor enhancements
   const [traceSearch, setTraceSearch] = useState("");
@@ -2789,7 +2792,7 @@ function App() {
               )}
 
               {page === "Counterfactual Research" && (
-                <>
+                <ErrorBoundary>
                   <div className="notice">
                     <ShieldAlert size={19} />
                     <div>
@@ -2953,14 +2956,15 @@ function App() {
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
                               {(noisyAblationData.injected_permissions ?? []).map(p => {
-                                const cat = getSyscallCategory(p.syscall);
+                                const sc = p?.syscall || (typeof p === "string" ? p : "");
+                                const cat = getSyscallCategory(sc);
                                 const cls = cat.toLowerCase().replace(/[^a-z0-9]/g, "-");
                                 return (
-                                  <div key={p.syscall} className="tier-section" style={{ margin: 0 }}>
+                                  <div key={sc} className="tier-section" style={{ margin: 0 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                      <span className="syscall-pill pill-removable">{p.syscall}</span>
+                                      <span className="syscall-pill pill-removable">{sc}</span>
                                       <span className={`category-tag ${cls}`} style={{ fontSize: 9, padding: "1px 5px" }}>{cat}</span>
-                                      <span style={{ fontSize: 11, color: "#dbe4f1" }}>{p.rationale}</span>
+                                      <span style={{ fontSize: 11, color: "#dbe4f1" }}>{p?.rationale || "Extraneous privilege"}</span>
                                     </div>
                                   </div>
                                 );
@@ -2997,7 +3001,7 @@ function App() {
 
                   {ablationSubTab === "baseline" && (
                     <>
-                      {ablationData && (
+                      {ablationData ? (
                         <>
                           <section className="metrics-grid">
                             <Metric icon={Activity} label="Targets Evaluated"
@@ -3112,6 +3116,10 @@ function App() {
                             </section>
                           )}
                         </>
+                      ) : (
+                        <div className="panel" style={{ marginBottom: 20 }}>
+                          <p className="muted">Baseline ablation evaluation results not yet generated. Run <code>make eval</code> to execute.</p>
+                        </div>
                       )}
                     </>
                   )}
@@ -3575,7 +3583,7 @@ function App() {
                       </div>
                     </div>
                   )}
-                </>
+                </ErrorBoundary>
               )}
 
               {page === "Evidence Ledgers" && (
