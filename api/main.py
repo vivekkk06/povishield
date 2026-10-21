@@ -624,6 +624,12 @@ def health():
     }
 
 
+@app.get("/api/delay")
+async def delay_endpoint(ms: int = 2000):
+    await asyncio.sleep(min(max(ms, 100), 10000) / 1000.0)
+    return Response(content=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82", media_type="image/png")
+
+
 @app.get("/")
 def root(request: Request):
     accept = request.headers.get("accept", "")

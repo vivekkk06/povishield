@@ -293,11 +293,40 @@ function Metric({ icon: Icon, label, value, detail, progress, accent = "#10b981"
 }
 
 function App() {
-  const [page, setPage] = useState("Overview");
+  const [page, setPage] = useState(() => {
+    if (typeof window !== "undefined") {
+      const hash = (window.location.hash || "").toLowerCase();
+      if (hash.includes("terminal") || hash.includes("execute")) return "Terminal / Execute";
+      if (hash.includes("fleet") || hash.includes("devices")) return "Fleet / Devices";
+      if (hash.includes("research") || hash.includes("counterfactual") || hash.includes("ablation")) return "Counterfactual Research";
+      if (hash.includes("policies") || hash.includes("matrix")) return "Policy Matrix";
+      if (hash.includes("activity") || hash.includes("monitor")) return "Activity Monitor";
+      if (hash.includes("settings")) return "Settings";
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab")) return params.get("tab");
+    }
+    return "Overview";
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem("povishield_sidebar_collapsed") === "true";
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleHashChange = () => {
+        const hash = (window.location.hash || "").toLowerCase();
+        if (hash.includes("terminal") || hash.includes("execute")) setPage("Terminal / Execute");
+        else if (hash.includes("fleet") || hash.includes("devices")) setPage("Fleet / Devices");
+        else if (hash.includes("research") || hash.includes("counterfactual") || hash.includes("ablation")) setPage("Counterfactual Research");
+        else if (hash.includes("policies") || hash.includes("matrix")) setPage("Policy Matrix");
+        else if (hash.includes("activity") || hash.includes("monitor")) setPage("Activity Monitor");
+        else if (hash.includes("settings")) setPage("Settings");
+      };
+      window.addEventListener("hashchange", handleHashChange);
+      return () => window.removeEventListener("hashchange", handleHashChange);
+    }
+  }, []);
   const [devices, setDevices] = useState([]);
   const [activeDeviceId, setActiveDeviceId] = useState(() => {
     return localStorage.getItem("povishield_active_device_id") || "gateway";
@@ -1686,7 +1715,33 @@ function App() {
             </div>
           )}
 
-          {loading && <div className="panel"><p>Loading results from the local API…</p></div>}
+          {page === "Terminal / Execute" && (
+            <TerminalExecutionConsole
+              API={API}
+              health={health}
+              devices={devices}
+              activeDeviceId={activeDeviceId}
+              setActiveDeviceId={setActiveDeviceId}
+              refreshTick={refreshTick}
+              pendingApprovals={pendingApprovals}
+              onGrantApproval={handleGrantApproval}
+              onDenyApproval={handleDenyApproval}
+              onRefreshApprovals={fetchPendingApprovals}
+            />
+          )}
+
+          {page === "Fleet / Devices" && (
+            <FleetDeviceConsole
+              API={API}
+              activeDeviceId={activeDeviceId}
+              setActiveDeviceId={setActiveDeviceId}
+              refreshTick={refreshTick}
+            />
+          )}
+
+          {loading && page !== "Terminal / Execute" && page !== "Fleet / Devices" && (
+            <div className="panel"><p>Loading results from the local API…</p></div>
+          )}
 
           {!loading && !error && overview && (
             <>
@@ -2189,29 +2244,6 @@ function App() {
                 </>
               )}
 
-              {page === "Fleet / Devices" && (
-                <FleetDeviceConsole
-                  API={API}
-                  activeDeviceId={activeDeviceId}
-                  setActiveDeviceId={setActiveDeviceId}
-                  refreshTick={refreshTick}
-                />
-              )}
-
-              {page === "Terminal / Execute" && (
-                <TerminalExecutionConsole
-                  API={API}
-                  health={health}
-                  devices={devices}
-                  activeDeviceId={activeDeviceId}
-                  setActiveDeviceId={setActiveDeviceId}
-                  refreshTick={refreshTick}
-                  pendingApprovals={pendingApprovals}
-                  onGrantApproval={handleGrantApproval}
-                  onDenyApproval={handleDenyApproval}
-                  onRefreshApprovals={fetchPendingApprovals}
-                />
-              )}
 
               {page === "Activity Monitor" && (
                 <>
