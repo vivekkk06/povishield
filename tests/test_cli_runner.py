@@ -11,6 +11,7 @@ Asserts:
 """
 import json
 import os
+import shutil
 import signal
 import subprocess
 import tempfile
@@ -79,7 +80,8 @@ class TestCliRunner(unittest.TestCase):
 
     def test_pre_execution_policy_evaluation(self):
         """Pre-evaluates policy findings, risk scores, and attack surface reduction."""
-        decision = evaluate_execution(["/usr/bin/echo", "hello"], mode="enforce")
+        echo_bin = shutil.which("echo") or "/usr/bin/echo"
+        decision = evaluate_execution([echo_bin, "hello"], mode="enforce")
         self.assertIsInstance(decision, PolicyDecision)
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.action, "PERMIT_WITH_RESTRICTIONS")
@@ -92,7 +94,8 @@ class TestCliRunner(unittest.TestCase):
     def test_approval_required_mode_fails_closed_when_unapproved(self):
         """Unapproved commands in approval-required mode fail closed with DENIED / APPROVAL_REQUIRED."""
         # Use an unapproved command
-        decision = evaluate_execution(["/usr/bin/cat", "/dev/null"], mode="approval-required")
+        cat_bin = shutil.which("cat") or "/usr/bin/cat"
+        decision = evaluate_execution([cat_bin, "/dev/null"], mode="approval-required")
         self.assertFalse(decision.allowed)
         self.assertEqual(decision.action, "APPROVAL_REQUIRED")
         self.assertFalse(decision.approval_verified)
@@ -100,15 +103,17 @@ class TestCliRunner(unittest.TestCase):
 
     def test_approval_required_mode_permits_approved_grep(self):
         """Approved commands in approval-required mode proceed with verified approval."""
-        decision = evaluate_execution(["/usr/bin/grep", "root", "/etc/passwd"], mode="approval-required")
+        grep_bin = shutil.which("grep") or "/usr/bin/grep"
+        decision = evaluate_execution([grep_bin, "root", "/etc/passwd"], mode="approval-required")
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.action, "PERMIT_WITH_RESTRICTIONS")
         self.assertTrue(decision.approval_verified)
 
     def test_execute_permitted_process_exits_zero(self):
         """Permitted execution completes successfully with stdout captured and exit code 0."""
+        echo_bin = shutil.which("echo") or "/usr/bin/echo"
         session = execute_session(
-            command=["/usr/bin/echo", "Testing PoViShield Execution"],
+            command=[echo_bin, "Testing PoViShield Execution"],
             mode="enforce",
             timeout_seconds=5.0,
             record_events=False,
@@ -129,10 +134,13 @@ class TestCliRunner(unittest.TestCase):
         # Execute uname under echo's restrictive profile where uname syscall is absent
         echo_profile = ROOT / "results/profiles/echo.json"
         if not echo_profile.is_file():
-            self.skipTest("results/profiles/echo.json not found")
+            echo_profile = ROOT / "deploy_data/profiles/echo.json"
+        if not echo_profile.is_file():
+            self.skipTest("echo profile not found in results or deploy_data")
 
+        uname_bin = shutil.which("uname") or "/usr/bin/uname"
         session = execute_session(
-            command=["/usr/bin/uname", "-a"],
+            command=[uname_bin, "-a"],
             mode="enforce",
             explicit_profile=str(echo_profile),
             timeout_seconds=5.0,
@@ -145,8 +153,9 @@ class TestCliRunner(unittest.TestCase):
 
     def test_execute_unapproved_command_fails_closed(self):
         """Executing an unapproved command in approval-required mode terminates before process launch."""
+        cat_bin = shutil.which("cat") or "/usr/bin/cat"
         session = execute_session(
-            command=["/usr/bin/cat", "/dev/null"],
+            command=[cat_bin, "/dev/null"],
             mode="approval-required",
             timeout_seconds=5.0,
         )
@@ -168,8 +177,9 @@ class TestCliRunner(unittest.TestCase):
             self.skipTest("./povishield wrapper missing")
 
         # Test evaluate
+        echo_bin = shutil.which("echo") or "/usr/bin/echo"
         res = subprocess.run(
-            [str(WRAPPER), "evaluate", "--", "/usr/bin/echo", "test"],
+            [str(WRAPPER), "evaluate", "--", echo_bin, "test"],
             capture_output=True,
             text=True,
             timeout=5,

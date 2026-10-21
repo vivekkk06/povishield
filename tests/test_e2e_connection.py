@@ -54,6 +54,10 @@ except ImportError:
 class TestLocalTerminalTelemetry(unittest.TestCase):
     """Verifies local terminal command execution reporting and live stream fidelity."""
 
+    @classmethod
+    def setUpClass(cls):
+        db.init_db()
+
     def setUp(self):
         self.device_id = f"test_dev_{uuid.uuid4().hex[:8]}"
         self.user_id = "usr_operator"
@@ -120,7 +124,7 @@ class TestLocalTerminalTelemetry(unittest.TestCase):
         self.assertTrue(saved["is_live"])
 
         # 2. Query live events
-        events_list = db.list_live_events(limit=10)
+        events_list = db.list_live_events(device_id=self.device_id, limit=10)
         matching = [e for e in events_list if e.get("id") == event_id]
         self.assertEqual(len(matching), 1)
 
@@ -133,6 +137,10 @@ class TestLocalTerminalTelemetry(unittest.TestCase):
 
 class TestRemoteCommandConsentLifecycle(unittest.TestCase):
     """Verifies consent-gated remote execution, fail-closed denial, and execution outcome tracking."""
+
+    @classmethod
+    def setUpClass(cls):
+        db.init_db()
 
     def setUp(self):
         self.device_id = f"test_dev_{uuid.uuid4().hex[:8]}"
@@ -256,9 +264,10 @@ class TestAgentExecutionConfinement(unittest.TestCase):
 
     def test_execute_agent_task_echo(self):
         """Executing /usr/bin/echo under agent supervision must record exit code and syscalls."""
+        echo_bin = shutil.which("echo") or "/usr/bin/echo"
         task = {
             "id": f"task_{uuid.uuid4().hex[:8]}",
-            "command": ["/usr/bin/echo", "Hello from PoViShield Automated Test"],
+            "command": [echo_bin, "Hello from PoViShield Automated Test"],
             "mode": "enforce",
             "working_dir": str(ROOT)
         }

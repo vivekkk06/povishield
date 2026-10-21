@@ -1030,3 +1030,10 @@ def list_command_requests(
         return results
     finally:
         conn.close()
+
+
+# Ensure database schema is initialized on module import
+try:
+    init_db()
+except Exception:
+    pass
