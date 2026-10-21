@@ -12,6 +12,7 @@ import os
 import shutil
 import socket
 import sys
+import tempfile
 import unittest
 import uuid
 from datetime import datetime, timezone
@@ -281,6 +282,81 @@ class TestAgentExecutionConfinement(unittest.TestCase):
         self.assertIn("Hello from PoViShield Automated Test", res.get("stdout", ""))
         self.assertGreater(len(res.get("syscalls", [])), 0)
         self.assertIn("timeline", res)
+
+
+class TestDatabaseLifecycle(unittest.TestCase):
+    """Verifies SQLite schema auto-initialization, migration idempotency, and isolated test database safety."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="pvs_test_db_"))
+        self.custom_db = self.temp_dir / "isolated_povishield.db"
+        self._orig_env = os.environ.get("POVISHIELD_DB_PATH")
+        os.environ["POVISHIELD_DB_PATH"] = str(self.custom_db)
+
+    def tearDown(self):
+        if self._orig_env is not None:
+            os.environ["POVISHIELD_DB_PATH"] = self._orig_env
+        else:
+            os.environ.pop("POVISHIELD_DB_PATH", None)
+        if self.temp_dir.exists():
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_clean_database_initialization(self):
+        """A clean, non-existent database file must auto-initialize all tables, indexes, and default user."""
+        self.assertFalse(self.custom_db.exists())
+        # Opening connection triggers automatic schema initialization
+        conn = db.get_connection()
+        try:
+            self.assertTrue(self.custom_db.exists())
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            required_tables = ["users", "devices", "pairing_codes", "device_tasks", "live_events", "command_requests"]
+            for table in required_tables:
+                self.assertIn(table, tables, f"Expected table '{table}' in freshly initialized database")
+
+            # Verify default operator user was seeded
+            user = db.get_user("usr_operator")
+            self.assertIsNotNone(user)
+            self.assertEqual(user["username"], "operator")
+        finally:
+            conn.close()
+
+    def test_idempotent_initialization(self):
+        """Repeated initialization on an populated database must be idempotent and preserve existing data."""
+        test_user = f"usr_test_{uuid.uuid4().hex[:6]}"
+        db.get_or_create_user(test_user, "testuser", "test@test.local")
+
+        # Explicitly call init_db multiple times
+        db.init_db()
+        db.init_db()
+
+        user = db.get_user(test_user)
+        self.assertIsNotNone(user)
+        self.assertEqual(user["username"], "testuser")
+
+    def test_isolated_device_lifecycle(self):
+        """Device creation, retrieval, and deletion must succeed without requiring pre-existing database state."""
+        dev_id = f"dev_iso_{uuid.uuid4().hex[:8]}"
+        created = db.create_device(
+            device_id=dev_id,
+            user_id="usr_operator",
+            name="Isolated Test Device",
+            hostname="isolated.local",
+            os_info="Linux 6.11",
+            kernel_version="6.11.0",
+            arch="x86_64",
+            token_hash=f"hash_{uuid.uuid4().hex[:12]}",
+            capabilities={"seccomp_bpf": True},
+            permissions={"allow_execution": True}
+        )
+        self.assertEqual(created["id"], dev_id)
+
+        retrieved = db.get_device(dev_id)
+        self.assertIsNotNone(retrieved)
+        self.assertEqual(retrieved["name"], "Isolated Test Device")
+
+        deleted = db.delete_device(dev_id)
+        self.assertTrue(deleted)
+        self.assertIsNone(db.get_device(dev_id))
 
 
 if __name__ == "__main__":

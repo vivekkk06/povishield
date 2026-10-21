@@ -6,12 +6,13 @@ import threading
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = ROOT / "results" / "povishield.db"
 
 _LOCK = threading.RLock()
+_INITIALIZED_PATHS: Set[str] = set()
 
 
 def get_db_path() -> Path:
@@ -23,20 +24,33 @@ def get_db_path() -> Path:
     return DEFAULT_DB_PATH
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection(auto_init: bool = True) -> sqlite3.Connection:
     db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), timeout=15.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
+
+    if auto_init:
+        p_str = str(db_path)
+        if p_str not in _INITIALIZED_PATHS:
+            with _LOCK:
+                if p_str not in _INITIALIZED_PATHS:
+                    init_db(target_conn=conn)
+                    _INITIALIZED_PATHS.add(p_str)
     return conn
 
 
-def init_db() -> None:
+def init_db(target_conn: Optional[sqlite3.Connection] = None) -> None:
     """Initializes tables, indexes, and default admin user if not present."""
     with _LOCK:
-        conn = get_connection()
+        close_needed = False
+        if target_conn is not None:
+            conn = target_conn
+        else:
+            conn = get_connection(auto_init=False)
+            close_needed = True
         try:
             with conn:
                 conn.execute("""
@@ -208,7 +222,8 @@ def init_db() -> None:
                     VALUES ('usr_operator', 'operator', 'operator@povishield.local', ?);
                 """, (now,))
         finally:
-            conn.close()
+            if close_needed:
+                conn.close()
 
 
 # --- User Helpers ---
