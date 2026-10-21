@@ -30,7 +30,7 @@ if not (_main.ROOT / "build" / "povishield").is_file():
 if os.environ.get("POVISHIELD_STRICT_READ_ONLY", "0").lower() in ("1", "true", "yes"):
     _ALLOWED = re.compile(
         r"^/(?:api/(?:health|overview|experiments|events(?:/profile)?|policies(?:/compare)?|"
-        r"ablation/(?:results|noisy)|ledgers(?:/[A-Za-z0-9_.-]+(?:/audit)?)?|approvals)|health)?$"
+        r"ablation/(?:results|noisy|targets|trial|minimize)|ledgers(?:/[A-Za-z0-9_.-]+(?:/audit)?)?|approvals)|health)?$"
     )
 
     @app.middleware("http")

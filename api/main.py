@@ -226,6 +226,19 @@ class CommandResultSubmit(BaseModel):
     syscalls: Optional[list[str]] = None
 
 
+class AblationTrialRequest(BaseModel):
+    command: list[str] = Field(description="Command line arguments for workload")
+    ablated_syscall: str = Field(description="Single system call permission to withhold")
+    target_name: Optional[str] = Field(default=None, description="Optional target binary name")
+    timeout_seconds: Optional[float] = Field(default=10.0, description="Trial execution timeout")
+    allowed_syscalls: Optional[list[str]] = Field(default=None, description="Optional base allowed syscalls set")
+
+
+class AblationMinimizeRequest(BaseModel):
+    target: str = Field(description="Target program to ablate")
+    strategy: Optional[str] = Field(default="loo", description="Strategy: 'loo' or 'minimize'")
+
+
 # --- Real-Time Connection Manager & Secret Redaction ---
 
 SENSITIVE_PATTERNS = [
@@ -1845,6 +1858,182 @@ def ablation_noisy_results():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read noisy ablation results: {e}")
+
+
+@app.post("/api/ablation/trial")
+def run_ablation_trial_endpoint(payload: AblationTrialRequest):
+    """Executes a single leave-one-out counterfactual ablation trial.
+
+    Tests if removing a specific system call breaks legitimate workload behavior
+    under SCMP_ACT_KILL_PROCESS semantics.
+    """
+    cmd = [str(arg) for arg in payload.command if str(arg).strip()]
+    if not cmd:
+        raise HTTPException(status_code=400, detail="Command cannot be empty")
+    ablated_sc = payload.ablated_syscall.strip().lower()
+    if not ablated_sc:
+        raise HTTPException(status_code=400, detail="Ablated syscall cannot be empty")
+
+    target_name = payload.target_name or Path(cmd[0]).name
+    start_time = time.time()
+
+    try:
+        from analysis.ablate import run_workload
+        from analysis.common import load_profile, save_profile
+        from analysis.runner import find_profile_for_target
+        from analysis.ledger import sha256_bytes
+
+        # 1. Resolve candidate syscalls
+        if payload.allowed_syscalls:
+            base_syscalls = {str(s).strip().lower() for s in payload.allowed_syscalls if str(s).strip()}
+            if ablated_sc not in base_syscalls:
+                base_syscalls.add(ablated_sc)
+        else:
+            prof_path = find_profile_for_target(target_name)
+            if prof_path and prof_path.is_file():
+                base_syscalls = load_profile(prof_path)
+            else:
+                base_syscalls = {
+                    "execve", "brk", "arch_prctl", "mmap", "access", "openat",
+                    "newfstatat", "close", "read", "write", "fstat", "exit_group"
+                }
+                if ablated_sc not in base_syscalls:
+                    base_syscalls.add(ablated_sc)
+
+        cand_syscalls = set(base_syscalls) - {ablated_sc}
+
+        # 2. Run reference baseline natively
+        ref_rc, ref_out, ref_err = run_workload(cmd, profile_path=None, timeout=payload.timeout_seconds or 10.0)
+
+        # 3. Run candidate under seccomp without ablated_sc
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            trial_prof = tmp_dir / f"trial_without_{ablated_sc}.json"
+            save_profile(trial_prof, cand_syscalls, command=target_name)
+
+            cand_rc, cand_out, cand_err = run_workload(cmd, profile_path=trial_prof, timeout=payload.timeout_seconds or 10.0)
+
+        duration_ms = round((time.time() - start_time) * 1000.0, 2)
+        is_sigsys = cand_rc in (-31, 159)
+        signal_name = "SIGSYS" if is_sigsys else (f"SIG_{abs(cand_rc)}" if cand_rc < 0 and cand_rc != -999 else "NONE")
+        out_diverged = (cand_out != ref_out)
+
+        # Conservative least-privilege classification
+        if is_sigsys:
+            verdict = "REQUIRED"
+            reason = f"Process terminated by Linux kernel via SIGSYS (withheld '{ablated_sc}' was invoked)"
+        elif cand_rc != ref_rc:
+            verdict = "REQUIRED"
+            reason = f"Exit code diverged: expected {ref_rc}, got {cand_rc} when withholding '{ablated_sc}'"
+        elif out_diverged:
+            verdict = "REQUIRED"
+            reason = f"Standard output diverged from baseline when withholding '{ablated_sc}'"
+        else:
+            verdict = "REMOVABLE"
+            reason = f"Workload completed identically without '{ablated_sc}' (exit {cand_rc}, matching output). Extraneous permission safe to prune."
+
+        repro_cmd = f"povishield enforce -p <(echo '{json.dumps(sorted(list(cand_syscalls)))}') -- {' '.join(cmd)}"
+
+        return {
+            "target": target_name,
+            "command": cmd,
+            "ablated_syscall": ablated_sc,
+            "verdict": verdict,
+            "is_load_bearing": (verdict == "REQUIRED"),
+            "is_sigsys": is_sigsys,
+            "signal": signal_name,
+            "reason": reason,
+            "ref_exit_code": ref_rc,
+            "cand_exit_code": cand_rc,
+            "duration_ms": duration_ms,
+            "base_syscalls": sorted(list(base_syscalls)),
+            "candidate_syscalls": sorted(list(cand_syscalls)),
+            "candidate_syscalls_count": len(cand_syscalls),
+            "ref_stdout_hash": sha256_bytes(ref_out)[:16] if ref_out else "empty",
+            "cand_stdout_hash": sha256_bytes(cand_out)[:16] if cand_out else "empty",
+            "cand_stdout": cand_out.decode("utf-8", errors="replace")[:1000],
+            "cand_stderr": cand_err.decode("utf-8", errors="replace")[:1000],
+            "reproduction_command": repro_cmd,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Ablation trial execution error: {exc}")
+
+
+@app.get("/api/ablation/targets")
+def list_ablation_targets():
+    """Lists available benchmark targets with baseline, noisy, and counterfactual metrics."""
+    res_path = RESULTS / "ablation_eval.json"
+    if not res_path.is_file():
+        res_path = ROOT / "deploy_data" / "ablation_eval.json"
+
+    targets_dict = {}
+    if res_path.is_file():
+        try:
+            d = json.loads(res_path.read_text(encoding="utf-8"))
+            for t in d.get("targets", []):
+                name = t.get("target")
+                if name:
+                    targets_dict[name] = t
+        except Exception:
+            pass
+
+    # Enrich with noisy data if available
+    noisy_path = RESULTS / "noisy_ablation_eval.json"
+    if not noisy_path.is_file():
+        noisy_path = ROOT / "deploy_data" / "noisy_ablation_eval.json"
+
+    if noisy_path.is_file():
+        try:
+            nd = json.loads(noisy_path.read_text(encoding="utf-8"))
+            for nt in nd.get("targets", []):
+                name = nt.get("target")
+                if name:
+                    if name in targets_dict:
+                        targets_dict[name]["noisy"] = nt
+                    else:
+                        targets_dict[name] = {"target": name, "noisy": nt}
+        except Exception:
+            pass
+
+    targets_data = list(targets_dict.values())
+    return {"targets": targets_data, "count": len(targets_data)}
+
+
+@app.post("/api/ablation/minimize")
+def run_ablation_minimize_endpoint(payload: AblationMinimizeRequest):
+    """Retrieves or performs minimization results for the specified target."""
+    target = payload.target.strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="Target name cannot be empty")
+
+    res_path = RESULTS / "ablation_eval.json"
+    if not res_path.is_file():
+        res_path = ROOT / "deploy_data" / "ablation_eval.json"
+
+    target_data = None
+    if res_path.is_file():
+        try:
+            d = json.loads(res_path.read_text(encoding="utf-8"))
+            for t in d.get("targets", []):
+                if t.get("target") == target:
+                    target_data = t
+                    break
+        except Exception:
+            pass
+
+    if target_data:
+        return {
+            "target": target,
+            "strategy": payload.strategy,
+            "status": "completed",
+            "result": target_data,
+            "cached": True,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    raise HTTPException(status_code=404, detail=f"Target '{target}' not found in benchmark catalog")
 
 
 @app.get("/api/ledgers")
