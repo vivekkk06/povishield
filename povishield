@@ -49,6 +49,9 @@ Usage:
   povishield hook [install|status]
       Install or check shell integration hook to audit all local PC terminal commands
 
+  povishield trial TARGET SYSCALL [-- CMD...]
+      Reproduce any empirical leave-one-out permission trial under kernel seccomp (alias: repro)
+
 Low-level commands:
   povishield learn   [-o profile.json] [--events events.jsonl] -- CMD...
       Trace CMD using ptrace and generate observed syscall profile
@@ -158,7 +161,7 @@ case "$CMD" in
         esac
         exit 0
         ;;
-    run|evaluate|list|shell)
+    run|evaluate|list|shell|trial|repro)
         if [ -f "${SCRIPT_DIR}/analysis/runner.py" ]; then
             PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}" exec python3 -m analysis.runner "$CMD" "$@"
         else

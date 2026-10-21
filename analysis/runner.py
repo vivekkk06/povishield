@@ -37,10 +37,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 if __package__ is None or __package__ == "":
     ROOT = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(ROOT))
-    from analysis.common import BIN, total_syscalls
+    from analysis.common import BIN, total_syscalls, load_profile, save_profile
     from analysis.risk import CRITICAL, HIGH, LOW, MEDIUM, risk_pct, weight
 else:
-    from .common import BIN, total_syscalls
+    from .common import BIN, total_syscalls, load_profile, save_profile
     from .risk import CRITICAL, HIGH, LOW, MEDIUM, risk_pct, weight
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -989,6 +989,101 @@ def run_interactive_shell(mode: str = "enforce") -> int:
     return 0
 
 
+def run_trial(
+    target_name: str,
+    ablated_syscall: str,
+    command: Optional[List[str]] = None,
+    explicit_profile: Optional[str] = None
+) -> int:
+    """Executes a single empirical leave-one-out permission trial.
+
+    Withholds `ablated_syscall` under Linux seccomp (SCMP_ACT_KILL_PROCESS)
+    to prove whether the system call is load-bearing or removable.
+    """
+    target = target_name.strip().lower()
+    syscall = ablated_syscall.strip().lower()
+
+    if not command:
+        defaults = {
+            "cat": ["/usr/bin/cat", "/etc/hostname"],
+            "echo": ["/usr/bin/echo", "Hello from PoViShield"],
+            "grep": ["/usr/bin/grep", "-i", "root", "/etc/passwd"],
+            "ls": ["/usr/bin/ls", "-la", "/tmp"],
+            "gzip": ["/usr/bin/gzip", "--version"],
+            "python3": ["/usr/bin/python3", "-c", "import os; print(os.getpid())"],
+            "python_cpu": ["/usr/bin/python3", "-c", "import os; print(os.getpid())"],
+            "sort": ["/usr/bin/sort", "--version"],
+        }
+        cmd = defaults.get(target)
+        if not cmd:
+            bin_path = shutil.which(target) or f"/usr/bin/{target}"
+            cmd = [bin_path, "--help"]
+    else:
+        cmd = command
+
+    # Ensure povishield binary is built
+    if not BIN.is_file():
+        subprocess.run(["make", "-C", str(ROOT), "all"], check=True)
+
+    # Resolve baseline profile
+    prof_path = find_profile_for_target(target, explicit_profile=explicit_profile)
+    if prof_path and prof_path.is_file():
+        base_syscalls = load_profile(prof_path)
+    else:
+        base_syscalls = {
+            "execve", "brk", "arch_prctl", "mmap", "access", "openat",
+            "newfstatat", "close", "read", "write", "fstat", "exit_group"
+        }
+    if syscall not in base_syscalls:
+        base_syscalls.add(syscall)
+
+    cand_syscalls = sorted(set(base_syscalls) - {syscall})
+
+    # Save to persistent trial profiles directory so it never goes missing
+    trial_dir = ROOT / "results" / "profiles" / "trials"
+    trial_dir.mkdir(parents=True, exist_ok=True)
+    trial_prof = trial_dir / f"{target}_without_{syscall}.json"
+    save_profile(trial_prof, cand_syscalls, command=target, schema=1)
+
+    # Also save to /tmp for easy manual runs
+    tmp_prof = Path(f"/tmp/test_without_{syscall}.json")
+    save_profile(tmp_prof, cand_syscalls, command=target, schema=1)
+
+    print(f"\n╔══════════════════════════════════════════════════════════════════════════════╗")
+    print(f"║          PoViShield Empirical Leave-One-Out (LOO) Trial                      ║")
+    print(f"╚══════════════════════════════════════════════════════════════════════════════╝")
+    print(f"  Target Program      : {target}")
+    print(f"  Ablated System Call : {syscall} (WITHHELD)")
+    print(f"  Baseline Allowed    : {len(base_syscalls)} syscalls")
+    print(f"  Candidate Allowed   : {len(cand_syscalls)} syscalls")
+    print(f"  Trial Profile       : {trial_prof}")
+    print(f"  Workload Command    : {' '.join(cmd)}")
+    print(f"  Enforcement Engine  : Linux seccomp-bpf (SCMP_ACT_KILL_PROCESS)\n")
+
+    # Run workload under seccomp enforcement
+    enforce_cmd = [str(BIN), "enforce", "-p", str(trial_prof), "--"] + cmd
+    res = subprocess.run(enforce_cmd)
+
+    # Check outcome
+    is_sigsys = res.returncode in (-31, 159, 128 + 31)
+    if is_sigsys:
+        print(f"\n  \033[91;1m[VERDICT: REQUIRED / LOAD-BEARING]\033[0m")
+        print(f"  Kernel Action : SCMP_ACT_KILL_PROCESS -> Terminated with SIGSYS (exit 159)")
+        print(f"  Proof         : Target '{target}' cannot execute without '{syscall}'.")
+        print(f"                  Necessity mathematically verified under empirical challenge.\n")
+        return 159
+    elif res.returncode != 0:
+        print(f"\n  \033[93;1m[VERDICT: REQUIRED / FAILED]\033[0m")
+        print(f"  Exit Code     : Diverged to {res.returncode}")
+        print(f"  Proof         : Target failed when withholding '{syscall}'. Retained in active policy.\n")
+        return res.returncode
+    else:
+        print(f"\n  \033[92;1m[VERDICT: REMOVABLE / EXTRANEOUS]\033[0m")
+        print(f"  Exit Code     : Clean exit 0 with matching output")
+        print(f"  Proof         : Target succeeded without '{syscall}'. Safe to prune from attack surface.\n")
+        return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="povishield",
@@ -1017,8 +1112,17 @@ def main() -> int:
     eval_parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to evaluate after '--'")
 
     # List subcommand
+    # List subcommand
     list_parser = subparsers.add_parser("list", help="List recent execution sessions")
     list_parser.add_argument("--limit", type=int, default=20, help="Number of sessions to show")
+
+    # Trial / Repro subcommand
+    for sub_name in ("trial", "repro"):
+        t_parser = subparsers.add_parser(sub_name, help="Run empirical leave-one-out permission trial under kernel seccomp")
+        t_parser.add_argument("target", help="Target program name, e.g. cat, echo, grep, ls")
+        t_parser.add_argument("syscall", help="System call permission to withhold, e.g. access, mount, write")
+        t_parser.add_argument("--profile", "-p", help="Explicit base profile path")
+        t_parser.add_argument("command", nargs=argparse.REMAINDER, help="Optional workload command after '--'")
 
     args = parser.parse_args()
 
@@ -1028,6 +1132,17 @@ def main() -> int:
 
     if args.subcommand == "shell":
         return run_interactive_shell(mode=args.mode)
+
+    if args.subcommand in ("trial", "repro"):
+        raw_cmd = args.command
+        if raw_cmd and raw_cmd[0] == "--":
+            raw_cmd = raw_cmd[1:]
+        return run_trial(
+            target_name=args.target,
+            ablated_syscall=args.syscall,
+            command=raw_cmd or None,
+            explicit_profile=args.profile,
+        )
 
     if args.subcommand == "list":
         sessions = list_sessions(limit=args.limit)

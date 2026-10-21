@@ -3858,16 +3858,23 @@ function App() {
 
                         <div>
                           <span style={{ fontSize: 10, color: "#8292a8" }}>Independent Reproduction Command (CLI)</span>
-                          <div className="reproduce-box">
-                            <button
-                              className="copy-btn"
-                              onClick={() => copyToClipboard(selectedTrial.reproduce_cmd)}
-                            >
-                              {copiedCmd ? <Check size={13} style={{ color: "#45d6a5" }} /> : <Copy size={13} />}
-                              {copiedCmd ? "Copied" : "Copy CLI"}
-                            </button>
-                            <pre className="reproduce-code">{selectedTrial.reproduce_cmd}</pre>
-                          </div>
+                          {(() => {
+                            const cmd = selectedTrial.reproduce_cmd && !selectedTrial.reproduce_cmd.includes("/tmp/ps-ablate-")
+                              ? selectedTrial.reproduce_cmd
+                              : `./povishield trial ${selectedTrial.target} ${selectedTrial.ablated_syscall} -- ${selectedTrial.workload_str || (selectedTrial.workload || []).join(" ")}`;
+                            return (
+                              <div className="reproduce-box">
+                                <button
+                                  className="copy-btn"
+                                  onClick={() => copyToClipboard(cmd)}
+                                >
+                                  {copiedCmd ? <Check size={13} style={{ color: "#45d6a5" }} /> : <Copy size={13} />}
+                                  {copiedCmd ? "Copied" : "Copy CLI"}
+                                </button>
+                                <pre className="reproduce-code">{cmd}</pre>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         <div className="fingerprint-grid">
